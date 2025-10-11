@@ -474,7 +474,7 @@ class ItemEntryView(discord.ui.View):
 	    slot_str = " ".join(self.slot)
 	    donor = self.donated_by or "Anonymous"
 	    added_by = str(interaction.user)
-        created_at1 = datetime.datetime.utcnow()
+        
 	
 	    # Base fields to update/add
 	    fields_to_update = {
