@@ -489,7 +489,7 @@ class ItemEntryView(discord.ui.View):
 	        "race": race_str,
 	        "donated_by": donor,
 	        "added_by": added_by,
-			"created_at1":created_at1
+			
 	    }
 	
 	    # Only include relevant fields per item type
@@ -779,7 +779,7 @@ class ImageDetailsModal(discord.ui.Modal):
         donated_by = self.donated_by.value or "Anonymous"
 		
         added_by = str(modal_interaction.user)
-        created_at1= datetime.datetime.utcnow()
+        
 
         upload_channel = await ensure_upload_channel(modal_interaction.guild)
           
@@ -835,7 +835,7 @@ class ImageDetailsModal(discord.ui.Modal):
                 donated_by=donated_by,
                 image=image_url,
                 added_by=added_by,
-				created_at1=created_at1,
+				,
 				
             )
             await modal_interaction.response.send_message(f"✅ Updated **{item_name}**.", ephemeral=True)
@@ -855,7 +855,7 @@ class ImageDetailsModal(discord.ui.Modal):
                 donated_by=donated_by,
                 qty=1,
                 added_by=added_by,
-				created_at1=created_at1,
+				
                 upload_message_id=message.id
 				
             )
