@@ -488,7 +488,7 @@ class ItemEntryView(discord.ui.View):
 	        "classes": classes_str,
 	        "race": race_str,
 	        "donated_by": donor,
-	        "added_by": added_by
+	        "added_by": added_by,
 			"created_at1":created_at1
 	    }
 	
