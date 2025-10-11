@@ -54,6 +54,7 @@ intents.messages = True
 bot = commands.Bot(command_prefix="!", intents=intents)
 db_pool: asyncpg.Pool = None
 
+
 # ---------- DB Helpers ----------
 
 async def ensure_upload_channel(guild: discord.Guild):
