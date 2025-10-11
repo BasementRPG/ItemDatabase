@@ -388,7 +388,7 @@ class ItemEntryView(discord.ui.View):
         self.delay = ""
         self.effects = ""
         self.ac = ""
-        self.created_at1=datetime.datetime.utcnow()
+        self.created_at1= ""
         self.is_edit=is_edit
 
         # preload existing if editing
@@ -407,7 +407,7 @@ class ItemEntryView(discord.ui.View):
             self.donated_by = existing_data['donated_by']
             self.usable_classes = existing_data['classes'].split(" ") if existing_data['classes'] else []
             self.usable_race = existing_data['race'].split(" ") if existing_data['race'] else []
-            
+			
 
         if self.type in ["Crafting","Consumable","Misc"]:
             self.subtype_select = SubtypeSelect(self)
@@ -725,7 +725,7 @@ class ItemEntryView(discord.ui.View):
 	                effects=self.effects,
 	                ac=self.ac,
 	                upload_message_id=message.id,
-					
+					created_at1 = "datetime.datetime.utcnow()"
 	            )
 	
 	            embed = discord.Embed(title=f"{self.item_name}", color=discord.Color.blue())
