@@ -388,6 +388,7 @@ class ItemEntryView(discord.ui.View):
         self.delay = ""
         self.effects = ""
         self.ac = ""
+		self.created_at1 = datetime.datetime.utcnow()
         self.is_edit=is_edit
 
         # preload existing if editing
@@ -772,6 +773,7 @@ class ImageDetailsModal(discord.ui.Modal):
     async def on_submit(self, modal_interaction: discord.Interaction):
         item_name = self.item_name.value
         donated_by = self.donated_by.value or "Anonymous"
+	
         added_by = str(modal_interaction.user)
 
         upload_channel = await ensure_upload_channel(modal_interaction.guild)
@@ -827,7 +829,8 @@ class ImageDetailsModal(discord.ui.Modal):
                 name=item_name,
                 donated_by=donated_by,
                 image=image_url,
-                added_by=added_by
+                added_by=added_by,
+				created_at1 = datetime.datetime.utcnow()
             )
             await modal_interaction.response.send_message(f"✅ Updated **{item_name}**.", ephemeral=True)
         else:
@@ -847,6 +850,7 @@ class ImageDetailsModal(discord.ui.Modal):
                 qty=1,
                 added_by=added_by,
                 upload_message_id=message.id
+				
             )
             await modal_interaction.response.send_message(
                 f"✅ Image item **{item_name}** added to the guild bank!", ephemeral=True
