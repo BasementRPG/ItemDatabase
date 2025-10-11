@@ -407,6 +407,7 @@ class ItemEntryView(discord.ui.View):
             self.donated_by = existing_data['donated_by']
             self.usable_classes = existing_data['classes'].split(" ") if existing_data['classes'] else []
             self.usable_race = existing_data['race'].split(" ") if existing_data['race'] else []
+            self.created_at1 = existing_data[datetime.datetime.utcnow()]
 
         if self.type in ["Crafting","Consumable","Misc"]:
             self.subtype_select = SubtypeSelect(self)
