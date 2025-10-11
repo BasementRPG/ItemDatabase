@@ -75,9 +75,9 @@ async def ensure_upload_channel(guild: discord.Guild):
 async def add_item_db(guild_id, upload_message_id, name, type, subtype=None, size=None, slot=None, stats=None, weight=None,classes=None, race=None, image=None, donated_by=None, qty=None, added_by=None, attack=None, delay=None,effects=None, ac=None, created_images=None):
     async with db_pool.acquire() as conn:
         await conn.execute('''
-            INSERT INTO inventory (guild_id, upload_message_id, name, size, type, subtype, slot, stats, weight, classes, race, image, donated_by, qty, added_by, attack, delay, effects, ac, created_images, created_at1)
-            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21)
-        ''', guild_id, upload_message_id, name, size, type, subtype, slot, stats, weight, classes, race, image, donated_by, qty, added_by, attack, delay, effects, ac, created_images, created_at1)
+            INSERT INTO inventory (guild_id, upload_message_id, name, size, type, subtype, slot, stats, weight, classes, race, image, donated_by, qty, added_by, created_by, attack, delay, effects, ac, created_images)
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20)
+        ''', guild_id, upload_message_id, name, size, type, subtype, slot, stats, weight, classes, race, image, donated_by, qty, added_by, created_by, attack, delay, effects, ac, created_images)
 
 
 async def get_all_items(guild_id):
@@ -388,7 +388,6 @@ class ItemEntryView(discord.ui.View):
         self.delay = ""
         self.effects = ""
         self.ac = ""
-        self.created_at1= ""
         self.is_edit=is_edit
 
         # preload existing if editing
@@ -468,12 +467,14 @@ class ItemEntryView(discord.ui.View):
 
 
     async def submit_item(self, interaction: discord.Interaction):
+
 	    # Convert lists to space-separated strings
 	    classes_str = " ".join(self.usable_classes)
 	    race_str = " ".join(self.usable_race)
 	    slot_str = " ".join(self.slot)
 	    donor = self.donated_by or "Anonymous"
 	    added_by = str(interaction.user)
+		created_at1 = datetime.datetime.utcnow()
 	
 	    # Base fields to update/add
 	    fields_to_update = {
@@ -488,6 +489,7 @@ class ItemEntryView(discord.ui.View):
 	        "race": race_str,
 	        "donated_by": donor,
 	        "added_by": added_by
+			"created_at1":created_at1
 	    }
 	
 	    # Only include relevant fields per item type
@@ -720,12 +722,12 @@ class ItemEntryView(discord.ui.View):
 	                donated_by=self.donated_by,
 	                qty=1,
 	                added_by=str(interaction.user),
+					created_at=datetime.datetime.utcnow(),
 	                attack=self.attack,
 	                delay=self.delay,
 	                effects=self.effects,
 	                ac=self.ac,
 	                upload_message_id=message.id,
-					created_at1 = "datetime.datetime.utcnow()"
 	            )
 	
 	            embed = discord.Embed(title=f"{self.item_name}", color=discord.Color.blue())
@@ -777,6 +779,7 @@ class ImageDetailsModal(discord.ui.Modal):
         donated_by = self.donated_by.value or "Anonymous"
 		
         added_by = str(modal_interaction.user)
+		created_at1= datetime.datetime.utcnow()
 
         upload_channel = await ensure_upload_channel(modal_interaction.guild)
           
@@ -832,6 +835,7 @@ class ImageDetailsModal(discord.ui.Modal):
                 donated_by=donated_by,
                 image=image_url,
                 added_by=added_by,
+				created_at1=created_at1,
 				
             )
             await modal_interaction.response.send_message(f"✅ Updated **{item_name}**.", ephemeral=True)
@@ -851,6 +855,7 @@ class ImageDetailsModal(discord.ui.Modal):
                 donated_by=donated_by,
                 qty=1,
                 added_by=added_by,
+				created_at1=created_at1,
                 upload_message_id=message.id
 				
             )
