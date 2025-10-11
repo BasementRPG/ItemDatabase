@@ -724,7 +724,8 @@ class ItemEntryView(discord.ui.View):
 	                delay=self.delay,
 	                effects=self.effects,
 	                ac=self.ac,
-	                upload_message_id=message.id
+	                upload_message_id=message.id,
+					created_at1= self.created_at1 = datetime.datetime.utcnow()
 	            )
 	
 	            embed = discord.Embed(title=f"{self.item_name}", color=discord.Color.blue())
