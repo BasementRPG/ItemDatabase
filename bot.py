@@ -725,7 +725,7 @@ class ItemEntryView(discord.ui.View):
 	                effects=self.effects,
 	                ac=self.ac,
 	                upload_message_id=message.id,
-					created_at1= datetime.datetime.utcnow()
+					created_at1= self.created_at1
 	            )
 	
 	            embed = discord.Embed(title=f"{self.item_name}", color=discord.Color.blue())
@@ -775,7 +775,7 @@ class ImageDetailsModal(discord.ui.Modal):
     async def on_submit(self, modal_interaction: discord.Interaction):
         item_name = self.item_name.value
         donated_by = self.donated_by.value or "Anonymous"
-		created_at1 = datetime.datetime.utcnow()
+		
         added_by = str(modal_interaction.user)
 
         upload_channel = await ensure_upload_channel(modal_interaction.guild)
