@@ -388,7 +388,7 @@ class ItemEntryView(discord.ui.View):
         self.delay = ""
         self.effects = ""
         self.ac = ""
-		self.created_at1 = datetime.datetime.utcnow()
+        self.created_at1 = datetime.datetime.utcnow()
         self.is_edit=is_edit
 
         # preload existing if editing
