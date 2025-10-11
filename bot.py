@@ -54,7 +54,6 @@ intents.messages = True
 bot = commands.Bot(command_prefix="!", intents=intents)
 db_pool: asyncpg.Pool = None
 
-
 # ---------- DB Helpers ----------
 
 async def ensure_upload_channel(guild: discord.Guild):
@@ -75,9 +74,9 @@ async def ensure_upload_channel(guild: discord.Guild):
 async def add_item_db(guild_id, upload_message_id, name, type, subtype=None, size=None, slot=None, stats=None, weight=None,classes=None, race=None, image=None, donated_by=None, qty=None, added_by=None, attack=None, delay=None,effects=None, ac=None, created_images=None):
     async with db_pool.acquire() as conn:
         await conn.execute('''
-            INSERT INTO inventory (guild_id, upload_message_id, name, size, type, subtype, slot, stats, weight, classes, race, image, donated_by, qty, added_by, created_by, attack, delay, effects, ac, created_images)
+            INSERT INTO inventory (guild_id, upload_message_id, name, size, type, subtype, slot, stats, weight, classes, race, image, donated_by, qty, added_by, attack, delay, effects, ac, created_images)
             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20)
-        ''', guild_id, upload_message_id, name, size, type, subtype, slot, stats, weight, classes, race, image, donated_by, qty, added_by, created_by, attack, delay, effects, ac, created_images)
+        ''', guild_id, upload_message_id, name, size, type, subtype, slot, stats, weight, classes, race, image, donated_by, qty, added_by, attack, delay, effects, ac, created_images)
 
 
 async def get_all_items(guild_id):
@@ -406,7 +405,6 @@ class ItemEntryView(discord.ui.View):
             self.donated_by = existing_data['donated_by']
             self.usable_classes = existing_data['classes'].split(" ") if existing_data['classes'] else []
             self.usable_race = existing_data['race'].split(" ") if existing_data['race'] else []
-			
 
         if self.type in ["Crafting","Consumable","Misc"]:
             self.subtype_select = SubtypeSelect(self)
@@ -467,14 +465,12 @@ class ItemEntryView(discord.ui.View):
 
 
     async def submit_item(self, interaction: discord.Interaction):
-
 	    # Convert lists to space-separated strings
 	    classes_str = " ".join(self.usable_classes)
 	    race_str = " ".join(self.usable_race)
 	    slot_str = " ".join(self.slot)
 	    donor = self.donated_by or "Anonymous"
 	    added_by = str(interaction.user)
-        
 	
 	    # Base fields to update/add
 	    fields_to_update = {
@@ -488,8 +484,7 @@ class ItemEntryView(discord.ui.View):
 	        "classes": classes_str,
 	        "race": race_str,
 	        "donated_by": donor,
-	        "added_by": added_by,
-			
+	        "added_by": added_by
 	    }
 	
 	    # Only include relevant fields per item type
@@ -722,12 +717,11 @@ class ItemEntryView(discord.ui.View):
 	                donated_by=self.donated_by,
 	                qty=1,
 	                added_by=str(interaction.user),
-					created_at=datetime.datetime.utcnow(),
 	                attack=self.attack,
 	                delay=self.delay,
 	                effects=self.effects,
 	                ac=self.ac,
-	                upload_message_id=message.id,
+	                upload_message_id=message.id
 	            )
 	
 	            embed = discord.Embed(title=f"{self.item_name}", color=discord.Color.blue())
@@ -777,9 +771,7 @@ class ImageDetailsModal(discord.ui.Modal):
     async def on_submit(self, modal_interaction: discord.Interaction):
         item_name = self.item_name.value
         donated_by = self.donated_by.value or "Anonymous"
-		
         added_by = str(modal_interaction.user)
-        
 
         upload_channel = await ensure_upload_channel(modal_interaction.guild)
           
@@ -834,9 +826,7 @@ class ImageDetailsModal(discord.ui.Modal):
                 name=item_name,
                 donated_by=donated_by,
                 image=image_url,
-                added_by=added_by,
-				,
-				
+                added_by=added_by
             )
             await modal_interaction.response.send_message(f"✅ Updated **{item_name}**.", ephemeral=True)
         else:
@@ -855,9 +845,7 @@ class ImageDetailsModal(discord.ui.Modal):
                 donated_by=donated_by,
                 qty=1,
                 added_by=added_by,
-				
                 upload_message_id=message.id
-				
             )
             await modal_interaction.response.send_message(
                 f"✅ Image item **{item_name}** added to the guild bank!", ephemeral=True
