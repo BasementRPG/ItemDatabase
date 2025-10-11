@@ -76,7 +76,7 @@ async def add_item_db(guild_id, upload_message_id, name, type, subtype=None, siz
     async with db_pool.acquire() as conn:
         await conn.execute('''
             INSERT INTO inventory (guild_id, upload_message_id, name, size, type, subtype, slot, stats, weight, classes, race, image, donated_by, qty, added_by, attack, delay, effects, ac, created_images, created_at1)
-            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, NOW())
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21)
         ''', guild_id, upload_message_id, name, size, type, subtype, slot, stats, weight, classes, race, image, donated_by, qty, added_by, attack, delay, effects, ac, created_images, created_at1)
 
 
@@ -388,7 +388,7 @@ class ItemEntryView(discord.ui.View):
         self.delay = ""
         self.effects = ""
         self.ac = ""
-        self.created_at1 = datetime.datetime.utcnow()
+        self.1 = datetime.datetime.utcnow()
         self.is_edit=is_edit
 
         # preload existing if editing
@@ -407,7 +407,7 @@ class ItemEntryView(discord.ui.View):
             self.donated_by = existing_data['donated_by']
             self.usable_classes = existing_data['classes'].split(" ") if existing_data['classes'] else []
             self.usable_race = existing_data['race'].split(" ") if existing_data['race'] else []
-            self.created_at1 = existing_data[datetime.datetime.utcnow()]
+            
 
         if self.type in ["Crafting","Consumable","Misc"]:
             self.subtype_select = SubtypeSelect(self)
@@ -832,7 +832,7 @@ class ImageDetailsModal(discord.ui.Modal):
                 donated_by=donated_by,
                 image=image_url,
                 added_by=added_by,
-				created_at1 = datetime.datetime.utcnow()
+				
             )
             await modal_interaction.response.send_message(f"✅ Updated **{item_name}**.", ephemeral=True)
         else:
