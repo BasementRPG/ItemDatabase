@@ -659,7 +659,7 @@ class ItemEntryView(discord.ui.View):
 	
 	            fields_to_update["created_images"] = cdn_url
 	            fields_to_update["upload_message_id"] = message.id
-	            fields_to_update["created_at1"] = datetime.datetime.utcnow()
+	            fields_to_update["created_at1"] = datetime.utcnow()
 	
 	            await update_item_db(
 	                guild_id=interaction.guild.id,
