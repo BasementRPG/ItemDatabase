@@ -3,7 +3,7 @@ import discord
 from discord import app_commands
 from discord.ext import commands
 from discord.ui import Modal, TextInput
-import datetime from datetime
+from datetime import datetime
 import asyncpg 
 from PIL import Image, ImageDraw, ImageFont
 import aiohttp
