@@ -682,80 +682,87 @@ class ItemEntryView(discord.ui.View):
 	
 	        return background
 	
-	    async with self.db_pool.acquire() as conn:
-	        if self.item_id:
-	            old_item = await conn.fetchrow(
-	                "SELECT id, created_images, upload_message_id FROM inventory WHERE id=$1",
-	                self.item_id
-	            )
 	
-	            if old_item and old_item['upload_message_id']:
-	                try:
-	                    upload_channel = await ensure_upload_channel(interaction.guild)
-	                    old_msg = await upload_channel.fetch_message(old_item['upload_message_id'])
-	                    await old_msg.delete()
-	                except discord.NotFound:
-	                    pass
-               
+        async with self.db_pool.acquire() as conn:
+            if self.item_id:
+                old_item = await conn.fetchrow(
+                    "SELECT id, created_images, upload_message_id FROM inventory WHERE id=$1",
+                    self.item_id
+                )
+        
+                if old_item and old_item['upload_message_id']:
+                    try:
+                        upload_channel = await ensure_upload_channel(interaction.guild)
+                        old_msg = await upload_channel.fetch_message(old_item['upload_message_id'])
+                        await old_msg.delete()
+                    except discord.NotFound:
+                        pass
+        
+                # Get the correct background (template or default)
                 bg_path = await get_item_background(interaction.guild.id, self.type, current_template)
-                    if bg_path.startswith("http"):
-                        # Download image from Discord CDN
-                        response = requests.get(bg_path)
-                        background = Image.open(io.BytesIO(response.content)).convert("RGBA")
-                    else:
-                        # Load local asset fallback
-                        background = Image.open(bg_path).convert("RGBA")
+                if bg_path.startswith("http"):
+                    # Download image from Discord CDN
+                    response = requests.get(bg_path)
+                    background = Image.open(io.BytesIO(response.content)).convert("RGBA")
+                else:
+                    # Load local asset fallback
+                    background = Image.open(bg_path).convert("RGBA")
+        
+                # Draw text and details on the background
+                background = draw_item_text(
+                    background,
+                    self.item_name,
+                    self.type,
+                    self.subtype,
+                    self.size,
+                    self.slot,
+                    self.stats,
+                    self.weight,
+                    self.effects,
+                    self.donated_by
+                )
+        
+                created_images = io.BytesIO()
+                background.save(created_images, format="PNG")
+                created_images.seek(0)
+        
+                upload_channel = await ensure_upload_channel(interaction.guild)
+                file = discord.File(created_images, filename=f"{self.item_name}.png")
+                message = await upload_channel.send(file=file, content=f"Created by {added_by}")
+                cdn_url = message.attachments[0].url
+        
+                fields_to_update["created_images"] = cdn_url
+                fields_to_update["upload_message_id"] = message.id
+                fields_to_update["created_at1"] = datetime.utcnow()
+        
+                await update_item_db(
+                    guild_id=interaction.guild.id,
+                    item_id=self.item_id,
+                    **fields_to_update
+                )
+        
+                embed = discord.Embed(title=f"{self.item_name}", color=discord.Color.blue())
+                embed.set_image(url=cdn_url)
+        
+                await interaction.response.send_message(
+                    content=f"✅ Updated **{self.item_name}**.",
+                    embed=embed,
+                    ephemeral=True
+                )
+        
+            else:
+                # Handle new item (no existing ID)
+                bg_path = await get_item_background(interaction.guild.id, self.type, current_template)
+                if bg_path.startswith("http"):
+                    # Download image from Discord CDN
+                    response = requests.get(bg_path)
+                    background = Image.open(io.BytesIO(response.content)).convert("RGBA")
+                else:
+                    # Load local asset fallback
+                    background = Image.open(bg_path).convert("RGBA")
+        
+                # Draw and upload logic for new items goes here...
 
-	
-		            background = draw_item_text(
-		                background,
-		                self.item_name,
-		                self.type,
-		                self.subtype,
-		                self.size,
-		                self.slot,
-		                self.stats,
-		                self.weight,
-		                self.effects,
-		                self.donated_by
-		            )
-		            created_images = io.BytesIO()
-		            background.save(created_images, format="PNG")
-		            created_images.seek(0)
-		
-		            upload_channel = await ensure_upload_channel(interaction.guild)
-		            file = discord.File(created_images, filename=f"{self.item_name}.png")
-		            message = await upload_channel.send(file=file, content=f"Created by {added_by}")
-		            cdn_url = message.attachments[0].url
-		
-		            fields_to_update["created_images"] = cdn_url
-		            fields_to_update["upload_message_id"] = message.id
-		            fields_to_update["created_at1"] = datetime.utcnow()
-		
-		            await update_item_db(
-		                guild_id=interaction.guild.id,
-		                item_id=self.item_id,
-		                **fields_to_update
-		            )
-		
-		            embed = discord.Embed(title=f"{self.item_name}", color=discord.Color.blue())
-		            embed.set_image(url=cdn_url)
-		
-		            await interaction.response.send_message(
-		                content=f"✅ Updated **{self.item_name}**.",
-		                embed=embed,
-		                ephemeral=True
-		            )
-		
-		        else:
-		            bg_path = await get_item_background(interaction.guild.id, self.type, current_template)
-	                if bg_path.startswith("http"):
-	                    # Download image from Discord CDN
-	                    response = requests.get(bg_path)
-	                    background = Image.open(io.BytesIO(response.content)).convert("RGBA")
-	                else:
-	                    # Load local asset fallback
-	                    background = Image.open(bg_path).convert("RGBA")
 	
 		
 		            background = draw_item_text(
