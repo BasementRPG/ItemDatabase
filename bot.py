@@ -176,27 +176,6 @@ async def add_item_background(guild_id, item_type, template_name, image_url):
         ''', guild_id, item_type, template_name, image_url)
 
 
-async def get_item_background(guild_id, item_type, template_name="default"):
-    async with bot.db_pool.acquire() as conn:
-        row = await conn.fetchrow('''
-            SELECT image_url FROM item_backgrounds
-            WHERE guild_id=$1 AND item_type=$2 AND template_name=$3
-        ''', guild_id, item_type, template_name.lower())
-
-        if not row and template_name.lower() != "default":
-            # fallback to default template
-            row = await conn.fetchrow('''
-                SELECT image_url FROM item_backgrounds
-                WHERE guild_id=$1 AND item_type=$2 AND template_name='default'
-            ''', guild_id, item_type)
-
-    # Fallback to local asset
-    if row and row["image_url"]:
-        return row["image_url"]
-
-    return BG_DEFAULTS.get(item_type, "assets/backgrounds/bgmisc.png")
-
-
 async def set_guild_template(guild_id, template_name):
     """Set the active template for a guild."""
     async with bot.db_pool.acquire() as conn:
@@ -216,14 +195,62 @@ async def get_guild_templates(guild_id):
         ''', guild_id)
         return [r['template_name'] for r in rows]
 
+# --- Template Helpers ---
 
-async def get_current_template(guild_id):
-    """Get the currently active template for a guild."""
-    async with bot.db_pool.acquire() as conn:
-        row = await conn.fetchrow('''
-            SELECT current_template FROM guild_templates WHERE guild_id=$1
-        ''', guild_id)
-    return row['current_template'] if row else 'default'
+async def get_current_template(db_pool, guild_id: int) -> str:
+    """Fetch the current selected template for a guild."""
+    async with db_pool.acquire() as conn:
+        row = await conn.fetchrow(
+            "SELECT current_template FROM guild_templates WHERE guild_id = $1",
+            guild_id
+        )
+        return row["current_template"] if row and row["current_template"] else "default"
+
+
+async def get_item_background(db_pool, guild_id: int, item_type: str, template_name: str) -> str:
+    """
+    Fetch the background image for a given guild, item type, and template.
+    Falls back to the default template or local assets if not found.
+    """
+    async with db_pool.acquire() as conn:
+        row = await conn.fetchrow(
+            """
+            SELECT image_url 
+            FROM backgrounds 
+            WHERE guild_id = $1 AND type = $2 AND template_name = $3
+            """,
+            guild_id, item_type, template_name
+        )
+
+    if row and row["image_url"]:
+        return row["image_url"]
+
+    # Fallback to default template
+    async with db_pool.acquire() as conn:
+        default_row = await conn.fetchrow(
+            """
+            SELECT image_url 
+            FROM backgrounds 
+            WHERE guild_id = $1 AND type = $2 AND template_name = 'default'
+            """,
+            guild_id, item_type
+        )
+
+    if default_row and default_row["image_url"]:
+        return default_row["image_url"]
+
+    # Fallback to local asset path
+    fallback_paths = {
+        "Weapon": "assets/backgrounds/bgweapon.png",
+        "Equipment": "assets/backgrounds/bgarmor.png",
+        "Crafting": "assets/backgrounds/bgcraft.png",
+        "Consumable": "assets/backgrounds/bgconsumable.png",
+        "Misc": "assets/backgrounds/bgmisc.png"
+    }
+
+    return fallback_paths.get(item_type, "assets/backgrounds/bgdefault.png")
+
+
 
 
 # ---------- Helper Function for Drawing Item Text ----------
@@ -699,8 +726,8 @@ class ItemEntryView(discord.ui.View):
                         pass
         
                 # Get the correct background (template or default)
-                current_template = await get_current_template(interaction.guild.id)
-                bg_path = await get_item_background(interaction.guild.id, self.type, current_template)
+                current_template = await get_current_template(self.db_pool, interaction.guild.id)
+                bg_path = await get_item_background(self.db_pool, interaction.guild.id, self.type, current_template)
                 
                 if bg_path.startswith("http"):
                     # Download image from Discord CDN
