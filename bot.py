@@ -698,13 +698,13 @@ class ItemEntryView(discord.ui.View):
 	                    pass
                
                 bg_path = await get_item_background(interaction.guild.id, self.type, current_template)
-                if bg_path.startswith("http"):
-                    # Download image from Discord CDN
-                    response = requests.get(bg_path)
-                    background = Image.open(io.BytesIO(response.content)).convert("RGBA")
-                else:
-                    # Load local asset fallback
-                    background = Image.open(bg_path).convert("RGBA")
+                    if bg_path.startswith("http"):
+                        # Download image from Discord CDN
+                        response = requests.get(bg_path)
+                        background = Image.open(io.BytesIO(response.content)).convert("RGBA")
+                    else:
+                        # Load local asset fallback
+                        background = Image.open(bg_path).convert("RGBA")
 
 	
 		            background = draw_item_text(
