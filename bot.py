@@ -792,8 +792,8 @@ class ItemEntryView(discord.ui.View):
         
             else:
                 # ADDING NEW ITEM
-                current_template = await get_current_template(interaction.guild.id)
-                bg_path = await get_item_background(interaction.guild.id, self.type, current_template)
+                current_template = await get_current_template(self.db_pool, interaction.guild.id)
+                bg_path = await get_item_background(self.db_pool, interaction.guild.id, self.type, current_template)
                 
                 if bg_path.startswith("http"):
                     # Download image from Discord CDN
