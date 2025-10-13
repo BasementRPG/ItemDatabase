@@ -29,6 +29,11 @@ BG_FILES = {
 
 
 
+
+
+
+
+
 TYPE = ["Equipment", "Crafting", "Consumable", "Equipment", "Misc", "Weapon"]
 WEAPON_TYPES = ["Axe", "Battle Axe", "Bow", "Dagger", "Great Scythe", "Great Sword", "Long Sword", "Mace", "Maul", "Scimitar", "Scythe", "Short Sword", "Spear", "Trident", "Warhammer" ]
 ARMORTYPES_SUBTYPES = ["Chain", "Cloth", "Leather", "Plate", "Shield"]
@@ -168,6 +173,71 @@ async def generate_item_image(item_name, type, subtype, slot, stats, effects, do
     img.save(buf, format='PNG')
     buf.seek(0)
     return buf
+
+
+
+# -------------------------------
+# TEMPLATE & BACKGROUND DB FUNCS
+# -------------------------------
+
+async def add_item_background(guild_id, item_type, template_name, image_url):
+    """Store or replace a background for an item type and template."""
+    async with bot.db_pool.acquire() as conn:
+        await conn.execute('''
+            INSERT INTO item_backgrounds (guild_id, item_type, template_name, image_url)
+            VALUES ($1, $2, $3, $4)
+            ON CONFLICT (guild_id, item_type, template_name) DO UPDATE
+            SET image_url = EXCLUDED.image_url
+        ''', guild_id, item_type, template_name, image_url)
+
+
+async def get_item_background(guild_id, item_type, template_name="default"):
+    async with bot.db_pool.acquire() as conn:
+        row = await conn.fetchrow('''
+            SELECT image_url FROM item_backgrounds
+            WHERE guild_id=$1 AND item_type=$2 AND template_name=$3
+        ''', guild_id, item_type, template_name.lower())
+
+        if not row and template_name.lower() != "default":
+            # fallback to default template
+            row = await conn.fetchrow('''
+                SELECT image_url FROM item_backgrounds
+                WHERE guild_id=$1 AND item_type=$2 AND template_name='default'
+            ''', guild_id, item_type)
+
+    # Fallback to local asset
+    if row and row["image_url"]:
+        return row["image_url"]
+
+    return BG_DEFAULTS.get(item_type, "assets/backgrounds/bgmisc.png")
+
+
+async def set_guild_template(guild_id, template_name):
+    """Set the active template for a guild."""
+    async with bot.db_pool.acquire() as conn:
+        await conn.execute('''
+            INSERT INTO guild_templates (guild_id, current_template)
+            VALUES ($1, $2)
+            ON CONFLICT (guild_id) DO UPDATE
+            SET current_template = EXCLUDED.current_template
+        ''', guild_id, template_name)
+
+
+async def get_guild_templates(guild_id):
+    """Return all unique templates available for this guild."""
+    async with bot.db_pool.acquire() as conn:
+        rows = await conn.fetch('''
+            SELECT DISTINCT template_name FROM item_backgrounds WHERE guild_id=$1
+        ''', guild_id)
+        return [r['template_name'] for r in rows]
+
+
+
+
+
+
+
+
 
 
 # ---------- UI Components ----------
@@ -632,9 +702,16 @@ class ItemEntryView(discord.ui.View):
 	                    await old_msg.delete()
 	                except discord.NotFound:
 	                    pass
-	
-	            bg_path = BG_FILES.get(self.type, BG_FILES["Misc"])
-	            background = Image.open(bg_path).convert("RGBA")
+               
+                bg_path = await get_item_background(interaction.guild.id, self.type, current_template)
+                if bg_path.startswith("http"):
+                    # Download image from Discord CDN
+                    response = requests.get(bg_path)
+                    background = Image.open(io.BytesIO(response.content)).convert("RGBA")
+                else:
+                    # Load local asset fallback
+                    background = Image.open(bg_path).convert("RGBA")
+
 	
 	            background = draw_item_text(
 	                background,
@@ -677,8 +754,15 @@ class ItemEntryView(discord.ui.View):
 	            )
 	
 	        else:
-	            bg_path = BG_FILES.get(self.type, BG_FILES["Misc"])
-	            background = Image.open(bg_path).convert("RGBA")
+	            bg_path = await get_item_background(interaction.guild.id, self.type, current_template)
+                if bg_path.startswith("http"):
+                    # Download image from Discord CDN
+                    response = requests.get(bg_path)
+                    background = Image.open(io.BytesIO(response.content)).convert("RGBA")
+                else:
+                    # Load local asset fallback
+                    background = Image.open(bg_path).convert("RGBA")
+
 	
 	            background = draw_item_text(
 	                background,
@@ -1387,6 +1471,46 @@ async def view_itemhistory(interaction: discord.Interaction):
 
 
 
+@bot.tree.command(name="item_bg", description="Upload a background for an item type and template.")
+@app_commands.describe(
+    item_type="Select the item type this background applies to.",
+    template_name="Template name (e.g., default, wow, diablo).",
+    image="Upload the background image."
+)
+async def item_bg(interaction: discord.Interaction, item_type: str, template_name: str, image: discord.Attachment):
+    allowed_types = ["Weapon", "Equipment", "Crafting", "Consumable", "Misc"]
+
+    if item_type not in allowed_types:
+        await interaction.response.send_message(f"❌ Invalid item type. Choose from: {', '.join(allowed_types)}", ephemeral=True)
+        return
+
+    upload_channel = await ensure_upload_channel(interaction.guild)
+    msg = await upload_channel.send(file=await image.to_file(), content=f"Background uploaded by {interaction.user}")
+    image_url = msg.attachments[0].url
+
+    async with bot.db_pool.acquire() as conn:
+        await conn.execute('''
+            INSERT INTO item_backgrounds (guild_id, item_type, template_name, image_url)
+            VALUES ($1, $2, $3, $4)
+            ON CONFLICT (guild_id, item_type, template_name) DO UPDATE
+            SET image_url = EXCLUDED.image_url
+        ''', interaction.guild.id, item_type, template_name.lower(), image_url)
+
+    await interaction.response.send_message(f"✅ Background for `{item_type}` under template `{template_name}` has been set.", ephemeral=True)
+
+
+
+@bot.tree.command(name="item_template", description="Switch the current background template for your guild.")
+@app_commands.describe(template_name="Template to activate (e.g., default, wow, diablo)")
+async def item_template(interaction: discord.Interaction, template_name: str):
+    async with bot.db_pool.acquire() as conn:
+        await conn.execute('''
+            INSERT INTO guild_templates (guild_id, current_template)
+            VALUES ($1, $2)
+            ON CONFLICT (guild_id) DO UPDATE SET current_template = EXCLUDED.current_template
+        ''', interaction.guild.id, template_name.lower())
+
+    await interaction.response.send_message(f"✅ Template switched to `{template_name}`.", ephemeral=True)
 
 
 
