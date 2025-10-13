@@ -8,7 +8,7 @@ import asyncpg
 from PIL import Image, ImageDraw, ImageFont
 import aiohttp
 import io
-import requests
+
 
 active_views = {}
 
