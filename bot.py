@@ -28,12 +28,6 @@ BG_FILES = {
 }
 
 
-
-
-
-
-
-
 TYPE = ["Equipment", "Crafting", "Consumable", "Equipment", "Misc", "Weapon"]
 WEAPON_TYPES = ["Axe", "Battle Axe", "Bow", "Dagger", "Great Scythe", "Great Sword", "Long Sword", "Mace", "Maul", "Scimitar", "Scythe", "Short Sword", "Spear", "Trident", "Warhammer" ]
 ARMORTYPES_SUBTYPES = ["Chain", "Cloth", "Leather", "Plate", "Shield"]
@@ -713,110 +707,110 @@ class ItemEntryView(discord.ui.View):
                     background = Image.open(bg_path).convert("RGBA")
 
 	
-	            background = draw_item_text(
-	                background,
-	                self.item_name,
-	                self.type,
-	                self.subtype,
-	                self.size,
-	                self.slot,
-	                self.stats,
-	                self.weight,
-	                self.effects,
-	                self.donated_by
-	            )
-	            created_images = io.BytesIO()
-	            background.save(created_images, format="PNG")
-	            created_images.seek(0)
+		            background = draw_item_text(
+		                background,
+		                self.item_name,
+		                self.type,
+		                self.subtype,
+		                self.size,
+		                self.slot,
+		                self.stats,
+		                self.weight,
+		                self.effects,
+		                self.donated_by
+		            )
+		            created_images = io.BytesIO()
+		            background.save(created_images, format="PNG")
+		            created_images.seek(0)
+		
+		            upload_channel = await ensure_upload_channel(interaction.guild)
+		            file = discord.File(created_images, filename=f"{self.item_name}.png")
+		            message = await upload_channel.send(file=file, content=f"Created by {added_by}")
+		            cdn_url = message.attachments[0].url
+		
+		            fields_to_update["created_images"] = cdn_url
+		            fields_to_update["upload_message_id"] = message.id
+		            fields_to_update["created_at1"] = datetime.utcnow()
+		
+		            await update_item_db(
+		                guild_id=interaction.guild.id,
+		                item_id=self.item_id,
+		                **fields_to_update
+		            )
+		
+		            embed = discord.Embed(title=f"{self.item_name}", color=discord.Color.blue())
+		            embed.set_image(url=cdn_url)
+		
+		            await interaction.response.send_message(
+		                content=f"✅ Updated **{self.item_name}**.",
+		                embed=embed,
+		                ephemeral=True
+		            )
+		
+		        else:
+		            bg_path = await get_item_background(interaction.guild.id, self.type, current_template)
+	                if bg_path.startswith("http"):
+	                    # Download image from Discord CDN
+	                    response = requests.get(bg_path)
+	                    background = Image.open(io.BytesIO(response.content)).convert("RGBA")
+	                else:
+	                    # Load local asset fallback
+	                    background = Image.open(bg_path).convert("RGBA")
 	
-	            upload_channel = await ensure_upload_channel(interaction.guild)
-	            file = discord.File(created_images, filename=f"{self.item_name}.png")
-	            message = await upload_channel.send(file=file, content=f"Created by {added_by}")
-	            cdn_url = message.attachments[0].url
-	
-	            fields_to_update["created_images"] = cdn_url
-	            fields_to_update["upload_message_id"] = message.id
-	            fields_to_update["created_at1"] = datetime.utcnow()
-	
-	            await update_item_db(
-	                guild_id=interaction.guild.id,
-	                item_id=self.item_id,
-	                **fields_to_update
-	            )
-	
-	            embed = discord.Embed(title=f"{self.item_name}", color=discord.Color.blue())
-	            embed.set_image(url=cdn_url)
-	
-	            await interaction.response.send_message(
-	                content=f"✅ Updated **{self.item_name}**.",
-	                embed=embed,
-	                ephemeral=True
-	            )
-	
-	        else:
-	            bg_path = await get_item_background(interaction.guild.id, self.type, current_template)
-                if bg_path.startswith("http"):
-                    # Download image from Discord CDN
-                    response = requests.get(bg_path)
-                    background = Image.open(io.BytesIO(response.content)).convert("RGBA")
-                else:
-                    # Load local asset fallback
-                    background = Image.open(bg_path).convert("RGBA")
-
-	
-	            background = draw_item_text(
-	                background,
-	                self.item_name,
-	                self.type,
-	                self.subtype,
-	                self.size,
-	                self.slot,
-	                self.stats,
-	                self.weight,
-	                self.effects,
-	                self.donated_by
-	            )
-	
-	            created_images = io.BytesIO()
-	            background.save(created_images, format="PNG")
-	            created_images.seek(0)
-	
-	            upload_channel = await ensure_upload_channel(interaction.guild)
-	            file = discord.File(created_images, filename=f"{self.item_name}.png")
-	            message = await upload_channel.send(file=file, content=f"Created by {added_by}")
-	            cdn_url = message.attachments[0].url
-	
-	            await add_item_db(
-	                guild_id=interaction.guild.id,
-	                name=self.item_name,
-	                type=self.type,
-	                size=self.size,
-	                subtype=self.subtype,
-	                slot=" ".join(self.slot),
-	                stats=self.stats,
-	                weight=self.weight,
-	                classes=" ".join(self.usable_classes),
-	                race=" ".join(self.usable_race),
-	                image=None,
-	                created_images=cdn_url,
-	                donated_by=self.donated_by,
-	                qty=1,
-	                added_by=str(interaction.user),
-	                attack=self.attack,
-	                delay=self.delay,
-	                effects=self.effects,
-	                ac=self.ac,
-	                upload_message_id=message.id
-	            )
-	
-	            embed = discord.Embed(title=f"{self.item_name}", color=discord.Color.blue())
-	            embed.set_image(url=cdn_url)
-	
-	            await interaction.response.send_message(
-	                content=f"✅ Added **{self.item_name}** to the Guild Bank (manual image created).",
-	                embed=embed,
-	                ephemeral=True
-	            )
+		
+		            background = draw_item_text(
+		                background,
+		                self.item_name,
+		                self.type,
+		                self.subtype,
+		                self.size,
+		                self.slot,
+		                self.stats,
+		                self.weight,
+		                self.effects,
+		                self.donated_by
+		            )
+		
+		            created_images = io.BytesIO()
+		            background.save(created_images, format="PNG")
+		            created_images.seek(0)
+		
+		            upload_channel = await ensure_upload_channel(interaction.guild)
+		            file = discord.File(created_images, filename=f"{self.item_name}.png")
+		            message = await upload_channel.send(file=file, content=f"Created by {added_by}")
+		            cdn_url = message.attachments[0].url
+		
+		            await add_item_db(
+		                guild_id=interaction.guild.id,
+		                name=self.item_name,
+		                type=self.type,
+		                size=self.size,
+		                subtype=self.subtype,
+		                slot=" ".join(self.slot),
+		                stats=self.stats,
+		                weight=self.weight,
+		                classes=" ".join(self.usable_classes),
+		                race=" ".join(self.usable_race),
+		                image=None,
+		                created_images=cdn_url,
+		                donated_by=self.donated_by,
+		                qty=1,
+		                added_by=str(interaction.user),
+		                attack=self.attack,
+		                delay=self.delay,
+		                effects=self.effects,
+		                ac=self.ac,
+		                upload_message_id=message.id
+		            )
+		
+		            embed = discord.Embed(title=f"{self.item_name}", color=discord.Color.blue())
+		            embed.set_image(url=cdn_url)
+		
+		            await interaction.response.send_message(
+		                content=f"✅ Added **{self.item_name}** to the Guild Bank (manual image created).",
+		                embed=embed,
+		                ephemeral=True
+		            )
 	
 	    self.stop()
 
