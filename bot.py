@@ -8,6 +8,7 @@ import asyncpg
 from PIL import Image, ImageDraw, ImageFont
 import aiohttp
 import io
+import requests
 
 active_views = {}
 
@@ -24,7 +25,6 @@ BG_FILES = {
     "Consumable": "assets/backgrounds/bgconsumable.png",
     "Crafting": "assets/backgrounds/bgcrafting.png",
     "Misc": "assets/backgrounds/bgmisc.png",
-    
 }
 
 
@@ -44,7 +44,7 @@ SIZE = ["Large","Medium","Small"]
 RACE_OPTIONS = ["DDF","DEF","DGN","DWF","ELF","GNM","GOB","HFL","HIE","HUM","ORG","TRL"]
 CLASS_OPTIONS = ["ARC", "BRD", "BST", "CLR", "DRU", "ELE", "ENC", "FTR", "INQ", "MNK", "NEC", "PAL", "RNG", "ROG", "SHD", "SHM", "SPB", "WIZ"]
 
-
+BG_DEFAULTS = BG_FILES  # Alias for compatibility
 
 intents = discord.Intents.default()
 intents.message_content = True
@@ -65,9 +65,6 @@ async def ensure_upload_channel(guild: discord.Guild):
         guild.me: discord.PermissionOverwrite(view_channel=True, send_messages=True)
     }
     return await guild.create_text_channel("guild-bank-upload-log", overwrites=overwrites)
-
-
-
 
 
 async def add_item_db(guild_id, upload_message_id, name, type, subtype=None, size=None, slot=None, stats=None, weight=None,classes=None, race=None, image=None, donated_by=None, qty=None, added_by=None, attack=None, delay=None,effects=None, ac=None, created_images=None):
@@ -118,10 +115,6 @@ async def update_item_db(guild_id, item_id, **fields):
         await conn.execute(sql, *values)
 
 
-
-
-
-
 async def delete_item_db(guild_id, item_id):
     # Reduce qty by 1
     item = await db.fetch_one("SELECT qty FROM items WHERE guild_id=? AND id=?", (guild_id, item_id))
@@ -131,7 +124,6 @@ async def delete_item_db(guild_id, item_id):
         await db.execute("UPDATE items SET qty = qty - 1 WHERE id = ?", (item_id,))
     else:
         await db.execute("DELETE FROM items WHERE id = ?", (item_id,))
-
 
 
 async def generate_item_image(item_name, type, subtype, slot, stats, effects, donated_by):
@@ -167,7 +159,6 @@ async def generate_item_image(item_name, type, subtype, slot, stats, effects, do
     img.save(buf, format='PNG')
     buf.seek(0)
     return buf
-
 
 
 # -------------------------------
@@ -226,12 +217,154 @@ async def get_guild_templates(guild_id):
         return [r['template_name'] for r in rows]
 
 
+async def get_current_template(guild_id):
+    """Get the currently active template for a guild."""
+    async with bot.db_pool.acquire() as conn:
+        row = await conn.fetchrow('''
+            SELECT current_template FROM guild_templates WHERE guild_id=$1
+        ''', guild_id)
+    return row['current_template'] if row else 'default'
 
 
+# ---------- Helper Function for Drawing Item Text ----------
 
+def draw_item_text(background, item_name, item_type, subtype, size, slot, stats, weight, effects, donated_by, attack=None, delay=None, ac=None, usable_classes=None, usable_race=None):
+    """
+    Draw item information on the background image.
+    This is a standalone function that can be called from anywhere.
+    """
+    draw = ImageDraw.Draw(background)
 
+    # Load fonts
+    try:
+        font_title = ImageFont.truetype("assets/WinthorpeScB.ttf", 28)
+        font_type = ImageFont.truetype("assets/Winthorpe.ttf", 20)
+        font_slot = ImageFont.truetype("assets/Winthorpe.ttf", 16)
+        font_size = ImageFont.truetype("assets/Winthorpe.ttf", 16)
+        font_stats = ImageFont.truetype("assets/Winthorpe.ttf", 16)
+        font_weight = ImageFont.truetype("assets/Winthorpe.ttf", 16)
+        font_effects = ImageFont.truetype("assets/Winthorpe.ttf", 16)
+        font_ac = ImageFont.truetype("assets/WinthorpeB.ttf", 16)
+        font_attack = ImageFont.truetype("assets/Winthorpe.ttf", 16)
+        font_class = ImageFont.truetype("assets/WinthorpeB.ttf", 16)
+        font_race = ImageFont.truetype("assets/WinthorpeB.ttf", 16)
+    except:
+        # Fallback to default font if custom fonts not available
+        font_title = ImageFont.load_default()
+        font_type = font_slot = font_size = font_stats = font_weight = font_effects = font_ac = font_attack = font_class = font_race = font_title
 
+    width, height = background.size
+    x_margin = 40
+    y = 3
+    x = 110
 
+    draw.text((x_margin, y), f"{item_name}", fill=(255, 255, 255), font=font_title)
+    y += 50
+
+    if item_type in ("Equipment",):
+        if isinstance(slot, list):
+            slot_text = " ".join(sorted(slot))
+        else:
+            slot_text = slot or ""
+        draw.text((x, y), f"Slot: {slot_text}", fill=(255, 255, 255), font=font_ac)
+        y += 25
+
+        if ac:
+            draw.text((x, y), f"AC: {ac}", fill=(255, 255, 255), font=font_ac)
+            y += 25
+
+    if item_type in ("Weapon",):
+        if isinstance(slot, list):
+            slot_text = " ".join(sorted(slot)).upper()
+        else:
+            slot_text = (slot or "").upper()
+        draw.text((x, y), f"Slot: {slot_text}", fill=(255, 255, 255), font=font_ac)
+        y += 25
+
+        if attack:
+            draw.text((x, y), f"Weapon DMG: {attack} ATK Delay: {delay}", fill=(255, 255, 255), font=font_attack)
+            y += 25
+
+    if item_type in ("Equipment", "Weapon"):
+        if stats:
+            stats_text = stats
+            draw.text((x, y), stats_text, fill=(255, 255, 255), font=font_stats)
+            bbox = draw.textbbox((x, y), stats_text, font=font_stats)
+            text_height = bbox[3] - bbox[1]
+            y += text_height + 15
+
+        if effects:
+            effects_text = effects
+            draw.text((x, y), effects_text, fill=(255, 255, 255), font=font_effects)
+            bbox = draw.textbbox((x, y), effects_text, font=font_effects)
+            text_height = bbox[3] - bbox[1]
+            y += text_height + 15
+
+    if item_type in ("Consumable",):
+        if stats:
+            stats_text = stats
+            draw.text((x, y), stats_text, fill=(255, 255, 255), font=font_stats)
+            bbox = draw.textbbox((x, y), stats_text, font=font_stats)
+            text_height = bbox[3] - bbox[1]
+            y += text_height + 15
+
+    if subtype in ("Potion", "Scroll"):
+        if effects:
+            draw.text((x, y), f"Effects: {effects}", fill=(255, 255, 255), font=font_effects)
+            y += 25
+
+    if subtype in ("Drink", "Food", "Other"):
+        if effects:
+            effects_text = effects
+            draw.text((x, y), effects_text, fill=(255, 255, 255), font=font_effects)
+            bbox = draw.textbbox((x, y), effects_text, font=font_effects)
+            text_height = bbox[3] - bbox[1]
+            y += text_height + 15
+
+    if item_type in ("Crafting", "Misc"):
+        if effects:
+            effects_text = effects
+            draw.text((x, y), effects_text, fill=(255, 255, 255), font=font_effects)
+            bbox = draw.textbbox((x, y), effects_text, font=font_effects)
+            text_height = bbox[3] - bbox[1]
+            y += text_height + 15
+
+        if size and weight:
+            draw.text((x, y), f"Weight: {weight} Size: {size.upper()}", fill=(255, 255, 255), font=font_size)
+            y += 25
+        elif size:
+            draw.text((x, y), f"Size: {size.upper()}", fill=(255, 255, 255), font=font_size)
+            y += 25
+        elif weight:
+            draw.text((x, y), f"Weight: {weight}", fill=(255, 255, 255), font=font_size)
+            y += 25
+
+    if item_type in ("Crafting", "Misc"):
+        if stats:
+            stats_text = stats
+            draw.text((x, y), stats_text, fill=(255, 255, 255), font=font_stats)
+            bbox = draw.textbbox((x, y), stats_text, font=font_stats)
+            text_height = bbox[3] - bbox[1]
+            y += text_height + 15
+
+    if item_type in ("Equipment", "Weapon"):
+        if usable_classes:
+            if isinstance(usable_classes, list):
+                classes = " ".join(sorted(usable_classes))
+            else:
+                classes = usable_classes
+            draw.text((x, y), f"Class: {classes.upper()}", fill=(255, 255, 255), font=font_effects)
+            y += 25
+
+        if usable_race:
+            if isinstance(usable_race, list):
+                race = " ".join(sorted(usable_race))
+            else:
+                race = usable_race
+            draw.text((x, y), f"Race: {race.upper()}", fill=(255, 255, 255), font=font_effects)
+            y += 25
+
+    return background
 
 
 # ---------- UI Components ----------
@@ -262,21 +395,21 @@ class SubtypeSelect(discord.ui.Select):
         super().__init__(placeholder="Select Subtype", options=options)
 
     async def callback(self, interaction: discord.Interaction):
+        try:
+            print(f"DEBUG: SubtypeSelect callback - values: {self.values}")
+            self.parent_view.subtype = self.values[0]
+            # update which option is default so it stays highlighted
+            for opt in self.options:
+                opt.default = (opt.label == self.values[0])
+            await interaction.response.edit_message(view=self.parent_view)
+        except Exception as e:
+            print(f"ERROR in SubtypeSelect callback: {e}")
+            import traceback
+            traceback.print_exc()
             try:
-                print(f"DEBUG: SubtypeSelect callback - values: {self.values}")
-                self.parent_view.subtype = self.values[0]
-                # update which option is default so it stays highlighted
-                for opt in self.options:
-                    opt.default = (opt.label == self.values[0])
-                await interaction.response.edit_message(view=self.parent_view)
-            except Exception as e:
-                print(f"ERROR in SubtypeSelect callback: {e}")
-                import traceback
-                traceback.print_exc()
-                try:
-                    await interaction.response.send_message(f"Error: {str(e)}", ephemeral=True)
-                except:
-                    pass
+                await interaction.response.send_message(f"Error: {str(e)}", ephemeral=True)
+            except:
+                pass
 
 class SlotSelect(discord.ui.Select):
     def __init__(self, parent_view):
@@ -328,7 +461,6 @@ class SlotSelect(discord.ui.Select):
                 pass
 
 
-
 class ClassesSelect(discord.ui.Select):
     def __init__(self, parent_view):
         self.parent_view = parent_view
@@ -341,18 +473,16 @@ class ClassesSelect(discord.ui.Select):
                 opt.default = True
         
         super().__init__(
-             placeholder="Select usable classes (multi)",
-             options=options,
-             min_values=0,
-             max_values=len(options)
+            placeholder="Select usable classes (multi)",
+            options=options,
+            min_values=0,
+            max_values=len(options)
         )
-    
-
     
     async def callback(self, interaction: discord.Interaction):
         # If All is selected, ignore other selections
         if "All" in self.values:
-                self.view.usable_classes = ["All"]
+            self.view.usable_classes = ["All"]
         else:
             # If other classes selected while All is in previous selection, remove All
             self.view.usable_classes = self.values
@@ -362,6 +492,7 @@ class ClassesSelect(discord.ui.Select):
             option.default = option.label in self.view.usable_classes
     
         await interaction.response.edit_message(view=self.view)
+
     
 class RaceSelect(discord.ui.Select):
     def __init__(self, parent_view):
@@ -373,15 +504,13 @@ class RaceSelect(discord.ui.Select):
         for opt in options:
             if self.parent_view.usable_race and opt.label in self.parent_view.usable_race:
                 opt.default = True
-		
+        
         super().__init__(
             placeholder="Select usable race (multi)",
             options=options,
             min_values=0,
             max_values=len(options)
         )
-    
-
     
     async def callback(self, interaction: discord.Interaction):
         # If All is selected, ignore other selections
@@ -431,6 +560,7 @@ class SizeSelect(discord.ui.Select):
                 await interaction.response.send_message(f"Error: {str(e)}", ephemeral=True)
             except:
                 pass
+
                 
 class ItemEntryView(discord.ui.View):
     def __init__(self, author, db_pool=None, type=None, item_id=None, existing_data=None, is_edit=False):
@@ -440,7 +570,7 @@ class ItemEntryView(discord.ui.View):
         self.type = type
         self.subtype = None
         self.slot = []
-        self.size=""
+        self.size = ""
         self.usable_classes = []
         self.usable_race = []
         self.item_name = ""
@@ -452,7 +582,7 @@ class ItemEntryView(discord.ui.View):
         self.delay = ""
         self.effects = ""
         self.ac = ""
-        self.is_edit=is_edit
+        self.is_edit = is_edit
 
         # preload existing if editing
         if existing_data:
@@ -471,14 +601,11 @@ class ItemEntryView(discord.ui.View):
             self.usable_classes = existing_data['classes'].split(" ") if existing_data['classes'] else []
             self.usable_race = existing_data['race'].split(" ") if existing_data['race'] else []
 
-        if self.type in ["Crafting","Consumable","Misc"]:
+        if self.type in ["Crafting", "Consumable", "Misc"]:
             self.subtype_select = SubtypeSelect(self)
             self.add_item(self.subtype_select)
 
-        
         if self.type in ["Weapon", "Equipment"]:
-
-			
             self.slot_select = SlotSelect(self)
             self.add_item(self.slot_select)
             
@@ -504,11 +631,9 @@ class ItemEntryView(discord.ui.View):
         self.submit_button.callback = self.submit_item
         self.add_item(self.submit_button)
 
-
         self.reset_button = discord.ui.Button(label="Reset", style=discord.ButtonStyle.danger)
         self.reset_button.callback = self.reset_entry
         self.add_item(self.reset_button)
-        
     
     async def interaction_check(self, interaction: discord.Interaction) -> bool:
         return interaction.user == self.author
@@ -524,167 +649,42 @@ class ItemEntryView(discord.ui.View):
     async def reset_entry(self, interaction: discord.Interaction):
         """Cancel the item entry and close the view."""
         await interaction.response.send_message("❌ Item entry canceled.", ephemeral=True)
-        self.stop()    
-
-
-
+        self.stop()
 
     async def submit_item(self, interaction: discord.Interaction):
-	    # Convert lists to space-separated strings
-	    classes_str = " ".join(self.usable_classes)
-	    race_str = " ".join(self.usable_race)
-	    slot_str = " ".join(self.slot)
-	    donor = self.donated_by or "Anonymous"
-	    added_by = str(interaction.user)
-	
-	    # Base fields to update/add
-	    fields_to_update = {
-	        "name": self.item_name,
-	        "type": self.type,
-	        "subtype": self.subtype,
-	        "slot": slot_str,
-	        "size": self.size,
-	        "stats": self.stats,
-	        "weight": self.weight,
-	        "classes": classes_str,
-	        "race": race_str,
-	        "donated_by": donor,
-	        "added_by": added_by
-	    }
-	
-	    # Only include relevant fields per item type
-	    if self.type == "Weapon":
-	        fields_to_update.update({"attack": self.attack, "delay": self.delay, "effects": self.effects})
-	    elif self.type == "Equipment":
-	        fields_to_update.update({"ac": self.ac, "effects": self.effects})
-	    elif self.type == "Consumable":
-	        fields_to_update.update({"effects": self.effects})
-	
-	    def draw_item_text(background, item_name, type, subtype, size, slot, stats, weight, effects, donated_by):
-	        draw = ImageDraw.Draw(background)
-	
-	        # Load fonts
-	        font_title = ImageFont.truetype("assets/WinthorpeScB.ttf", 28)
-	        font_type = ImageFont.truetype("assets/Winthorpe.ttf", 20)
-	        font_slot = ImageFont.truetype("assets/Winthorpe.ttf", 16)
-	        font_size = ImageFont.truetype("assets/Winthorpe.ttf", 16)
-	        font_stats = ImageFont.truetype("assets/Winthorpe.ttf", 16)
-	        font_weight = ImageFont.truetype("assets/Winthorpe.ttf", 16)
-	        font_effects = ImageFont.truetype("assets/Winthorpe.ttf", 16)
-	        font_ac = ImageFont.truetype("assets/WinthorpeB.ttf", 16)
-	        font_attack = ImageFont.truetype("assets/Winthorpe.ttf", 16)
-	        font_class = ImageFont.truetype("assets/WinthorpeB.ttf", 16)
-	        font_race = ImageFont.truetype("assets/WinthorpeB.ttf", 16)
-	
-	        width, height = background.size
-	        x_margin = 40
-	        y = 3
-	        x = 110
-	
-	        draw.text((x_margin, y), f"{item_name}", fill=(255, 255, 255), font=font_title)
-	        y += 50
-	
-	        if self.type in ("Equipment"):
-	            slot = " ".join(sorted(self.slot))
-	            draw.text((x, y), f"Slot: {slot}", fill=(255, 255, 255), font=font_ac)
-	            y += 25
-	
-	            if self.ac != "":
-	                ac = self.ac
-	                draw.text((x, y), f"AC: {ac}", fill=(255, 255, 255), font=font_ac)
-	                y += 25
-	
-	        if self.type in ("Weapon"):
-	            slot = " ".join(sorted(self.slot)).upper()
-	            draw.text((x, y), f"Slot: {slot}", fill=(255, 255, 255), font=font_ac)
-	            y += 25
-	
-	            if self.attack != "":
-	                attack = self.attack
-	                delay = self.delay
-	                draw.text((x, y), f"Weapon DMG: {attack} ATK Delay: {delay}", fill=(255, 255, 255), font=font_attack)
-	                y += 25
-	
-	        if self.type in ("Equipment", "Weapon"):
-	            if self.stats != "":
-	                stats_text = stats
-	                draw.text((x, y), stats_text, fill=(255, 255, 255), font=font_stats)
-	                bbox = draw.textbbox((x, y), stats_text, font=font_stats)
-	                text_height = bbox[3] - bbox[1]
-	                y += text_height + 15
-	
-	            if self.effects != "":
-	                effects_text = effects
-	                draw.text((x, y), effects_text, fill=(255, 255, 255), font=font_effects)
-	                bbox = draw.textbbox((x, y), effects_text, font=font_effects)
-	                text_height = bbox[3] - bbox[1]
-	                y += text_height + 15
-	
-	        if self.type in ("Consumable"):
-	            if self.stats != "":
-	                stats_text = stats
-	                draw.text((x, y), stats_text, fill=(255, 255, 255), font=font_stats)
-	                bbox = draw.textbbox((x, y), stats_text, font=font_stats)
-	                text_height = bbox[3] - bbox[1]
-	                y += text_height + 15
-	
-	        if self.subtype in ("Potion", "Scroll"):
-	            if self.effects != "":
-	                draw.text((x, y), f"Effects: {effects}", fill=(255, 255, 255), font=font_effects)
-	                y += 25
-	
-	        if self.subtype in ("Drink", "Food", "Other"):
-	            if self.effects != "":
-	                effects_text = effects
-	                draw.text((x, y), effects_text, fill=(255, 255, 255), font=font_effects)
-	                bbox = draw.textbbox((x, y), effects_text, font=font_effects)
-	                text_height = bbox[3] - bbox[1]
-	                y += text_height + 15
-	
-	        if self.type in ("Crafting", "Misc"):
-	            if self.effects != "":
-	                effects_text = effects
-	                draw.text((x, y), effects_text, fill=(255, 255, 255), font=font_effects)
-	                bbox = draw.textbbox((x, y), effects_text, font=font_effects)
-	                text_height = bbox[3] - bbox[1]
-	                y += text_height + 15
-	
-	            if self.size != "" and self.weight != "":
-	                draw.text((x, y), f"Weight:Size: {size.upper()}", fill=(255, 255, 255), font=font_size)
-	                y += 25
-	
-	            if self.size != "" and self.weight == "":
-	                draw.text((x, y), f"Size: {size.upper()}", fill=(255, 255, 255), font=font_size)
-	                y += 25
-	
-	            if self.size == "" and self.weight != "":
-	                draw.text((x, y), f"Weight: {weight}", fill=(255, 255, 255), font=font_size)
-	                y += 25
-	
-	        if self.type in ("Crafting", "Misc"):
-	            if self.stats != "":
-	                stats_text = stats
-	                draw.text((x, y), stats_text, fill=(255, 255, 255), font=font_stats)
-	                bbox = draw.textbbox((x, y), stats_text, font=font_stats)
-	                text_height = bbox[3] - bbox[1]
-	                y += text_height + 15
-	
-	        if self.type in ("Equipment", "Weapon"):
-	            if self.usable_classes:
-	                classes = " ".join(sorted(self.usable_classes))
-	                draw.text((x, y), f"Class: {classes.upper()}", fill=(255, 255, 255), font=font_effects)
-	                y += 25
-	
-	            if self.usable_race:
-	                race = " ".join(sorted(self.usable_race))
-	                draw.text((x, y), f"Race: {race.upper()}", fill=(255, 255, 255), font=font_effects)
-	                y += 25
-	
-	        return background
-	
-	
+        # Convert lists to space-separated strings
+        classes_str = " ".join(self.usable_classes)
+        race_str = " ".join(self.usable_race)
+        slot_str = " ".join(self.slot)
+        donor = self.donated_by or "Anonymous"
+        added_by = str(interaction.user)
+
+        # Base fields to update/add
+        fields_to_update = {
+            "name": self.item_name,
+            "type": self.type,
+            "subtype": self.subtype,
+            "slot": slot_str,
+            "size": self.size,
+            "stats": self.stats,
+            "weight": self.weight,
+            "classes": classes_str,
+            "race": race_str,
+            "donated_by": donor,
+            "added_by": added_by
+        }
+
+        # Only include relevant fields per item type
+        if self.type == "Weapon":
+            fields_to_update.update({"attack": self.attack, "delay": self.delay, "effects": self.effects})
+        elif self.type == "Equipment":
+            fields_to_update.update({"ac": self.ac, "effects": self.effects})
+        elif self.type == "Consumable":
+            fields_to_update.update({"effects": self.effects})
+
         async with self.db_pool.acquire() as conn:
             if self.item_id:
+                # EDITING EXISTING ITEM
                 old_item = await conn.fetchrow(
                     "SELECT id, created_images, upload_message_id FROM inventory WHERE id=$1",
                     self.item_id
@@ -699,11 +699,19 @@ class ItemEntryView(discord.ui.View):
                         pass
         
                 # Get the correct background (template or default)
+                current_template = await get_current_template(interaction.guild.id)
                 bg_path = await get_item_background(interaction.guild.id, self.type, current_template)
+                
                 if bg_path.startswith("http"):
                     # Download image from Discord CDN
-                    response = requests.get(bg_path)
-                    background = Image.open(io.BytesIO(response.content)).convert("RGBA")
+                    async with aiohttp.ClientSession() as session:
+                        async with session.get(bg_path) as resp:
+                            if resp.status == 200:
+                                data = await resp.read()
+                                background = Image.open(io.BytesIO(data)).convert("RGBA")
+                            else:
+                                # Fallback to local
+                                background = Image.open(BG_DEFAULTS.get(self.type, "assets/backgrounds/bgmisc.png")).convert("RGBA")
                 else:
                     # Load local asset fallback
                     background = Image.open(bg_path).convert("RGBA")
@@ -719,7 +727,12 @@ class ItemEntryView(discord.ui.View):
                     self.stats,
                     self.weight,
                     self.effects,
-                    self.donated_by
+                    self.donated_by,
+                    attack=self.attack,
+                    delay=self.delay,
+                    ac=self.ac,
+                    usable_classes=self.usable_classes,
+                    usable_race=self.usable_race
                 )
         
                 created_images = io.BytesIO()
@@ -751,75 +764,84 @@ class ItemEntryView(discord.ui.View):
                 )
         
             else:
-                # Handle new item (no existing ID)
+                # ADDING NEW ITEM
+                current_template = await get_current_template(interaction.guild.id)
                 bg_path = await get_item_background(interaction.guild.id, self.type, current_template)
+                
                 if bg_path.startswith("http"):
                     # Download image from Discord CDN
-                    response = requests.get(bg_path)
-                    background = Image.open(io.BytesIO(response.content)).convert("RGBA")
+                    async with aiohttp.ClientSession() as session:
+                        async with session.get(bg_path) as resp:
+                            if resp.status == 200:
+                                data = await resp.read()
+                                background = Image.open(io.BytesIO(data)).convert("RGBA")
+                            else:
+                                # Fallback to local
+                                background = Image.open(BG_DEFAULTS.get(self.type, "assets/backgrounds/bgmisc.png")).convert("RGBA")
                 else:
                     # Load local asset fallback
                     background = Image.open(bg_path).convert("RGBA")
-        
-                # Draw and upload logic for new items goes here...
 
-	
-		
-		            background = draw_item_text(
-		                background,
-		                self.item_name,
-		                self.type,
-		                self.subtype,
-		                self.size,
-		                self.slot,
-		                self.stats,
-		                self.weight,
-		                self.effects,
-		                self.donated_by
-		            )
-		
-		            created_images = io.BytesIO()
-		            background.save(created_images, format="PNG")
-		            created_images.seek(0)
-		
-		            upload_channel = await ensure_upload_channel(interaction.guild)
-		            file = discord.File(created_images, filename=f"{self.item_name}.png")
-		            message = await upload_channel.send(file=file, content=f"Created by {added_by}")
-		            cdn_url = message.attachments[0].url
-		
-		            await add_item_db(
-		                guild_id=interaction.guild.id,
-		                name=self.item_name,
-		                type=self.type,
-		                size=self.size,
-		                subtype=self.subtype,
-		                slot=" ".join(self.slot),
-		                stats=self.stats,
-		                weight=self.weight,
-		                classes=" ".join(self.usable_classes),
-		                race=" ".join(self.usable_race),
-		                image=None,
-		                created_images=cdn_url,
-		                donated_by=self.donated_by,
-		                qty=1,
-		                added_by=str(interaction.user),
-		                attack=self.attack,
-		                delay=self.delay,
-		                effects=self.effects,
-		                ac=self.ac,
-		                upload_message_id=message.id
-		            )
-		
-		            embed = discord.Embed(title=f"{self.item_name}", color=discord.Color.blue())
-		            embed.set_image(url=cdn_url)
-		
-		            await interaction.response.send_message(
-		                content=f"✅ Added **{self.item_name}** to the Guild Bank (manual image created).",
-		                embed=embed,
-		                ephemeral=True
-		            )
-	
-	    self.stop()
+                background = draw_item_text(
+                    background,
+                    self.item_name,
+                    self.type,
+                    self.subtype,
+                    self.size,
+                    self.slot,
+                    self.stats,
+                    self.weight,
+                    self.effects,
+                    self.donated_by,
+                    attack=self.attack,
+                    delay=self.delay,
+                    ac=self.ac,
+                    usable_classes=self.usable_classes,
+                    usable_race=self.usable_race
+                )
+
+                created_images = io.BytesIO()
+                background.save(created_images, format="PNG")
+                created_images.seek(0)
+
+                upload_channel = await ensure_upload_channel(interaction.guild)
+                file = discord.File(created_images, filename=f"{self.item_name}.png")
+                message = await upload_channel.send(file=file, content=f"Created by {added_by}")
+                cdn_url = message.attachments[0].url
+
+                await add_item_db(
+                    guild_id=interaction.guild.id,
+                    name=self.item_name,
+                    type=self.type,
+                    size=self.size,
+                    subtype=self.subtype,
+                    slot=" ".join(self.slot),
+                    stats=self.stats,
+                    weight=self.weight,
+                    classes=" ".join(self.usable_classes),
+                    race=" ".join(self.usable_race),
+                    image=None,
+                    created_images=cdn_url,
+                    donated_by=self.donated_by,
+                    qty=1,
+                    added_by=str(interaction.user),
+                    attack=self.attack,
+                    delay=self.delay,
+                    effects=self.effects,
+                    ac=self.ac,
+                    upload_message_id=message.id
+                )
+
+                embed = discord.Embed(title=f"{self.item_name}", color=discord.Color.blue())
+                embed.set_image(url=cdn_url)
+
+                await interaction.response.send_message(
+                    content=f"✅ Added **{self.item_name}** to the Guild Bank (manual image created).",
+                    embed=embed,
+                    ephemeral=True
+                )
+
+        self.stop()
 
 
 #-----IMAGE UPLOAD ----
@@ -872,7 +894,7 @@ class ImageDetailsModal(discord.ui.Modal):
         
             # If image is already a URL (string)
             elif isinstance(self.view.image, str):
-                # Download and re-upload so it’s permanent in your upload-log
+                # Download and re-upload so it's permanent in your upload-log
                 async with aiohttp.ClientSession() as session:
                     async with session.get(self.view.image) as resp:
                         if resp.status == 200:
@@ -897,7 +919,7 @@ class ImageDetailsModal(discord.ui.Modal):
 
         if self.is_edit and not image_url:
             image_url = self.item_row["image"] 
-			
+            
         if not self.is_edit and not image_url:
             await modal_interaction.response.send_message(
                 "❌ No image provided. Please attach or send an image.", ephemeral=True
@@ -938,7 +960,6 @@ class ImageDetailsModal(discord.ui.Modal):
             )
 
 
-
 # ------ITEM DETAILS ----
 class ItemDetailsModal(discord.ui.Modal):
     def __init__(self, parent_view):
@@ -947,13 +968,12 @@ class ItemDetailsModal(discord.ui.Modal):
         self.parent_view = parent_view
         
         self.item_name = discord.ui.TextInput(
-                label="Item Name", placeholder="Example: Flowing Black Silk Sash", default=parent_view.item_name, required=True
+            label="Item Name", placeholder="Example: Flowing Black Silk Sash", default=parent_view.item_name, required=True
         )
         self.add_item(self.item_name)
         
         # Weapon ATTACK/DELAY
         if parent_view.type == "Weapon":
-
             self.attack = discord.ui.TextInput(
                 label="Damage", placeholder="Example: 7", default=parent_view.attack, required=False
             )
@@ -963,24 +983,20 @@ class ItemDetailsModal(discord.ui.Modal):
             self.add_item(self.attack)
             self.add_item(self.delay)
 
-
         # Equipment AC
         if parent_view.type == "Equipment":
-
             self.ac = discord.ui.TextInput(
                 label="Armor Class", placeholder="Example: 15", default=parent_view.ac, required=True
             )
             self.add_item(self.ac)
-
          
         if parent_view.type == "Consumable":
-         # STATS
+            # STATS
             self.stats = discord.ui.TextInput(
                 label="Stats", default=parent_view.stats, placeholder="Example: STR:+1 STA:+3 CHA:-1", required=False, style=discord.TextStyle.paragraph
             )
     
-        #  EFFECTS
-
+            #  EFFECTS
             self.effects = discord.ui.TextInput(
                 label="Effects", default=parent_view.effects, placeholder="Minor Serum of Dexerity: increases dex by 5 for 1 hour", required=False, style=discord.TextStyle.paragraph
             )  
@@ -988,14 +1004,13 @@ class ItemDetailsModal(discord.ui.Modal):
             self.add_item(self.stats)
             self.add_item(self.effects)
 
-        if self.parent_view.type in ("Crafting","Misc"):
-        # STATS
+        if self.parent_view.type in ("Crafting", "Misc"):
+            # STATS
             self.stats = discord.ui.TextInput(
                 label="Info", default=parent_view.stats, placeholder="Basic information about the item", required=False, style=discord.TextStyle.paragraph
             )
     
-        #  EFFECTS
-
+            #  EFFECTS
             self.effects = discord.ui.TextInput(
                 label="Effects", default=parent_view.effects, placeholder="Basic information if the item has an effect", required=False, style=discord.TextStyle.paragraph
             )
@@ -1003,19 +1018,15 @@ class ItemDetailsModal(discord.ui.Modal):
             self.add_item(self.stats)
             self.add_item(self.effects)
 
-        
-
         self.weight = discord.ui.TextInput(
-                    label="Weight", default=parent_view.weight, placeholder="Example: 1.0", required=False
+            label="Weight", default=parent_view.weight, placeholder="Example: 1.0", required=False
         )
         self.donated_by = discord.ui.TextInput(
-                label="Donated By", default=parent_view.donated_by, placeholder="Example:Thieron or Raid", required=False
+            label="Donated By", default=parent_view.donated_by, placeholder="Example:Thieron or Raid", required=False
         )
-
        
         self.add_item(self.weight)
         self.add_item(self.donated_by)
-
 
     async def on_submit(self, interaction: discord.Interaction):
         # Save values back to the view
@@ -1029,11 +1040,9 @@ class ItemDetailsModal(discord.ui.Modal):
         if self.parent_view.type == "Equipment":
             self.parent_view.ac = self.ac.value
         
-        if self.parent_view.type in ("Crafting", "Consumable","Misc"):
-      
+        if self.parent_view.type in ("Crafting", "Consumable", "Misc"):
             self.parent_view.stats = self.stats.value
             self.parent_view.effects = self.effects.value
-
 
         await interaction.response.send_message(
             "✅ Details saved. Click Submit when ready or Stat Details.", ephemeral=True
@@ -1046,34 +1055,30 @@ class ItemDetailsModal2(discord.ui.Modal):
         
         self.parent_view = parent_view
 
-         #  STATS
-        if parent_view.type == "Weapon" or "Equipment" or "Consumable":
-
+        #  STATS
+        if parent_view.type in ("Weapon", "Equipment", "Consumable"):
             self.stats = discord.ui.TextInput(
                 label="Stats", default=parent_view.stats, placeholder="Example: STR:+3 WIS:+4 INT:-1", required=False, style=discord.TextStyle.paragraph
             )
     
-        #  EFFECTS
-
+            #  EFFECTS
             self.effects = discord.ui.TextInput(
                 label="Effects", default=parent_view.effects, placeholder="Example: Lesser Spellshield, ", required=False, style=discord.TextStyle.paragraph
             )
-
             
             self.add_item(self.stats)
             self.add_item(self.effects)
 
-
-
     async def on_submit(self, interaction: discord.Interaction):
         # Save values back to the view   
-        if self.parent_view.type == "Weapon" or "Equipment" or"Consumable":
+        if self.parent_view.type in ("Weapon", "Equipment", "Consumable"):
             self.parent_view.stats = self.stats.value
             self.parent_view.effects = self.effects.value
 
         await interaction.response.send_message(
             "✅ Details saved. Click Submit when ready, or Add Required Details.", ephemeral=True
         )
+
 
 class ItemHistoryModal(discord.ui.Modal):
     def __init__(self, guild_id, items):
@@ -1147,7 +1152,6 @@ class RemovalHistoryModal(discord.ui.Modal):
         self.guild_id = guild_id
         self.items = items
 
-
         # Calculate total items removed
         total_removed = len(items)
         total_text = str(total_removed)
@@ -1189,8 +1193,6 @@ class RemovalHistoryModal(discord.ui.Modal):
         await interaction.response.send_message("✅ Closed.", ephemeral=True)
 
 
-
-
 class RemovalHistoryButton(discord.ui.Button):
     def __init__(self, db_pool):
         super().__init__(label="Removal History", style=discord.ButtonStyle.secondary)
@@ -1209,8 +1211,6 @@ class RemovalHistoryButton(discord.ui.Button):
 
         modal = RemovalHistoryModal(interaction.guild.id, items)
         await interaction.response.send_modal(modal)
-
-
 
 
 class RemoveItemModal(discord.ui.Modal, title="Remove Item"):
@@ -1274,11 +1274,6 @@ class RemoveItemModal(discord.ui.Modal, title="Remove Item"):
             await interaction.response.send_message(f"❌ Error removing item: {e}", ephemeral=True)
 
 
-
-
-
-
-
 # ---------- /view_bank Command ----------
 
 @bot.tree.command(name="view_bank", description="View all items in the guild bank.")
@@ -1310,9 +1305,7 @@ async def view_bank(interaction: discord.Interaction):
     async def build_embed_with_file(row):
         type = (row.get('type') or "Misc").lower()
         name = row.get('name')
-
         donated_by = row.get('donated_by') or "Anonymous"
-
 
         embed = discord.Embed(
             color=TYPE_COLORS.get(type, discord.Color.blurple())
@@ -1324,7 +1317,7 @@ async def view_bank(interaction: discord.Interaction):
             embed.set_image(url=row['image'])
             return embed, None
 
-              # Handle uploaded created_images (URL)
+        # Handle uploaded created_images (URL)
         if row.get('created_images'):
             embed.set_image(url=row['created_images'])
             return embed, None
@@ -1340,7 +1333,6 @@ async def view_bank(interaction: discord.Interaction):
             await interaction.channel.send(embed=embed)
 
     await interaction.followup.send(f"✅ Sent {len(rows)} items.", ephemeral=True)
-
 
 
 # ---------- /add_item Command ----------
@@ -1369,17 +1361,15 @@ async def add_item(interaction: discord.Interaction, type: str, image: discord.A
         await interaction.response.send_message(f"Adding a new {type}:", view=view, ephemeral=True)
 
 
-
 @bot.tree.command(name="edit_item", description="Edit an existing item in the guild bank.")
 @app_commands.describe(item_name="Name of the item to edit")
 async def edit_item(interaction: discord.Interaction, item_name: str):
-    
     guild_id = interaction.guild.id
 
     # 1️⃣ Fetch the item record
     item = await get_item_by_name(guild_id, item_name)
     if not item:
-        await interaction.followup.send("❌ Item not found.", ephemeral=True)
+        await interaction.response.send_message("❌ Item not found.", ephemeral=True)
         return
 
     # 2️⃣ Uploaded image item — open simple modal
@@ -1392,23 +1382,20 @@ async def edit_item(interaction: discord.Interaction, item_name: str):
     if item.get("created_images"):
         await interaction.response.defer(ephemeral=True)
         view = ItemEntryView(
-	        db_pool=db_pool,
-	        author=interaction.user,
-	        type=type,
-	        item_id=item["id"],
-	        existing_data=item,
-	        is_edit=True
-	    )
+            db_pool=db_pool,
+            author=interaction.user,
+            type=item["type"],
+            item_id=item["id"],
+            existing_data=item,
+            is_edit=True
+        )
 
-    # Let the user know this is edit mode
-    await interaction.followup.send(
-        content=f"🛠 Editing **{item['name']}**. You can adjust fields and re-submit to update the item.",
-        view=view,
-        ephemeral=True
-    )
-
-
-
+        # Let the user know this is edit mode
+        await interaction.followup.send(
+            content=f"🛠 Editing **{item['name']}**. You can adjust fields and re-submit to update the item.",
+            view=view,
+            ephemeral=True
+        )
 
 
 @bot.tree.command(name="remove_item", description="Remove an item from the guild bank.")
@@ -1430,9 +1417,6 @@ async def remove_item(interaction: discord.Interaction, item_name: str):
     # 🧾 Open modal to capture removal reason
     modal = RemoveItemModal(item=item, db_pool=db_pool)
     await interaction.response.send_modal(modal)
-
-
-
 
 
 @bot.tree.command(name="view_itemhistory", description="View guild item donation stats.")
@@ -1465,11 +1449,9 @@ async def view_itemhistory(interaction: discord.Interaction):
     # Add the Item History button
     view = discord.ui.View()
     view.add_item(ItemHistoryButton(db_pool))
-
     view.add_item(RemovalHistoryButton(db_pool))
 
     await interaction.response.send_message(embed=embed, view=view, ephemeral=True)
-
 
 
 @bot.tree.command(name="item_bg", description="Upload a background for an item type and template.")
@@ -1500,7 +1482,6 @@ async def item_bg(interaction: discord.Interaction, item_type: str, template_nam
     await interaction.response.send_message(f"✅ Background for `{item_type}` under template `{template_name}` has been set.", ephemeral=True)
 
 
-
 @bot.tree.command(name="item_template", description="Switch the current background template for your guild.")
 @app_commands.describe(template_name="Template to activate (e.g., default, wow, diablo)")
 async def item_template(interaction: discord.Interaction, template_name: str):
@@ -1514,11 +1495,7 @@ async def item_template(interaction: discord.Interaction, template_name: str):
     await interaction.response.send_message(f"✅ Template switched to `{template_name}`.", ephemeral=True)
 
 
-
-
-
 # ---------- Funds DB Helpers ----------
-
 
 # ----------------- Currency Helpers -----------------
 # Convert from 4-part currency to total copper
@@ -1552,12 +1529,12 @@ def copper_to_currency(total_copper):
 # ----------------- DB Helpers -----------------
 async def add_funds_db(guild_id, type, total_copper, donated_by=None, donated_at=None):
     """Insert a donation or spend entry."""
-    donated_at = donated_at or date.today.datetime()  # Use today if not provided
+    donated_at = donated_at or datetime.utcnow()  # Use today if not provided
     async with db_pool.acquire() as conn:
         await conn.execute('''
             INSERT INTO funds (guild_id, type, total_copper, donated_by, donated_at)
             VALUES ($1, $2, $3, $4, $5)
-        ''',guild_id, type, total_copper, donated_by, donated_at)
+        ''', guild_id, type, total_copper, donated_by, donated_at)
 
 async def get_fund_totals(guild_id):
     """Get total donated and spent copper."""
@@ -1614,7 +1591,7 @@ class AddFundsModal(Modal):
             type='donation',
             total_copper=total,
             donated_by=self.donated_by.value.strip() or None,
-            donated_at=datetime.date.today()
+            donated_at=datetime.utcnow()
         )
         await interaction.response.send_message("✅ Donation added!", ephemeral=True)
 
@@ -1649,7 +1626,7 @@ class SpendFundsModal(Modal):
             type='spend',
             total_copper=total,
             donated_by=self.note.value.strip() or None,
-            donated_at=datetime.date.today()
+            donated_at=datetime.utcnow()
         )
         await interaction.response.send_message("✅ Funds spent recorded!", ephemeral=True)
 
@@ -1670,7 +1647,6 @@ class DonationHistoryModal(discord.ui.Modal):
         history_text = ""
       
         for d in donations:
-            total_copper += d['total_copper']
             plat, gold, silver, copper = copper_to_currency(d['total_copper'])
             donor = d['donated_by'] or "Anonymous"
             date = d['donated_at'].strftime("%m-%d-%y")
@@ -1680,7 +1656,6 @@ class DonationHistoryModal(discord.ui.Modal):
         if len(history_text) > 4000:
             history_text = history_text[:3990] + "\n…"
         
-        
         self.total_input = discord.ui.TextInput(
             label="💰 Total Donated",
             style=discord.TextStyle.short,
@@ -1689,7 +1664,6 @@ class DonationHistoryModal(discord.ui.Modal):
         )
         self.total_input.disabled = True
         self.add_item(self.total_input)
-
         
         self.history_input = discord.ui.TextInput(
             label="Donation History",
@@ -1709,16 +1683,13 @@ class SpendingHistoryModal(discord.ui.Modal):
         self.guild_id = guild_id
         self.spendings = spendings
         
-
         total_copper = sum(s['total_copper'] for s in spendings)
         t_plat, t_gold, t_silver, t_copper = copper_to_currency(total_copper)
         total_text = f"{t_plat}p {t_gold}g {t_silver}s {t_copper}c"
         
         # Combine all spendings into one string
         history_text = ""
-        total_copper = 0
         for s in spendings:
-            total_copper += s['total_copper']
             plat, gold, silver, copper = copper_to_currency(s['total_copper'])
             spender = s['donated_by'] or "Unknown"
             date = s['donated_at'].strftime("%m-%d-%y")
@@ -1749,8 +1720,7 @@ class SpendingHistoryModal(discord.ui.Modal):
         await interaction.response.send_message("✅ Closed.", ephemeral=True)
 
 
-
-    # Button to view full history
+# Button to view full history
 
 class ViewFullHistoryButton(discord.ui.Button):
     def __init__(self, donations):
@@ -1778,8 +1748,6 @@ class ViewSpendingHistoryButton(discord.ui.Button):
 
         modal = SpendingHistoryModal(interaction.guild.id, self.spendings)
         await interaction.response.send_modal(modal)
-
-
 
 
 # ----------------- Slash Commands -----------------
@@ -1828,7 +1796,6 @@ async def view_funds(interaction: discord.Interaction):
     await interaction.response.send_message(embed=embed, view=view, ephemeral=True)
 
 
-
 @bot.tree.command(name="view_fundshistory", description="View all donations in the guild bank.")
 async def view_donations(interaction: discord.Interaction):
     guild_id = interaction.guild.id
@@ -1860,9 +1827,6 @@ async def view_donations(interaction: discord.Interaction):
     await interaction.response.send_message(embed=embed, view=view, ephemeral=True)
 
 
-
-
-
 # ---------------- Bot Setup ----------------
 
 @bot.event
@@ -1888,8 +1852,3 @@ async def on_error(event, *args, **kwargs):
     traceback.print_exc()
 
 bot.run(TOKEN)
-
-
-
-
-
