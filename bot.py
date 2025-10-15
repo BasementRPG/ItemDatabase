@@ -1488,7 +1488,7 @@ async def view_itemhistory(interaction: discord.Interaction):
     template_name="Template name (e.g., default, wow, diablo).",
     image="Upload the background image."
 )
-async def item_bg(interaction: discord.Interaction, type: str, template_name: str, image: discord.Attachment):
+async def item_bg(interaction: discord.Interaction, item_type: str, template_name: str, image: discord.Attachment):
     allowed_types = ["Weapon", "Equipment", "Crafting", "Consumable", "Misc"]
 
     if item_type not in allowed_types:
@@ -1505,7 +1505,7 @@ async def item_bg(interaction: discord.Interaction, type: str, template_name: st
             VALUES ($1, $2, $3, $4)
             ON CONFLICT (guild_id, type, template_name) DO UPDATE
             SET image_url = EXCLUDED.image_url
-        ''', interaction.guild.id, type, template_name.lower(), image_url)
+        ''', interaction.guild.id, item_type, template_name.lower(), image_url)
 
     await interaction.response.send_message(f"✅ Background for `{type}` under template `{template_name}` has been set.", ephemeral=True)
 
