@@ -1496,7 +1496,7 @@ async def view_itemhistory(interaction: discord.Interaction):
     app_commands.Choice(name="Misc", value="Misc"),
     app_commands.Choice(name="Weapon", value="Weapon")
 ])
-async def item_bg(interaction: discord.Interaction, item_type: str, template_name: str, image: discord.Attachment):
+async def item_bg(interaction: discord.Interaction, item_type: app_commands.Choice[str], template_name: str, image: discord.Attachment):
   
     upload_channel = await ensure_upload_channel(interaction.guild)
     msg = await upload_channel.send(file=await image.to_file(), content=f"Background uploaded by {interaction.user}")
@@ -1508,7 +1508,7 @@ async def item_bg(interaction: discord.Interaction, item_type: str, template_nam
             VALUES ($1, $2, $3, $4)
             ON CONFLICT (guild_id, type, template_name) DO UPDATE
             SET image_url = EXCLUDED.image_url
-        ''', interaction.guild.id, item_type, template_name.lower(), image_url)
+        ''', interaction.guild.id, item_type.value, template_name.lower(), image_url)
 
     await interaction.response.send_message(f"✅ Background for `{item_type}` under template `{template_name}` has been set.", ephemeral=True)
 
