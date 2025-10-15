@@ -244,7 +244,7 @@ async def get_item_background(db_pool, guild_id: int, item_type: str, template_n
     fallback_paths = {
         "Weapon": "assets/backgrounds/bgweapon.png",
         "Equipment": "assets/backgrounds/bgarmor.png",
-        "Crafting": "assets/backgrounds/bgcraft.png",
+        "Crafting": "assets/backgrounds/bgcrafting.png",
         "Consumable": "assets/backgrounds/bgconsumable.png",
         "Misc": "assets/backgrounds/bgmisc.png"
     }
