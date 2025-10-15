@@ -11,6 +11,8 @@ import io
 
 
 active_views = {}
+bot = commands.Bot(command_prefix="!")
+
 
 print("discord.py version:", discord.__version__)
 
