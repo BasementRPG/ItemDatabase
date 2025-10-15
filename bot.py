@@ -1501,7 +1501,7 @@ async def item_bg(interaction: discord.Interaction, item_type: str, template_nam
 
     async with db_pool.acquire() as conn:
         await conn.execute('''
-            INSERT INTO item_backgrounds (guild_id, item_type, template_name, image_url)
+            INSERT INTO backgrounds (guild_id, item_type, template_name, image_url)
             VALUES ($1, $2, $3, $4)
             ON CONFLICT (guild_id, item_type, template_name) DO UPDATE
             SET image_url = EXCLUDED.image_url
