@@ -1483,18 +1483,21 @@ async def view_itemhistory(interaction: discord.Interaction):
 
 
 @bot.tree.command(name="item_bg", description="Upload a background for an item type and template.")
+
 @app_commands.describe(
     item_type="Select the item type this background applies to.",
     template_name="Template name (e.g., default, wow, diablo).",
     image="Upload the background image."
 )
+@app_commands.choices(item_type=[
+    app_commands.Choice(name="Equipment", value="Equipment"),
+    app_commands.Choice(name="Crafting", value="Crafting"),
+    app_commands.Choice(name="Consumable", value="Consumable"),
+    app_commands.Choice(name="Misc", value="Misc"),
+    app_commands.Choice(name="Weapon", value="Weapon")
+])
 async def item_bg(interaction: discord.Interaction, item_type: str, template_name: str, image: discord.Attachment):
-    allowed_types = ["Weapon", "Equipment", "Crafting", "Consumable", "Misc"]
-
-    if item_type not in allowed_types:
-        await interaction.response.send_message(f"❌ Invalid item type. Choose from: {', '.join(allowed_types)}", ephemeral=True)
-        return
-
+  
     upload_channel = await ensure_upload_channel(interaction.guild)
     msg = await upload_channel.send(file=await image.to_file(), content=f"Background uploaded by {interaction.user}")
     image_url = msg.attachments[0].url
