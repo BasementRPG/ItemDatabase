@@ -1513,7 +1513,7 @@ async def item_bg(interaction: discord.Interaction, item_type: str, template_nam
 @bot.tree.command(name="item_template", description="Switch the current background template for your guild.")
 @app_commands.describe(template_name="Template to activate (e.g., default, wow, diablo)")
 async def item_template(interaction: discord.Interaction, template_name: str):
-    async with bot.db_pool.acquire() as conn:
+    async with db_pool.acquire() as conn:
         await conn.execute('''
             INSERT INTO guild_templates (guild_id, current_template)
             VALUES ($1, $2)
