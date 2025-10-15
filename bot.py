@@ -1501,13 +1501,13 @@ async def item_bg(interaction: discord.Interaction, item_type: str, template_nam
 
     async with db_pool.acquire() as conn:
         await conn.execute('''
-            INSERT INTO backgrounds (guild_id, item_type, template_name, image_url)
+            INSERT INTO backgrounds (guild_id, type, template_name, image_url)
             VALUES ($1, $2, $3, $4)
-            ON CONFLICT (guild_id, item_type, template_name) DO UPDATE
+            ON CONFLICT (guild_id, type, template_name) DO UPDATE
             SET image_url = EXCLUDED.image_url
-        ''', interaction.guild.id, item_type, template_name.lower(), image_url)
+        ''', interaction.guild.id, type, template_name.lower(), image_url)
 
-    await interaction.response.send_message(f"✅ Background for `{item_type}` under template `{template_name}` has been set.", ephemeral=True)
+    await interaction.response.send_message(f"✅ Background for `{type}` under template `{template_name}` has been set.", ephemeral=True)
 
 
 @bot.tree.command(name="item_template", description="Switch the current background template for your guild.")
