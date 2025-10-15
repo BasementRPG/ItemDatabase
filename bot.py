@@ -1499,7 +1499,7 @@ async def item_bg(interaction: discord.Interaction, item_type: str, template_nam
     msg = await upload_channel.send(file=await image.to_file(), content=f"Background uploaded by {interaction.user}")
     image_url = msg.attachments[0].url
 
-    async with bot.db_pool.acquire() as conn:
+    async with db_pool.acquire() as conn:
         await conn.execute('''
             INSERT INTO item_backgrounds (guild_id, item_type, template_name, image_url)
             VALUES ($1, $2, $3, $4)
@@ -1873,14 +1873,6 @@ async def on_ready():
         print(f"Error syncing commands: {e}")
         import traceback
         traceback.print_exc()
-
-@bot.event
-async def on_ready():
-    print(f"Logged in as {bot.user}")
-
-async def main():
-    bot.db_pool = await asyncpg.create_pool(DATABASE_URL)
-    await bot.start(TOKEN)
 
 
 @bot.event
