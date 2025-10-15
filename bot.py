@@ -1510,7 +1510,7 @@ async def item_bg(interaction: discord.Interaction, item_type: app_commands.Choi
             SET image_url = EXCLUDED.image_url
         ''', interaction.guild.id, item_type.value, template_name.lower(), image_url)
 
-    await interaction.response.send_message(f"✅ Background for `{item_type}` under template `{template_name}` has been set.", ephemeral=True)
+    await interaction.response.send_message(f"✅ Background for `{item_type.value}` under template `{template_name}` has been set.", ephemeral=True)
 
 
 @bot.tree.command(name="item_template", description="Switch the current background template for your guild.")
