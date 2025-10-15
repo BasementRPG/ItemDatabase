@@ -11,7 +11,6 @@ import io
 
 
 active_views = {}
-bot = commands.Bot(command_prefix="!")
 
 
 print("discord.py version:", discord.__version__)
@@ -1874,6 +1873,15 @@ async def on_ready():
         print(f"Error syncing commands: {e}")
         import traceback
         traceback.print_exc()
+
+@bot.event
+async def on_ready():
+    print(f"Logged in as {bot.user}")
+
+async def main():
+    bot.db_pool = await asyncpg.create_pool(DATABASE_URL)
+    await bot.start(TOKEN)
+
 
 @bot.event
 async def on_error(event, *args, **kwargs):
