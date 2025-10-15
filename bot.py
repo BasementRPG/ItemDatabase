@@ -1488,7 +1488,7 @@ async def view_itemhistory(interaction: discord.Interaction):
     template_name="Template name (e.g., default, wow, diablo).",
     image="Upload the background image."
 )
-async def item_bg(interaction: discord.Interaction, item_type: str, template_name: str, image: discord.Attachment):
+async def item_bg(interaction: discord.Interaction, type: str, template_name: str, image: discord.Attachment):
     allowed_types = ["Weapon", "Equipment", "Crafting", "Consumable", "Misc"]
 
     if item_type not in allowed_types:
