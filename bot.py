@@ -1540,7 +1540,7 @@ async def item_template(interaction: discord.Interaction, template_name: str):
     await interaction.response.send_message(f"✅ Template switched to `{template_name}`.", ephemeral=True)
 
 
-@app_commands.command(name="set_classes", description="Set custom classes for a specific template.")
+@bot.tree.command(name="set_classes", description="Set custom classes for a specific template.")
 @app_commands.describe(
     template_name="Template to apply these classes to (e.g. wow, ffxiv, default).",
     classes="Comma-separated list of class names."
@@ -1550,7 +1550,7 @@ async def set_classes(interaction: discord.Interaction, template_name: str, clas
     template_name = template_name.lower().strip()
     class_list = [c.strip() for c in classes.split(",") if c.strip()]
 
-    async with interaction.client.db_pool.acquire() as conn:
+    async with db_pool.acquire() as conn:
         await conn.execute("""
             INSERT INTO template_data (guild_id, template_name, classes)
             VALUES ($1, $2, $3)
