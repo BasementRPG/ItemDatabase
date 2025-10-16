@@ -1497,6 +1497,7 @@ async def view_itemhistory(interaction: discord.Interaction):
     await interaction.response.send_message(embed=embed, view=view, ephemeral=True)
 
 
+
 @bot.tree.command(name="item_bg", description="Upload a background for an item type and template.")
 @app_commands.describe(
     item_type="Select the item type this background applies to.",
@@ -1540,6 +1541,7 @@ async def item_template(interaction: discord.Interaction, template_name: str):
     await interaction.response.send_message(f"✅ Template switched to `{template_name}`.", ephemeral=True)
 
 
+
 @bot.tree.command(name="set_classes", description="Set custom classes for a specific template.")
 @app_commands.describe(
     template_name="Template to apply these classes to (e.g. wow, ffxiv, default).",
@@ -1564,6 +1566,84 @@ async def set_classes(interaction: discord.Interaction, template_name: str, clas
     )
 
 
+@bot.tree.command(name="set_races", description="Set custom races for a specific template.")
+@app_commands.describe(
+    template_name="Template to apply these races to (e.g. wow, ffxiv, default).",
+    races="Comma-separated list of race names."
+)
+async def set_races(interaction: discord.Interaction, template_name: str, races: str):
+    guild_id = interaction.guild.id
+    template_name = template_name.lower().strip()
+    race_list = [r.strip() for r in races.split(",") if r.strip()]
+
+    async with db_pool.acquire() as conn:
+        # If the row exists, only update races — leave classes alone
+        await conn.execute("""
+            INSERT INTO template_data (guild_id, template_name, races)
+            VALUES ($1, $2, $3)
+            ON CONFLICT (guild_id, template_name)
+            DO UPDATE SET races = EXCLUDED.races
+        """, guild_id, template_name, race_list)
+
+    await interaction.response.send_message(
+        f"✅ Saved **{len(race_list)}** races for template **{template_name}**.",
+        ephemeral=True
+    )
+
+
+
+@bot.tree.command(name="view_template", description="View saved classes, races, and backgrounds for a template.")
+@app_commands.describe(template_name="The name of the template you want to view.")
+async def view_template(interaction: discord.Interaction, template_name: str):
+    guild_id = interaction.guild.id
+    template_name = template_name.lower().strip()
+
+    async with db_pool.acquire() as conn:
+        # Fetch the classes/races
+        template_row = await conn.fetchrow("""
+            SELECT classes, races
+            FROM template_data
+            WHERE guild_id=$1 AND template_name=$2
+        """, guild_id, template_name)
+
+        # Fetch backgrounds for this template
+        bg_rows = await conn.fetch("""
+            SELECT type, image_url
+            FROM template_backgrounds
+            WHERE guild_id=$1 AND template_name=$2
+        """, guild_id, template_name)
+
+    # Handle if template doesn’t exist
+    if not template_row and not bg_rows:
+        await interaction.response.send_message(
+            f"⚠️ No template found with the name **{template_name}**.",
+            ephemeral=True
+        )
+        return
+
+    # Format embed
+    embed = discord.Embed(
+        title=f"🧱 Template: {template_name.capitalize()}",
+        color=discord.Color.blue()
+    )
+
+    # Add class/race info
+    classes = ", ".join(template_row["classes"]) if template_row and template_row["classes"] else "None set"
+    races = ", ".join(template_row["races"]) if template_row and template_row["races"] else "None set"
+
+    embed.add_field(name="Classes", value=classes, inline=False)
+    embed.add_field(name="Races", value=races, inline=False)
+
+    # Add background info
+    if bg_rows:
+        bg_list = "\n".join([f"**{r['type'].capitalize()}** → [View]({r['image_url']})" for r in bg_rows])
+        embed.add_field(name="Backgrounds", value=bg_list, inline=False)
+    else:
+        embed.add_field(name="Backgrounds", value="None set", inline=False)
+
+    embed.set_footer(text=f"Guild ID: {guild_id}")
+
+    await interaction.response.send_message(embed=embed, ephemeral=True)
 
 
 
