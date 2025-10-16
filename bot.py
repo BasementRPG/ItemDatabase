@@ -1500,7 +1500,6 @@ async def view_itemhistory(interaction: discord.Interaction):
 
 
 @bot.tree.command(name="item_bg", description="Upload a background for an item type and template.")
-
 @app_commands.describe(
     item_type="Select the item type this background applies to.",
     template_name="Template name (e.g., default, wow, diablo).",
