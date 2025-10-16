@@ -1592,9 +1592,6 @@ async def set_races(interaction: discord.Interaction, template_name: str, races:
     )
 
 
-from discord import app_commands
-import discord
-
 @app_commands.command(name="view_template", description="View saved classes, races, and backgrounds for a template.")
 @app_commands.describe(template_name="The name of the template you want to view.")
 async def view_template(interaction: discord.Interaction, template_name: str):
