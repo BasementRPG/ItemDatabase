@@ -252,6 +252,17 @@ async def get_item_background(db_pool, guild_id: int, item_type: str, template_n
     return fallback_paths.get(item_type, "assets/backgrounds/bgdefault.png")
 
 
+async def get_template_data(db_pool, guild_id, template_name):
+    async with db_pool.acquire() as conn:
+        row = await conn.fetchrow(
+            "SELECT classes, races FROM template_data WHERE guild_id=$1 AND template_name=$2",
+            guild_id, template_name
+        )
+
+    if not row:
+        return {"classes": [], "races": []}
+
+    return {"classes": row["classes"] or [], "races": row["races"] or []}
 
 
 
@@ -1529,6 +1540,28 @@ async def item_template(interaction: discord.Interaction, template_name: str):
     await interaction.response.send_message(f"✅ Template switched to `{template_name}`.", ephemeral=True)
 
 
+@app_commands.command(name="set_classes", description="Set custom classes for a specific template.")
+@app_commands.describe(
+    template_name="Template to apply these classes to (e.g. wow, ffxiv, default).",
+    classes="Comma-separated list of class names."
+)
+async def set_classes(interaction: discord.Interaction, template_name: str, classes: str):
+    guild_id = interaction.guild.id
+    template_name = template_name.lower().strip()
+    class_list = [c.strip() for c in classes.split(",") if c.strip()]
+
+    async with interaction.client.db_pool.acquire() as conn:
+        await conn.execute("""
+            INSERT INTO template_data (guild_id, template_name, classes)
+            VALUES ($1, $2, $3)
+            ON CONFLICT (guild_id, template_name)
+            DO UPDATE SET classes = EXCLUDED.classes
+        """, guild_id, template_name, class_list)
+
+    await interaction.response.send_message(
+        f"✅ Saved **{len(class_list)}** classes for template **{template_name}**.",
+        ephemeral=True
+    )
 
 
 
