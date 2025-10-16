@@ -1543,6 +1543,7 @@ async def item_template(interaction: discord.Interaction, template_name: str):
     await interaction.response.send_message(f"✅ Template switched to `{template_name}`.", ephemeral=True)
 
 
+
 @app_commands.command(name="set_classes", description="Set custom classes for a specific template.")
 @app_commands.describe(
     template_name="Template to apply these classes to (e.g. wow, ffxiv, default).",
