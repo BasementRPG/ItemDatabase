@@ -1591,6 +1591,61 @@ async def set_races(interaction: discord.Interaction, template_name: str, races:
     )
 
 
+from discord import app_commands
+import discord
+
+@app_commands.command(name="view_template", description="View saved classes, races, and backgrounds for a template.")
+@app_commands.describe(template_name="The name of the template you want to view.")
+async def view_template(interaction: discord.Interaction, template_name: str):
+    guild_id = interaction.guild.id
+    template_name = template_name.lower().strip()
+
+    async with interaction.client.db_pool.acquire() as conn:
+        # Fetch the classes/races
+        template_row = await conn.fetchrow("""
+            SELECT classes, races
+            FROM template_data
+            WHERE guild_id=$1 AND template_name=$2
+        """, guild_id, template_name)
+
+        # Fetch backgrounds for this template
+        bg_rows = await conn.fetch("""
+            SELECT type, image_url
+            FROM template_backgrounds
+            WHERE guild_id=$1 AND template_name=$2
+        """, guild_id, template_name)
+
+    # Handle if template doesn’t exist
+    if not template_row and not bg_rows:
+        await interaction.response.send_message(
+            f"⚠️ No template found with the name **{template_name}**.",
+            ephemeral=True
+        )
+        return
+
+    # Format embed
+    embed = discord.Embed(
+        title=f"🧱 Template: {template_name.capitalize()}",
+        color=discord.Color.blue()
+    )
+
+    # Add class/race info
+    classes = ", ".join(template_row["classes"]) if template_row and template_row["classes"] else "None set"
+    races = ", ".join(template_row["races"]) if template_row and template_row["races"] else "None set"
+
+    embed.add_field(name="Classes", value=classes, inline=False)
+    embed.add_field(name="Races", value=races, inline=False)
+
+    # Add background info
+    if bg_rows:
+        bg_list = "\n".join([f"**{r['type'].capitalize()}** → [View]({r['image_url']})" for r in bg_rows])
+        embed.add_field(name="Backgrounds", value=bg_list, inline=False)
+    else:
+        embed.add_field(name="Backgrounds", value="None set", inline=False)
+
+    embed.set_footer(text=f"Guild ID: {guild_id}")
+
+    await interaction.response.send_message(embed=embed, ephemeral=True)
 
 
 
