@@ -1879,24 +1879,20 @@ async def view_donations(interaction: discord.Interaction):
     
 @bot.event
 async def on_ready():
-
-    print(f"🟢 Logged in as {bot.user} (ID: {bot.user.id})")
-    print("🔄 Syncing slash commands...")
+    global db_pool
+    if db_pool is None:
+        db_pool = await asyncpg.create_pool(DATABASE_URL)
 
     try:
-        # Option 1: sync to all guilds (global sync)
         synced = await bot.tree.sync()
-        print(f"✅ Synced {len(synced)} global command(s).")
-
-        # Option 2 (optional): force instant sync to your dev guild for testing
-        # Replace with your Discord server (guild) ID
-        GUILD_ID = 123456789012345678
-        guild = discord.Object(id=GUILD_ID)
-        synced_guild = await bot.tree.sync(guild=guild)
-        print(f"⚡ Synced {len(synced_guild)} command(s) to guild {GUILD_ID}")
-
+        print(f"Logged in as {bot.user}")
+        print(f"Synced {len(synced)} command(s)")
+        for cmd in synced:
+            print(f"  - {cmd.name}")
     except Exception as e:
-        print(f"❌ Failed to sync commands: {e}")
+        print(f"Error syncing commands: {e}")
+        import traceback
+        traceback.print_exc()
 
 
 @bot.event
