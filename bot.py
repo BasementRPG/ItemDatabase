@@ -1995,9 +1995,7 @@ async def view_donations(interaction: discord.Interaction):
     
 @bot.event
 async def on_ready():
-        global db_pool
-    if db_pool is None:
-        db_pool = await asyncpg.create_pool(DATABASE_URL)
+
     print(f"🟢 Logged in as {bot.user} (ID: {bot.user.id})")
     print("🔄 Syncing slash commands...")
 
