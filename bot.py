@@ -252,6 +252,23 @@ async def get_item_background(db_pool, guild_id: int, item_type: str, template_n
     return fallback_paths.get(item_type, "assets/backgrounds/bgdefault.png")
 
 
+async def get_template_data(db_pool, guild_id, template_name):
+    async with db_pool.acquire() as conn:
+        row = await conn.fetchrow(
+            "SELECT classes, races FROM template_data WHERE guild_id=$1 AND template_name=$2",
+            guild_id, template_name
+        )
+
+    if not row:
+        return {"classes": [], "races": []}
+
+    return {"classes": row["classes"] or [], "races": row["races"] or []}
+
+
+
+
+
+
 
 
 # ---------- Helper Function for Drawing Item Text ----------
@@ -1524,6 +1541,70 @@ async def item_template(interaction: discord.Interaction, template_name: str):
         ''', interaction.guild.id, template_name.lower())
 
     await interaction.response.send_message(f"✅ Template switched to `{template_name}`.", ephemeral=True)
+
+
+@app_commands.command(name="set_classes", description="Set custom classes for a specific template.")
+@app_commands.describe(
+    template_name="Template to apply these classes to (e.g. wow, ffxiv, default).",
+    classes="Comma-separated list of class names."
+)
+async def set_classes(interaction: discord.Interaction, template_name: str, classes: str):
+    guild_id = interaction.guild.id
+    template_name = template_name.lower().strip()
+    class_list = [c.strip() for c in classes.split(",") if c.strip()]
+
+    async with interaction.client.db_pool.acquire() as conn:
+        await conn.execute("""
+            INSERT INTO template_data (guild_id, template_name, classes)
+            VALUES ($1, $2, $3)
+            ON CONFLICT (guild_id, template_name)
+            DO UPDATE SET classes = EXCLUDED.classes
+        """, guild_id, template_name, class_list)
+
+    await interaction.response.send_message(
+        f"✅ Saved **{len(class_list)}** classes for template **{template_name}**.",
+        ephemeral=True
+    )
+
+@app_commands.command(name="set_races", description="Set custom races for a specific template.")
+@app_commands.describe(
+    template_name="Template to apply these races to (e.g. wow, ffxiv, default).",
+    races="Comma-separated list of race names."
+)
+async def set_races(interaction: discord.Interaction, template_name: str, races: str):
+    guild_id = interaction.guild.id
+    template_name = template_name.lower().strip()
+    race_list = [r.strip() for r in races.split(",") if r.strip()]
+
+    async with interaction.client.db_pool.acquire() as conn:
+        # If the row exists, only update races — leave classes alone
+        await conn.execute("""
+            INSERT INTO template_data (guild_id, template_name, races)
+            VALUES ($1, $2, $3)
+            ON CONFLICT (guild_id, template_name)
+            DO UPDATE SET races = EXCLUDED.races
+        """, guild_id, template_name, race_list)
+
+    await interaction.response.send_message(
+        f"✅ Saved **{len(race_list)}** races for template **{template_name}**.",
+        ephemeral=True
+    )
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 # ---------- Funds DB Helpers ----------
