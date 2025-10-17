@@ -1270,6 +1270,9 @@ class DatabaseView(View):
                 else:
                     options.append(discord.SelectOption(label=value.title(), value=value.lower()))
 
+
+        options.append(discord.SelectOption(label=" Previous", value="previous"))
+        
         # Remove the old filter dropdown and replace with new value dropdown
         self.clear_items()
         self.value_select = Select(
@@ -1284,6 +1287,13 @@ class DatabaseView(View):
         await interaction.response.edit_message(view=self)
 
     async def value_select_callback(self, interaction: discord.Interaction):
+        if self.value_select.values[0] == "previous":
+            # Go back to initial filter dropdown
+            self.clear_items()
+            self.add_item(self.filter_select)
+            await interaction.response.edit_message(view=self)
+            return
+        
         self.selected_value = self.value_select.values[0]
         await self.show_results(interaction)
 
