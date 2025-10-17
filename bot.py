@@ -1211,11 +1211,29 @@ class DatabaseZoneSelect(DatabaseItemSelect):
         self.options = [SelectOption(label=row['zone_name'], value=row['zone_name'].lower()) for row in rows]
         self.options.insert(0, SelectOption(label="All Zones", value="all"))
 
-# Example usage in command:
-@bot.tree.command(name="view_item_db", description="View the item database.")
+@tree.command(name="view_item_db", description="View or filter the item database.")
 async def view_item_db(interaction: discord.Interaction):
-    view = ViewDatabaseSelect(db_pool=db_pool, guild_id=interaction.guild.id)
-    await interaction.response.send_message("Filter items:", view=view)
+    guild_id = interaction.guild.id
+
+    # Create the view
+    view = ViewDatabaseSelect(db_pool, guild_id)
+
+    # Populate all dropdowns before sending message
+    await view.slot_select.populate_options()
+    await view.item_select.populate_options()
+    await view.npc_select.populate_options()
+    await view.zone_select.populate_options()
+
+    # If there are no items in the DB, show message
+    if not view.slot_select.options and not view.item_select.options:
+        await interaction.response.send_message("❌ No items found in the database.", ephemeral=True)
+        return
+
+    await interaction.response.send_message(
+        "📜 **Item Database Viewer**\nSelect a filter below to browse items.",
+        view=view,
+        ephemeral=True
+    )
 
 
 
