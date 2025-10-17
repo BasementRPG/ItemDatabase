@@ -1225,9 +1225,9 @@ class DatabaseZoneSelect(Select):
 
 
 
-@bot.tree.command(name="view_item_db", description="View item in the database.")
+@bot.tree.command(name="view_item_db", description="View items in the database.")
 async def view_item_db(interaction: discord.Interaction):
-    view = ViewDatabaseSelect(bot.db_pool, interaction.guild.id)
+    view = ViewDatabaseSelect(db_pool, interaction.guild.id)
 
     # Populate dropdowns
     await view.slot_select.populate_options()
