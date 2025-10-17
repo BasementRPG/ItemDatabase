@@ -1310,12 +1310,19 @@ class DatabaseView(View):
         for embed in embeds:
             await interaction.followup.send(embed=embed)
 
-@bot.tree.command(name="view_item_db", description="View the item database")
-async def view_item_db(interaction: Interaction):
-    view = DatabaseView(db_pool, interaction.guild.id)
-    await interaction.response.send_message("Select a filter", view=view)
+@bot.tree.command(name="view_item_db", description="View the guild's item database with filters.")
+async def view_item_db(interaction: discord.Interaction):
+    # Ensure the database pool exists
+    if not hasattr(bot, "db_pool"):
+        await interaction.response.send_message(
+            "❌ Database not initialized.", ephemeral=True
+        )
+        return
 
-
+    view = DatabaseView(bot.db_pool, interaction.guild.id)
+    await interaction.response.send_message(
+        "Select a filter type to start:", view=view, ephemeral=True
+    )
 
 
 
