@@ -524,7 +524,7 @@ async def add_item(interaction: discord.Interaction, image: discord.Attachment):
 	view.image = image.url
 	view.waiting_for_image = False	
     # Ensure an image was provided
-    if not image:
+	if not image:
         await interaction.response.send_message(
             "❌ You must upload an image of the item.",
             ephemeral=True
