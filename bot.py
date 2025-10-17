@@ -525,7 +525,7 @@ async def edit_item(interaction: discord.Interaction, name: str):
     await interaction.response.send_modal(EditItemModal(interaction, item_row=item_row))
 
 @bot.tree.command(name="remove_item", description="Remove an item from the guild bank by name.")
-@app_commands.describe(item_name="Name of the item to remove.")
+@app_commands.describe(name="Name of the item to remove.")
 async def remove_item(interaction: discord.Interaction, name: str):
     guild_id = interaction.guild.id
 
