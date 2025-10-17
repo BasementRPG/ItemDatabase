@@ -1306,8 +1306,8 @@ class DatabaseView(View):
 """
 
         self.selected_value = selected
-        await self.show_results(interaction)
-"""
+        await self.show_results(interaction)"""
+
 
     async def fetch_results(self):
         query = "SELECT * FROM item_database WHERE guild_id=$1"
