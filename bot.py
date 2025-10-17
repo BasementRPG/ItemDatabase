@@ -1264,7 +1264,7 @@ class DatabaseView(View):
             if value:
                 if self.selected_filter_type == "item_slot" and ',' in value:
                     for slot in value.split(','):
-                        slot_set.add(slot.strip()).lower())
+                        slot_set.add(slot.strip().lower())
                 else:
                     slot_set.add(value.lower())
         # Create options
