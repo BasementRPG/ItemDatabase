@@ -1020,9 +1020,9 @@ async def add_item_db(interaction: discord.Interaction, item_image: discord.Atta
         return
 
     # Upload images to a channel to get permanent URLs
-    upload_channel = discord.utils.get(interaction.guild.text_channels, name="guild-bank-upload-log")
+    upload_channel = discord.utils.get(interaction.guild.text_channels, name="item-database-upload-log")
     if not upload_channel:
-        upload_channel = await interaction.guild.create_text_channel("guild-bank-upload-log")
+        upload_channel = await interaction.guild.create_text_channel("item-database-upload-log")
 
     item_msg = await upload_channel.send(file=await item_image.to_file())
     npc_msg = await upload_channel.send(file=await npc_image.to_file())
