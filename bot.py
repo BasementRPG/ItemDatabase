@@ -1002,7 +1002,9 @@ class ItemDatabaseModal(discord.ui.Modal):
                 self.item_slot,
                 self.item_image_url,
                 self.npc_image_url,
-                added_by
+                added_by,
+                self.item_msg_id,
+                self.npc_msg_id
                 
             )
         await interaction.response.send_message(
@@ -1070,6 +1072,8 @@ async def add_item_db(interaction: discord.Interaction, item_image: discord.Atta
         npc_image_url=npc_msg.attachments[0].url,
         item_slot=item_slot,
         db_pool=db_pool
+        item_msg_id = item_msg.id
+        npc_msg_id = npc_msg.id
     ))
 
 
@@ -1228,11 +1232,28 @@ async def edit_database_item(interaction: discord.Interaction, item_name: str):
 
 @bot.tree.command(name="remove_item_db", description="Remove an item from the database by name.")
 @app_commands.describe(item_name="The name of the item to remove.")
-async def remove_database_item(interaction: discord.Interaction, item_name: str):
-    async with db_pool.acquire() as conn:
-        result = await conn.execute(
-            "DELETE FROM item_database WHERE guild_id=$1 AND item_name ILIKE $2",
-            interaction.guild.id, item_name
+async with db_pool.acquire() as conn:
+    row = await conn.fetchrow(
+        "SELECT item_image_message_id, npc_image_message_id FROM item_database WHERE item_name=$1 AND guild_id=$2",
+        item_name, interaction.guild_id
+    )
+
+    if row:
+        upload_channel = discord.utils.get(interaction.guild.text_channels, name="item-database-upload-log")
+        if upload_channel:
+            for msg_id in [row["item_image_message_id"], row["npc_image_message_id"]]:
+                if msg_id:
+                    try:
+                        msg = await upload_channel.fetch_message(msg_id)
+                        await msg.delete()
+                    except discord.NotFound:
+                        pass
+                    except Exception as e:
+                        print(f"⚠️ Failed to delete message {msg_id}: {e}")
+
+        await conn.execute(
+            "DELETE FROM item_database WHERE item_name=$1 AND guild_id=$2",
+            item_name, interaction.guild_id
         )
 
     if result == "DELETE 0":
