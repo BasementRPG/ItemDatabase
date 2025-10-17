@@ -1226,125 +1226,95 @@ class ViewDatabaseSelect(View):
         self.db_pool = db_pool
         self.guild_id = guild_id
 
-        # State variables
         self.selected_filter_type = None
         self.selected_value = None
 
         # First dropdown: filter type
-        self.filter_type_select = Select(
+        self.filter_select = Select(
             placeholder="Choose filter type",
             options=[
                 discord.SelectOption(label="Slot", value="slot"),
                 discord.SelectOption(label="Item Name", value="item_name"),
                 discord.SelectOption(label="NPC Name", value="npc_name"),
                 discord.SelectOption(label="Zone Name", value="zone_name"),
-                discord.SelectOption(label="All", value="all")
+                discord.SelectOption(label="ALL", value="all"),
             ],
             min_values=1,
             max_values=1
         )
-        self.filter_type_select.callback = self.filter_type_callback
-        self.add_item(self.filter_type_select)
+        self.filter_select.callback = self.filter_select_callback
+        self.add_item(self.filter_select)
 
-        # Second dropdown: dynamic values
+        # Second dropdown: populated dynamically
         self.value_select = Select(
             placeholder="Select a value",
-            options=[],
+            options=[],  # start empty
             min_values=1,
-            max_values=1
+            max_values=1,
+            visible=False  # hidden until populated
         )
         self.value_select.callback = self.value_select_callback
-        self.value_select.visible = False  # Hidden initially
         self.add_item(self.value_select)
 
- 
-    async def filter_type_callback(self, interaction: discord.Interaction):
-        self.selected_filter_type = self.filter_type_select.values[0]
-    
-        # If "All" is selected, show results immediately
+    async def filter_select_callback(self, interaction: discord.Interaction):
+        self.selected_filter_type = self.filter_select.values[0]
+
         if self.selected_filter_type == "all":
-            self.filter_type_select.disabled = True
+            self.filter_select.disabled = True
             self.value_select.visible = False
             await interaction.response.edit_message(view=self)
-            await self.show_results(interaction, filter_type=None, filter_value=None)
+            await self.show_results(interaction, None, None)
             return
-    
-        # Populate second dropdown based on selected filter
-        async with self.db_pool.acquire() as conn:
-            column = self.selected_filter_type
-            rows = await conn.fetch(f"SELECT DISTINCT {column} FROM item_database WHERE guild_id=$1", self.guild_id)
-            options_set = set()
-    
-            for row in rows:
-                value = row[column]
-                if not value:
-                    continue
-                if column == "slot":  # split comma-separated slots
-                    for slot in value.split(","):
-                        options_set.add(slot.strip().lower())
-                else:
-                    options_set.add(value.strip().lower())
-    
-            if not options_set:
-                # No values for this filter, show results immediately
-                self.filter_type_select.disabled = True
-                self.value_select.visible = False
-                await interaction.response.edit_message(view=self)
-                await self.show_results(interaction, filter_type=column, filter_value=None)
-                return
-    
-            # Build SelectOption list
-            options_list = [discord.SelectOption(label=v.title(), value=v) for v in sorted(options_set)]
-            options_list.append(discord.SelectOption(label="⬅️ Previous", value="previous"))
-    
-            # Populate second dropdown
-            self.value_select.options = options_list
-            self.value_select.visible = True
-            self.filter_type_select.visible = False  # hide first dropdown
-    
-        await interaction.response.edit_message(view=self)
 
+        # populate options for the second dropdown
+        async with self.db_pool.acquire() as conn:
+            rows = await conn.fetch(
+                f"SELECT DISTINCT {self.selected_filter_type} FROM item_database WHERE guild_id=$1",
+                self.guild_id
+            )
+
+        options_set = set()
+        for row in rows:
+            value = row[self.selected_filter_type]
+            if not value:
+                continue
+            if self.selected_filter_type == "slot":
+                for slot in value.split(","):
+                    options_set.add(slot.strip().lower())
+            else:
+                options_set.add(value.strip().lower())
+
+        if not options_set:
+            # no options, skip second dropdown
+            self.filter_select.disabled = True
+            self.value_select.visible = False
+            await interaction.response.edit_message(view=self)
+            await self.show_results(interaction, self.selected_filter_type, None)
+            return
+
+        # build options and add "previous" at the bottom
+        self.value_select.options = [
+            discord.SelectOption(label=v.title(), value=v) for v in sorted(options_set)
+        ]
+        self.value_select.options.append(
+            discord.SelectOption(label="⬅️ Previous", value="previous")
+        )
+
+        self.value_select.visible = True
+        self.filter_select.visible = False  # hide first dropdown
+        await interaction.response.edit_message(view=self)
 
     async def value_select_callback(self, interaction: discord.Interaction):
         selected = self.value_select.values[0]
-
         if selected == "previous":
-            # Go back to first dropdown
+            self.filter_select.disabled = False
+            self.filter_select.visible = True
             self.value_select.visible = False
-            self.filter_type_select.visible = True
             await interaction.response.edit_message(view=self)
             return
 
         self.selected_value = selected
-        await interaction.response.defer()
-        await self.show_results(interaction, filter_type=self.selected_filter_type, filter_value=self.selected_value)
-
-    async def show_results(self, interaction, filter_type=None, filter_value=None):
-        query = "SELECT * FROM item_database WHERE guild_id=$1"
-        args = [self.guild_id]
-
-        if filter_type and filter_value:
-            query += f" AND LOWER({filter_type}) LIKE $2"
-            args.append(f"%{filter_value}%")
-
-        async with self.db_pool.acquire() as conn:
-            rows = await conn.fetch(query, *args)
-
-        if not rows:
-            await interaction.followup.send("❌ No results found.", ephemeral=True)
-            return
-
-        for row in rows:
-            embed = discord.Embed(
-                title=row["item_name"],
-                description=f"NPC: {row['npc_name']}\nZone: {row['zone_name']}\nSlot: {row['item_slot']}"
-            )
-            if row.get("item_image"):
-                embed.set_image(url=row["item_image"])
-            if row.get("npc_image"):
-                embed.set_thumbnail(url=row["npc_image"])
-
-            await interaction.followup.send(embed=embed)
+        await self.show_results(interaction, self.selected_filter_type, self.selected_value)
 
             
 
