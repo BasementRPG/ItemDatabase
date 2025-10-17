@@ -984,9 +984,23 @@ class ItemDatabaseModal(discord.ui.Modal):
             required=True
         )
         self.add_item(self.npc_name)
+        
+        self.npc_name = discord.ui.TextInput(
+            label="NPC Name",
+            placeholder="Example: Silvermoon Sentinel",
+            required=True
+        )
+        self.slots = discord.ui.TextInput(
+            label="Item Slot - seperate by , ",
+            placeholder="Seperate by , - Example: Head, Neck, Range ",
+            required=True,
+            value = item_slot.lower(),
+        )
+            
 
     async def on_submit(self, interaction: discord.Interaction):
         added_by = str(interaction.user)
+        item_slot = self.slots.value.lower()
         async with self.db_pool.acquire() as conn:
             await conn.execute(
                 """
@@ -1083,6 +1097,7 @@ class ViewDatabaseSelect(discord.ui.View):
         super().__init__(timeout=120)
         self.db_pool = db_pool
         self.guild_id = guild_id
+        self.add_item(DatabaseSlotSelect(db_pool, guild_id))
 
     @discord.ui.select(placeholder="Select a filter type", options=[
         discord.SelectOption(label="Item Slot"),
@@ -1113,42 +1128,70 @@ class ViewDatabaseSelect(discord.ui.View):
         await interaction.response.edit_message(content=f"Select a {choice}:", view=new_view)
 
 
-    async def show_results(self, interaction, rows):
+    
+    async def show_results(self, interaction: Interaction, rows):
         if not rows:
-            await interaction.response.edit_message(
-                content="❌ No items found for that filter.",
-                view=None
-            )
+            await interaction.response.edit_message(content="❌ No items found.", view=None)
             return
     
         embeds = []
-        for row in rows:
-            embed = discord.Embed(
-                title=row["item_name"],
-                description=f"**Slot:** {row['item_slot']}\n"
-                            f"**Zone:** {row['zone_name']}\n"
-                            f"**Dropped by:** {row['npc_name']}",
-                color=discord.Color.blue()
-            )
-    
-            # Thumbnail = NPC image
-            if row.get("npc_image"):
-                embed.set_thumbnail(url=row["npc_image"])
-    
-            # Main image = Item image
-            if row.get("item_image"):
-                embed.set_image(url=row["item_image"])
-    
+        for item in rows:
+            embed = discord.Embed(title=item['name'])
+            embed.add_field(name="Slots", value=item['item_slot'], inline=True)
+            embed.add_field(name="NPC", value=item['npc_name'], inline=True)
+            embed.add_field(name="Zone", value=item['zone_name'], inline=True)
+            if item.get('item_image_url'):
+                embed.set_image(url=item['item_image_url'])
+            if item.get('npc_image_url'):
+                embed.set_thumbnail(url=item['npc_image_url'])
             embeds.append(embed)
     
-        # Send the first one as main response (Discord only allows one edit_message response)
-        await interaction.response.edit_message(content=None, embeds=[embeds[0]], view=None)
-    
-        # Send the rest as follow-up messages if there are multiple results
-        for embed in embeds[1:]:
-            await interaction.followup.send(embed=embed, ephemeral=True)
-    
-    
+        # Discord allows only one embed per message for some views; send as separate messages
+        for embed in embeds:
+            await interaction.channel.send(embed=embed)
+        await interaction.response.edit_message(content="✅ Items found:", view=None)
+
+
+
+class DatabaseSlotSelect(Select):
+    def __init__(self, db_pool, guild_id):
+        self.db_pool = db_pool
+        self.guild_id = guild_id
+        super().__init__(placeholder="Filter by Item Slot", min_values=1, max_values=1, options=[])
+
+    async def callback(self, interaction: Interaction):
+        # Fetch items matching the selected slot
+        selected_slot = self.values[0].lower()  # Ensure lowercase matching
+        async with self.db_pool.acquire() as conn:
+            rows = await conn.fetch(
+                """
+                SELECT * FROM item_database
+                WHERE guild_id = $1
+                  AND LOWER(item_slot) LIKE '%' || $2 || '%'
+                ORDER BY LOWER(name) ASC
+                """,
+                self.guild_id, selected_slot
+            )
+        await self.show_results(interaction, rows)
+
+    async def populate_options(self):
+        # Build dropdown options dynamically
+        async with self.db_pool.acquire() as conn:
+            rows = await conn.fetch(
+                """
+                SELECT DISTINCT unnest(string_to_array(LOWER(item_slot), ',')) AS slot
+                FROM item_database
+                WHERE guild_id = $1
+                """,
+                self.guild_id
+            )
+        slots = sorted({row['slot'].strip() for row in rows})  # Remove duplicates & sort
+        self.options = [discord.SelectOption(label=slot.title(), value=slot) for slot in slots]
+
+
+
+
+
                 
 
 class ViewDatabaseSubSelect(discord.ui.View):
