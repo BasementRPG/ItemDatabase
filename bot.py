@@ -50,7 +50,7 @@ async def ensure_upload_channel1(guild: discord.Guild):
     # create hidden channel
     overwrites = {
         guild.default_role: discord.PermissionOverwrite(view_channel=False),
-        guild.me: discord.PermissionOverwrite(view_channel=True, send_messages=True)
+        guild.me: discord.PermissionOverwrite(send_messages=True)
     }
     return await guild.create_text_channel("item-database-upload-log", overwrites=overwrites)
 
@@ -947,6 +947,11 @@ async def view_donations(interaction: discord.Interaction):
     await interaction.response.send_message(embed=embed, view=view, ephemeral=True)
 
 
+
+
+
+
+
 # --------------- Modal ----------------
 class ItemDatabaseModal(discord.ui.Modal):
     def __init__(self, item_image_url, npc_image_url, item_slot, db_pool):
@@ -985,7 +990,7 @@ class ItemDatabaseModal(discord.ui.Modal):
                 INSERT INTO item_database (guild_id, item_name, zone_name, npc_name, item_slot, item_image, npc_image, added_by, created_at)
                 VALUES ($1, $2, $3, $4, $5, $6, $7,$8, NOW())
                 """,
-                interaction.guild_id,
+                interaction.guild.id,
                 self.item_name.value,
                 self.zone_name.value,
                 self.npc_name.value,
@@ -1045,55 +1050,153 @@ async def add_item_db(interaction: discord.Interaction, item_image: discord.Atta
         db_pool=db_pool
     ))
 
-@bot.tree.command(name="view_database", description="View or search items in the database.")
-@app_commands.describe(
-    item_name="Filter by item name (optional)",
-    item_slot="Filter by slot (optional)",
-    zone_name="Filter by zone (optional)",
-    npc_name="Filter by NPC (optional)"
-)
-async def view_database(interaction: discord.Interaction, item_name: str = None, item_slot: str = None, zone_name: str = None, npc_name: str = None):
-    query = "SELECT * FROM item_database WHERE guild_id=$1"
-    values = [interaction.guild.id]
 
-    # Dynamic filters
-    if item_name:
-        query += " AND item_name ILIKE $%d" % (len(values)+1)
-        values.append(f"%{item_name}%")
-    if item_slot:
-        query += " AND item_slot ILIKE $%d" % (len(values)+1)
-        values.append(f"%{item_slot}%")
-    if zone_name:
-        query += " AND zone_name ILIKE $%d" % (len(values)+1)
-        values.append(f"%{zone_name}%")
-    if npc_name:
-        query += " AND npc_name ILIKE $%d" % (len(values)+1)
-        values.append(f"%{npc_name}%")
 
-    query += " ORDER BY item_name ASC"
 
+class ViewDatabaseSelect(discord.ui.View):
+    def __init__(self, db_pool, guild_id):
+        super().__init__(timeout=120)
+        self.db_pool = db_pool
+        self.guild_id = guild_id
+
+    @discord.ui.select(placeholder="Select a filter type", options=[
+        discord.SelectOption(label="Item Slot"),
+        discord.SelectOption(label="Zone Name"),
+        discord.SelectOption(label="NPC Name"),
+        discord.SelectOption(label="Item Name"),
+        discord.SelectOption(label="Show All")
+    ])
+    async def select_filter(self, interaction: discord.Interaction, select: discord.ui.Select):
+        choice = select.values[0]
+        async with self.db_pool.acquire() as conn:
+            if choice == "Show All":
+                rows = await conn.fetch("SELECT * FROM item_database WHERE guild_id=$1 ORDER BY item_name ASC", self.guild_id)
+                await self.show_results(interaction, rows)
+                return
+
+            column_map = {
+                "Item Slot": "item_slot",
+                "Zone Name": "zone_name",
+                "NPC Name": "npc_name",
+                "Item Name": "item_name"
+            }
+            column = column_map[choice]
+            options = await conn.fetch(f"SELECT DISTINCT {column} FROM item_database WHERE guild_id=$1 ORDER BY {column}", self.guild_id)
+
+        opts = [discord.SelectOption(label=o[column]) for o in options]
+        new_view = ViewDatabaseSubSelect(self.db_pool, self.guild_id, column, opts)
+        await interaction.response.edit_message(content=f"Select a {choice}:", view=new_view)
+
+    async def show_results(self, interaction, rows):
+        if not rows:
+            await interaction.response.edit_message(content="❌ No items found.", view=None)
+            return
+        embeds = []
+        for row in rows:
+            embed = discord.Embed(
+                title=row["item_name"],
+                description=f"🗺️ Zone: {row['zone_name']}\n🧙 NPC: {row['npc_name']}\n🎒 Slot: {row['item_slot']}",
+                color=discord.Color.blurple()
+            )
+            embed.set_image(url=row["item_image"])
+            embed.set_thumbnail(url=row["npc_image"])
+            embeds.append(embed)
+        await interaction.response.edit_message(content=None, view=None)
+        for e in embeds:
+            await interaction.followup.send(embed=e)
+            
+
+class ViewDatabaseSubSelect(discord.ui.View):
+    def __init__(self, db_pool, guild_id, column, options):
+        super().__init__(timeout=120)
+        self.db_pool = db_pool
+        self.guild_id = guild_id
+        self.column = column
+
+        self.filter_select = discord.ui.Select(placeholder=f"Choose {column.replace('_', ' ').title()}", options=options)
+        self.filter_select.callback = self.on_select
+        self.add_item(self.filter_select)
+
+    async def on_select(self, interaction: discord.Interaction):
+        value = self.filter_select.values[0]
+        async with self.db_pool.acquire() as conn:
+            rows = await conn.fetch(
+                f"SELECT * FROM item_database WHERE guild_id=$1 AND {self.column}=$2 ORDER BY item_name ASC",
+                self.guild_id, value
+            )
+
+        view = ViewDatabaseSelect(self.db_pool, self.guild_id)
+        await view.show_results(interaction, rows)
+
+
+@bot.tree.command(name="view_database", description="View and filter the item database.")
+async def view_database(interaction: discord.Interaction):
+    view = ViewDatabaseSelect(db_pool, interaction.guild.id)
+    await interaction.response.send_message("🔍 Choose a filter to browse the database:", view=view, ephemeral=True)
+
+
+
+
+class EditDatabaseModal(discord.ui.Modal):
+    def __init__(self, item_row, db_pool):
+        super().__init__(title=f"Edit {item_row['item_name']}")
+        self.item_row = item_row
+        self.db_pool = db_pool
+
+        self.item_name = discord.ui.TextInput(label="Item Name", default=item_row['item_name'])
+        self.add_item(self.item_name)
+
+        self.zone_name = discord.ui.TextInput(label="Zone Name", default=item_row['zone_name'])
+        self.add_item(self.zone_name)
+
+        self.npc_name = discord.ui.TextInput(label="NPC Name", default=item_row['npc_name'])
+        self.add_item(self.npc_name)
+
+        self.item_slot = discord.ui.TextInput(label="Item Slot", default=item_row['item_slot'])
+        self.add_item(self.item_slot)
+
+    async def on_submit(self, interaction: discord.Interaction):
+        async with self.db_pool.acquire() as conn:
+            await conn.execute("""
+                UPDATE item_database
+                SET item_name=$1, zone_name=$2, npc_name=$3, item_slot=$4, updated_at=NOW()
+                WHERE id=$5 AND guild_id=$6
+            """, self.item_name.value, self.zone_name.value, self.npc_name.value, self.item_slot.value,
+                 self.item_row['id'], interaction.guild.id)
+
+        await interaction.response.send_message(f"✅ Updated **{self.item_name.value}**!", ephemeral=True)
+
+
+@bot.tree.command(name="edit_database_item", description="Edit an existing item in the database by name.")
+@app_commands.describe(item_name="The name of the item to edit.")
+async def edit_database_item(interaction: discord.Interaction, item_name: str):
     async with db_pool.acquire() as conn:
-        rows = await conn.fetch(query, *values)
+        item_row = await conn.fetchrow(
+            "SELECT * FROM item_database WHERE guild_id=$1 AND item_name ILIKE $2",
+            interaction.guild.id, item_name
+        )
 
-    if not rows:
-        await interaction.response.send_message("❌ No items found.", ephemeral=True)
+    if not item_row:
+        await interaction.response.send_message("❌ Item not found.", ephemeral=True)
         return
 
-    embeds = []
-    for row in rows:
-        embed = discord.Embed(title=row["item_name"], description=f"Slot: {row['item_slot']}\nZone: {row['zone_name']}\nNPC: {row['npc_name']}")
-        embed.set_image(url=row["item_image"])
-        embed.set_thumbnail(url=row["npc_image"])
-        embeds.append(embed)
-
-    for embed in embeds:
-        await interaction.followup.send(embed=embed)
+    await interaction.response.send_modal(EditDatabaseModal(item_row, db_pool))
 
 
 
+@bot.tree.command(name="remove_database_item", description="Remove an item from the database by name.")
+@app_commands.describe(item_name="The name of the item to remove.")
+async def remove_database_item(interaction: discord.Interaction, item_name: str):
+    async with db_pool.acquire() as conn:
+        result = await conn.execute(
+            "DELETE FROM item_database WHERE guild_id=$1 AND item_name ILIKE $2",
+            interaction.guild.id, item_name
+        )
 
-
-
+    if result == "DELETE 0":
+        await interaction.response.send_message("❌ No item found with that name.", ephemeral=True)
+    else:
+        await interaction.response.send_message(f"🗑️ **{item_name}** has been removed from the database.", ephemeral=True)
 
 
 
