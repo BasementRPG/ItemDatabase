@@ -1304,7 +1304,7 @@ class DatabaseView(View):
             return
 
         # Remove dropdown view first
-        await interaction.response.edit_message(view=None, content="🔹 Showing results:")
+       
 
         # Send each item as an embed with item image main, NPC thumbnail
         for row in rows:
