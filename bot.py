@@ -1211,68 +1211,7 @@ class ViewDatabaseSelect(View):
 
 
 
-class DatabaseSlotSelect(Select):
-    def __init__(self, db_pool, guild_id):
-        self.db_pool = db_pool
-        self.guild_id = guild_id
-        super().__init__(placeholder="Filter by Item Slot", min_values=1, max_values=1, options=[])
 
-    async def callback(self, interaction: discord.Interaction):
-        # Fetch items matching the selected slot
-        selected_slot = self.values[0].lower()  # Ensure lowercase matching
-        async with self.db_pool.acquire() as conn:
-            rows = await conn.fetch(
-                """
-                SELECT * FROM item_database
-                WHERE guild_id = $1
-                  AND LOWER(item_slot) LIKE '%' || $2 || '%'
-                ORDER BY LOWER(name) ASC
-                """,
-                self.guild_id, selected_slot
-            )
-        await self.show_results(interaction, rows)
-
-    async def populate_options(self):
-        # Build dropdown options dynamically
-        async with self.db_pool.acquire() as conn:
-            rows = await conn.fetch(
-                """
-                SELECT DISTINCT unnest(string_to_array(LOWER(item_slot), ',')) AS slot
-                FROM item_database
-                WHERE guild_id = $1
-                """,
-                self.guild_id
-            )
-        slots = sorted({row['slot'].strip() for row in rows})  # Remove duplicates & sort
-        self.options = [discord.SelectOption(label=slot.title(), value=slot) for slot in slots]
-
-
-
-
-
-                
-
-class ViewDatabaseSubSelect(discord.ui.View):
-    def __init__(self, db_pool, guild_id, column, options):
-        super().__init__(timeout=120)
-        self.db_pool = db_pool
-        self.guild_id = guild_id
-        self.column = column
-
-        self.filter_select = discord.ui.Select(placeholder=f"Choose {column.replace('_', ' ').title()}", options=options)
-        self.filter_select.callback = self.on_select
-        self.add_item(self.filter_select)
-
-    async def on_select(self, interaction: discord.Interaction):
-        value = self.filter_select.values[0]
-        async with self.db_pool.acquire() as conn:
-            rows = await conn.fetch(
-                f"SELECT * FROM item_database WHERE guild_id=$1 AND {self.column}=$2 ORDER BY item_name ASC",
-                self.guild_id, value
-            )
-
-        view = ViewDatabaseSelect(self.db_pool, self.guild_id)
-        await view.show_results(interaction, rows)
 
 
 @bot.tree.command(name="view_item_db", description="View and filter items in the database.")
