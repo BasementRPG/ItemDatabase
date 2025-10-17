@@ -64,8 +64,8 @@ async def add_item_db(guild_id, upload_message_id, name, image=None, donated_by=
     async with db_pool.acquire() as conn:
         await conn.execute('''
             INSERT INTO inventory (guild_id, upload_message_id, name, image, donated_by, qty, added_by, created_at1)
-            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21)
-        ''', guild_id, upload_message_id, name, size, type, subtype, slot, stats, weight, classes, race, image, donated_by, qty, added_by, attack, delay, effects, ac, created_images, created_at1)
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+        ''', guild_id, upload_message_id, name, image, donated_by, qty, added_by, created_at1)
 
 
 async def get_all_items(guild_id):
