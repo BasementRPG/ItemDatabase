@@ -1130,10 +1130,11 @@ class ViewDatabaseSelect(View):
         max_values=1,
         options=[]
     )
-    async def slot_select(self, select: Select, interaction: discord.Interaction):
-        self.selected_filter = "slot"
-        self.selected_value = select.values[0].lower()
+    async def slot_select(self, interaction: discord.Interaction):
+        selected_slot = self.slot_select.values[0].lower()  # self.slot_select is the Select object
+        self.selected_value = selected_slot
         await self.show_results(interaction)
+
 
     @discord.ui.select(
         placeholder="Filter by NPC",
@@ -1163,10 +1164,11 @@ class ViewDatabaseSelect(View):
         max_values=1,
         options=[]
     )
-    async def item_select(self, select: Select, interaction: discord.Interaction):
-        self.selected_filter = "item_name"
-        self.selected_value = select.values[0]
+    async def item_select(self, interaction: discord.Interaction):
+        selected_item = self.item_select.values[0]
+        self.selected_value = selected_item
         await self.show_results(interaction)
+
 
     async def show_results(self, interaction: discord.Interaction):
         async with self.db_pool.acquire() as conn:
@@ -1210,6 +1212,30 @@ class ViewDatabaseSelect(View):
         await interaction.response.send_message(f"✅ Showing {len(rows)} item(s) for filter '{self.selected_value.title()}'", ephemeral=True)
 
 
+class DatabaseSlotSelect(Select):
+    def __init__(self, db_pool, guild_id, callback):
+        self.db_pool = db_pool
+        self.guild_id = guild_id
+        self.user_callback = callback
+        super().__init__(placeholder="Filter by Slot", min_values=1, max_values=1, options=[])
+
+    async def populate_options(self):
+        async with self.db_pool.acquire() as conn:
+            rows = await conn.fetch(
+                "SELECT DISTINCT item_slot FROM item_database WHERE guild_id=$1", self.guild_id
+            )
+
+        slot_set = set()
+        for row in rows:
+            for slot in row['item_slot'].split(','):
+                slot_set.add(slot.strip().lower())
+
+        self.options = [discord.SelectOption(label=s.title(), value=s) for s in sorted(slot_set)]
+
+    async def callback(self, interaction: discord.Interaction):
+        # ✅ Correct way: use self.values (not interaction.values)
+        selected_slot = self.values[0].lower()
+        await self.user_callback(interaction, selected_slot)
 
 
 
