@@ -1037,7 +1037,7 @@ async def add_item_db(interaction: discord.Interaction, item_image: discord.Atta
         return
 
         # Ensure upload channel exists
-    upload_channel = await ensure_upload_channel1(modal_interaction.guild)
+    upload_channel = await ensure_upload_channel1(interaction.guild)
 
     item_msg = await upload_channel.send(file=await item_image.to_file())
     npc_msg = await upload_channel.send(file=await npc_image.to_file())
