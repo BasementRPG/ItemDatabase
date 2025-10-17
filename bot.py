@@ -1211,7 +1211,7 @@ class DatabaseZoneSelect(DatabaseItemSelect):
         self.options = [SelectOption(label=row['zone_name'], value=row['zone_name'].lower()) for row in rows]
         self.options.insert(0, SelectOption(label="All Zones", value="all"))
 
-@tree.command(name="view_item_db", description="View or filter the item database.")
+@bot.tree.command(name="view_item_db", description="View or filter the item database.")
 async def view_item_db(interaction: discord.Interaction):
     guild_id = interaction.guild.id
 
