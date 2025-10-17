@@ -123,6 +123,7 @@ class ImageDetailsModal(discord.ui.Modal):
         self.item_row = item_row
         self.is_edit = item_row is not None
         self.image_attachment = image  # Save the uploaded attachment
+        self.guild_id = interaction.guild.id
 
         default_name = item_row['name'] if self.is_edit else ""
         default_donor = item_row.get('donated_by', "") if self.is_edit else ""
@@ -464,24 +465,10 @@ async def edit_item(interaction: discord.Interaction, item_name: str):
     await interaction.response.send_modal(ImageDetailsModal(interaction, image=None, item_row=item))
 
 
-@bot.tree.command(name="remove_item", description="Mark an item as removed (reduce qty to 0) using the item name.")
-@app_commands.describe(item_name="Name of the item to remove")
-async def remove_item(interaction: discord.Interaction, item_name: str):
-    # Fetch item from DB by name
-    item = await get_item_by_name(interaction.guild.id, item_name)
-    if not item:
-        await interaction.response.send_message(f"❌ Item **{item_name}** not found.", ephemeral=True)
-        return
-
-    # Reduce qty to 0 instead of deleting
-    await update_item_db(
-        guild_id=interaction.guild.id,
-        item_id=item['id'],
-        qty=0,  # mark as removed
-        removed_at = now(),
-        removed_by = ()
-    )
-    await interaction.response.send_message(f"✅ Item **{item_name}** removed.", ephemeral=True)
+@bot.tree.command(name="remove_item", description="Remove an item from the guild bank (reduce qty to 0).")
+async def remove_item(interaction: discord.Interaction):
+    # Open the modal for the user
+    await interaction.response.send_modal(RemoveItemModal(interaction.guild.id))
 
 
 
