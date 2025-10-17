@@ -1364,5 +1364,10 @@ async def on_ready():
 async def on_error(event, *args, **kwargs):
     import traceback
     traceback.print_exc()
+@bot.event
+async def on_ready():
+    print(f"Logged in as {bot.user}")
+    # Sync slash commands
+    await bot.tree.sync()
 
 bot.run(TOKEN)
