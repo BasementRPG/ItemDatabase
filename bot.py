@@ -954,13 +954,15 @@ async def view_donations(interaction: discord.Interaction):
 
 # --------------- Modal ----------------
 class ItemDatabaseModal(discord.ui.Modal):
-    def __init__(self, item_image_url, npc_image_url, item_slot, db_pool, guild_id):
+    def __init__(self, item_image_url, npc_image_url, item_slot, db_pool, guild_id, item_msg_id=None, npc_msg_id=None):
         super().__init__(title="Add Item Database Entry")
         self.item_image_url = item_image_url
         self.npc_image_url = npc_image_url
         self.item_slot = item_slot
         self.db_pool = db_pool
         self.guild_id = guild_id
+        self.item_msg_id = item_msg_id
+        self.npc_msg_id = npc_msg_id
 
         self.item_name = discord.ui.TextInput(
             label="Item Name",
@@ -989,7 +991,7 @@ class ItemDatabaseModal(discord.ui.Modal):
             await conn.execute(
                 """
                 INSERT INTO item_database (guild_id, item_name, zone_name, npc_name, item_slot, item_image, npc_image, added_by, created_at, image_message_id, npc_message_id)
-                VALUES ($1, $2, $3, $4, $5, $6, $7, $8, NOW(), image_message_id, npc_message_id)
+                VALUES ($1, $2, $3, $4, $5, $6, $7, $8, NOW(), $9, $10)
                 """,
                 self.guild_id,
                 self.item_name.value,
@@ -1054,8 +1056,7 @@ async def add_item_db(interaction: discord.Interaction, item_image: discord.Atta
             file=await npc_image.to_file(),
             content=f"👹 Uploaded NPC image by {interaction.user.mention}"
         )
-        item_msg_id = item_msg.id
-        npc_msg_id = npc_msg.id
+       
     except discord.Forbidden:
         await interaction.response.send_message("❌ I don't have permission to upload files in this server.", ephemeral=True)
         return
