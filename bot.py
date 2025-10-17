@@ -463,40 +463,11 @@ class RemoveItemModal(discord.ui.Modal):
 
 
 
-class GuildBankView(discord.ui.View):
-    def __init__(self, items):
-        super().__init__(timeout=None)
-        self.items = items
-        self.index = 0
-
-    def current_embed(self):
-        item = self.items[self.index]
-        embed = discord.Embed(title=item["name"])
-        embed.set_image(url=item["image"])
-        if item.get("donated_by"):
-            embed.set_footer(text=f"Donated by: {item['donated_by']}")
-        return embed
-
-    @discord.ui.button(label="Previous", style=discord.ButtonStyle.primary)
-    async def previous(self, interaction: discord.Interaction, button: discord.ui.Button):
-        self.index = (self.index - 1) % len(self.items)
-        await interaction.response.edit_message(embed=self.current_embed(), view=self)
-
-    @discord.ui.button(label="Next", style=discord.ButtonStyle.primary)
-    async def next(self, interaction: discord.Interaction, button: discord.ui.Button):
-        self.index = (self.index + 1) % len(self.items)
-        await interaction.response.edit_message(embed=self.current_embed(), view=self)
-
-
-
-
-
-
-
 @bot.tree.command(name="view_bank", description="View all image items in the guild bank.")
 async def view_bank(interaction: discord.Interaction):
     guild_id = interaction.guild.id
 
+    # Fetch all items with qty=1 for this guild
     async with db_pool.acquire() as conn:
         items = await conn.fetch(
             "SELECT name, image, donated_by FROM inventory WHERE guild_id=$1 AND qty=1",
@@ -507,8 +478,19 @@ async def view_bank(interaction: discord.Interaction):
         await interaction.response.send_message("The guild bank is empty.", ephemeral=True)
         return
 
-    view = GuildBankView(items)
-    await interaction.response.send_message(embed=view.current_embed(), view=view, ephemeral=True)
+    embeds = []
+    for item in items:
+        embed = discord.Embed()
+        embed.set_image(url=item["image"])
+        if item.get("donated_by"):
+            embed.set_footer(text=f"Donated by: {item['donated_by']} | {item['name']}")
+        embeds.append(embed)
+
+    # Discord limits to 10 embeds per message; send in chunks if needed
+    for i in range(0, len(embeds), 10):
+        await interaction.channel.send(embeds=embeds[i:i+10])
+
+    await interaction.response.send_message("✅ Guild bank items displayed.", ephemeral=True)
 
 
 # ---------- /add_item Command ----------
