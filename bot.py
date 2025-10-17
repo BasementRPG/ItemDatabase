@@ -70,7 +70,7 @@ async def add_item_db(guild_id, upload_message_id, name, image=None, donated_by=
 
 async def get_all_items(guild_id):
     async with db_pool.acquire() as conn:
-        rows = await conn.fetch("SELECT id, name, type, subtype, slot, size, stats, weight, classes, race, image, donated_by FROM inventory WHERE guild_id=$1 ORDER BY id", guild_id)
+        rows = await conn.fetch("SELECT id, name, image, donated_by FROM inventory WHERE guild_id=$1 ORDER BY id", guild_id)
     return rows
 
 async def get_item_by_name(guild_id, name):
@@ -530,7 +530,7 @@ async def add_item(interaction: discord.Interaction, image: discord.Attachment):
         return
 
     # Pass the image URL into the modal
-    await interaction.response.send_modal(ImageDetailsModal(image_url=image.url))
+    await interaction.response.send_modal(ImageDetailsModal(view=image.url))
 
 
 
