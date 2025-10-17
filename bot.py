@@ -1242,7 +1242,7 @@ class ConfirmRemoveItemView(View):
             async with self.db_pool.acquire() as conn:
                 # Fetch message IDs to delete the images
                 row = await conn.fetchrow("""
-                    SELECT item_message_id, npc_message_id 
+                    SELECT image_message_id, npc_message_id 
                     FROM item_database 
                     WHERE item_name=$1 AND guild_id=$2
                 """, self.item_name, interaction.guild_id)
@@ -1257,7 +1257,7 @@ class ConfirmRemoveItemView(View):
                 # Delete the uploaded messages
                 upload_channel = discord.utils.get(interaction.guild.text_channels, name="item-database-upload-log")
                 if upload_channel:
-                    for msg_id in [row["item_message_id"], row["npc_message_id"]]:
+                    for msg_id in [row["image_message_id"], row["npc_message_id"]]:
                         if msg_id:
                             try:
                                 msg = await upload_channel.fetch_message(msg_id)
