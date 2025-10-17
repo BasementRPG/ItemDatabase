@@ -985,7 +985,7 @@ class ItemDatabaseModal(discord.ui.Modal):
                 INSERT INTO item_database (guild_id, item_name, zone_name, npc_name, item_slot, item_image, npc_image, added_by, created_at)
                 VALUES ($1, $2, $3, $4, $5, $6, $7,$8, NOW())
                 """,
-                interaction.guild.id,
+                interaction.guild_id,
                 self.item_name.value,
                 self.zone_name.value,
                 self.npc_name.value,
