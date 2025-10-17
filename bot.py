@@ -988,11 +988,6 @@ class ItemDatabaseModal(discord.ui.Modal):
         )
         self.add_item(self.npc_name)
         
-        self.npc_name = discord.ui.TextInput(
-            label="NPC Name",
-            placeholder="Example: Silvermoon Sentinel",
-            required=True
-        )
         self.item_slot_field = discord.ui.TextInput(label="Item Slot", default=self.item_slot, required=True)
         self.add_item(self.item_slot_field)
 
@@ -1131,8 +1126,6 @@ class ViewDatabaseSelect(View):
             npc_img = row.get("npc_image", "")
             content += (
                 f"**{row['item_name']}** | {row['npc_name']} | {row['zone_name']} | {row['item_slot']}\n"
-                f"🪓 **Item Image:** {item_img or 'N/A'}\n"
-                f"👹 **NPC Image:** {npc_img or 'N/A'}\n\n"
             )
 
         await interaction.response.edit_message(content=content, view=self)
