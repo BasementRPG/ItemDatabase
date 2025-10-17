@@ -1008,7 +1008,7 @@ class ItemDatabaseModal(discord.ui.Modal):
         )
 
 # --------------- Slash Command ----------------
-@bot.tree.command(name="add_item_db", description="Add a new item to the database")
+@bot.tree.command(name="add_itemdb", description="Add a new item to the database")
 @app_commands.describe(
     item_image="Upload an image of the item",
     npc_image="Upload an image of the NPC that drops the item",
@@ -1034,7 +1034,7 @@ class ItemDatabaseModal(discord.ui.Modal):
     app_commands.Choice(name="Wrist", value="Wrist"),
     
 ])
-async def add_item_db(interaction: discord.Interaction, item_image: discord.Attachment, npc_image: discord.Attachment, item_slot: str):
+async def add_itemdb(interaction: discord.Interaction, item_image: discord.Attachment, npc_image: discord.Attachment, item_slot: str):
     """Uploads images and opens modal for item info entry."""
     # ✅ Require both images
     if not item_image or not npc_image:
