@@ -18,10 +18,6 @@ TOKEN = os.getenv("DISCORD_TOKEN")
 DATABASE_URL = os.getenv("DATABASE_URL")
 
 
-EQUIPMENT_SUBTYPES = ["Ammo","Back","Chest","Ear","Face","Feet","Finger","Hands","Head","Legs","Neck","Primary","Range","Secondary","Shirt","Shoulders","Waist","Wrist"]
-WEAPON_SUBTYPES = ["Ammo","Primary", "Range","Secondary"]
-
-
 intents = discord.Intents.default()
 intents.message_content = True
 intents.guilds = True
@@ -1058,6 +1054,8 @@ async def add_item_db(interaction: discord.Interaction, item_image: discord.Atta
             file=await npc_image.to_file(),
             content=f"👹 Uploaded NPC image by {interaction.user.mention}"
         )
+        item_msg_id = item_msg.id
+        npc_msg_id = npc_msg.id
     except discord.Forbidden:
         await interaction.response.send_message("❌ I don't have permission to upload files in this server.", ephemeral=True)
         return
