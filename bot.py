@@ -470,7 +470,7 @@ async def view_bank(interaction: discord.Interaction):
     # Fetch all items with qty=1 for this guild
     async with db_pool.acquire() as conn:
         items = await conn.fetch(
-            "SELECT name, image, donated_by FROM inventory WHERE guild_id=$1 AND qty=1",
+            "SELECT name, image, donated_by FROM inventory WHERE guild_id=$1 AND qty=1 ORDER BY name ASC",
             guild_id
         )
 
