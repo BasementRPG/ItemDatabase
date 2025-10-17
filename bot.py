@@ -1303,12 +1303,6 @@ class DatabaseView(View):
         await self.fetch_results()
         await self.show_page(interaction, 0)
 
-"""
-
-        self.selected_value = selected
-        await self.show_results(interaction)"""
-
-
     async def fetch_results(self):
         query = "SELECT * FROM item_database WHERE guild_id=$1"
         args = [self.guild_id]
