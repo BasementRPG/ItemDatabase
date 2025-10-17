@@ -510,12 +510,12 @@ async def add_item(interaction: discord.Interaction, image: discord.Attachment):
     await interaction.response.send_modal(ImageDetailsModal(interaction, image_url=image.url))
 
 
-@bot.tree.command(name="edit_item", description="Edit an existing item by name.")
+@bot.tree.command(item_name="edit_item", description="Edit an existing item by name.")
 @app_commands.describe(name="Name of the item to edit.")
-async def edit_item(interaction: discord.Interaction, name: str):
+async def edit_item(interaction: discord.Interaction, item_name: str):
     guild_id = interaction.guild.id
     # Fetch item from DB by name and guild
-    item_row = await get_item_by_name(guild_id, name)
+    item_row = await get_item_by_name(guild_id, item_name)
     if not item_row:
         await interaction.response.send_message(
             f"❌ No item named '{name}' found.", ephemeral=True
