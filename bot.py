@@ -958,12 +958,13 @@ async def view_donations(interaction: discord.Interaction):
 
 # --------------- Modal ----------------
 class ItemDatabaseModal(discord.ui.Modal):
-    def __init__(self, item_image_url, npc_image_url, item_slot, db_pool):
+    def __init__(self, item_image_url, npc_image_url, item_slot, db_pool, guild_id):
         super().__init__(title="Add Item Database Entry")
         self.item_image_url = item_image_url
         self.npc_image_url = npc_image_url
         self.item_slot = item_slot
         self.db_pool = db_pool
+        self.guild_id = guild_id
 
         self.item_name = discord.ui.TextInput(
             label="Item Name",
@@ -992,9 +993,9 @@ class ItemDatabaseModal(discord.ui.Modal):
             await conn.execute(
                 """
                 INSERT INTO item_database (guild_id, item_name, zone_name, npc_name, item_slot, item_image, npc_image, added_by, created_at)
-                VALUES ($1, $2, $3, $4, $5, $6, $7,$8, NOW())
+                VALUES ($1, $2, $3, $4, $5, $6, $7, $8, NOW())
                 """,
-                interaction.guild.id,
+                self.guild_id,
                 self.item_name.value,
                 self.zone_name.value,
                 self.npc_name.value,
