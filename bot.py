@@ -1225,7 +1225,7 @@ class DatabaseZoneSelect(Select):
 
 
 
-@tree.command(name="view_item_db")
+@bot.tree.command(name="view_item_db")
 async def view_item_db(interaction: discord.Interaction):
     view = ViewDatabaseSelect(bot.db_pool, interaction.guild.id)
 
