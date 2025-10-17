@@ -1275,7 +1275,7 @@ class ViewDatabaseSubSelect(discord.ui.View):
         await view.show_results(interaction, rows)
 
 
-@bot.tree.command(name="view_database", description="View and filter items in the database.")
+@bot.tree.command(name="view_item_db", description="View and filter items in the database.")
 async def view_database(interaction: discord.Interaction):
     view = ViewDatabaseSelect(db_pool=db_pool, guild_id=interaction.guild.id)
     await view.populate_options()
