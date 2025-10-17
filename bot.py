@@ -1244,59 +1244,50 @@ class ViewDatabaseSelect(View):
         self.filter_type_select.callback = self.filter_type_callback
         self.add_item(self.filter_type_select)
 
-    async def filter_type_callback(self, interaction: Interaction):
+    async def filter_type_callback(self, interaction: discord.Interaction):
         self.selected_filter_type = self.filter_type_select.values[0]
-
+    
+        # Remove the first dropdown
+        self.remove_item(self.filter_type_select)
+        # OR disable it (optional)
+        # self.filter_type_select.disabled = True
+    
+        # If "All" is selected, skip value dropdown and show results
         if self.selected_filter_type == "all":
             await self.show_results(interaction)
             return
-
-        # Build the second dropdown dynamically
+    
+        # Populate the second dropdown
         async with self.db_pool.acquire() as conn:
+            column = self.selected_filter_type
             rows = await conn.fetch(
-                f"SELECT DISTINCT {self.selected_filter_type} FROM item_database WHERE guild_id=$1",
-                self.guild_id
+                f"SELECT DISTINCT {column} FROM item_database WHERE guild_id=$1", self.guild_id
             )
-
-        value_set = set()
-        for row in rows:
-            val = row[self.selected_filter_type]
-            if val:
-                if self.selected_filter_type == "item_slot" and ',' in val:
-                    for slot in val.split(','):
-                        value_set.add(slot.strip().lower())
-                else:
-                    value_set.add(val.lower())
-
-        # Build options
-        options = [SelectOption(label=v.title(), value=v) for v in sorted(value_set)]
-        options.append(SelectOption(label=f"{self.previous_arrow} Previous", value="previous"))
-
-        # Create the second dropdown dynamically
-        value_select = Select(
-            placeholder="Select a value",
-            options=options,
-            min_values=1,
-            max_values=1
-        )
-
-        async def value_callback(interaction: Interaction):
-            selected = value_select.values[0]
-            if selected == "previous":
-                # Go back to first dropdown
-                for child in self.children[:]:
-                    if child is value_select:
-                        self.remove_item(child)
-                await interaction.response.edit_message(view=self)
-                return
-
-            self.selected_value = selected
-            await self.show_results(interaction)
-
-        value_select.callback = value_callback
-        self.add_item(value_select)
-
+            options = []
+            for row in rows:
+                value = row[column]
+                if value:
+                    # Handle multiple slots separated by comma
+                    if column == "item_slot":
+                        for slot in value.split(','):
+                            slot_clean = slot.strip().lower()
+                            options.append(discord.SelectOption(label=slot_clean.title(), value=slot_clean))
+                    else:
+                        options.append(discord.SelectOption(label=value.title(), value=value.lower()))
+    
+            # Remove duplicates
+            seen = set()
+            options_unique = []
+            for opt in options:
+                if opt.value not in seen:
+                    seen.add(opt.value)
+                    options_unique.append(opt)
+    
+            self.value_select.options = sorted(options_unique, key=lambda o: o.label)
+            self.value_select.disabled = False
+    
         await interaction.response.edit_message(view=self)
+
 
 
     async def show_results(self, interaction: discord.Interaction):
