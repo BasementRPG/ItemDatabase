@@ -1128,13 +1128,13 @@ class ViewDatabaseSelect(discord.ui.View):
                 color=discord.Color.gold()
             )
     
-            # Thumbnail = item image
-            if row.get("item_image"):
-                embed.set_thumbnail(url=row["item_image"])
-    
-            # Main image = NPC image
+            # Thumbnail = NPC image
             if row.get("npc_image"):
-                embed.set_image(url=row["npc_image"])
+                embed.set_thumbnail(url=row["npc_image"])
+    
+            # Main image = Item image
+            if row.get("item_image"):
+                embed.set_image(url=row["item_image"])
     
             embeds.append(embed)
     
