@@ -409,20 +409,13 @@ async def view_bank(interaction: discord.Interaction):
 
     await interaction.response.defer(thinking=True)
 
-    TYPE_COLORS = {
-        "weapon": discord.Color.red(),
-        "equipment": discord.Color.blue(),
-        "consumable": discord.Color.gold(),
-        "crafting": discord.Color.green(),
-        "misc": discord.Color.dark_gray(),
-    }
 
     def code_block(text: str) -> str:
         text = (text or "").strip()
         return f"```{text}```" if text else "```None```"
 
     async def build_embed_with_file(row):
-        type = (row.get('type') or "Misc").lower()
+       
         name = row.get('name')
 
         donated_by = row.get('donated_by') or "Anonymous"
@@ -438,10 +431,6 @@ async def view_bank(interaction: discord.Interaction):
             embed.set_image(url=row['image'])
             return embed, None
 
-              # Handle uploaded created_images (URL)
-        if row.get('created_images'):
-            embed.set_image(url=row['created_images'])
-            return embed, None
 
     # Send embeds
     for row in rows:
@@ -478,51 +467,35 @@ async def add_item(interaction: discord.Interaction, image: discord.Attachment):
 
 
 
-@bot.tree.command(name="edit_item", description="Edit an existing item in the guild bank.")
-@app_commands.describe(item_id="The ID of the item to edit", new_image="Upload a new image (optional)")
-async def edit_item(interaction: discord.Interaction, item_id: int, new_image: discord.Attachment = None):
-    async with db_pool.acquire() as conn:
-        item_row = await conn.fetchrow("SELECT * FROM inventory WHERE id = $1 AND guild_id = $2", item_id, interaction.guild.id)
-
-    if not item_row:
-        await interaction.response.send_message("❌ Item not found.", ephemeral=True)
+@bot.tree.command(name="edit_item", description="Edit an existing item using the item name.")
+@app_commands.describe(item_name="Name of the item to edit")
+async def edit_item(interaction: discord.Interaction, item_name: str):
+    # Fetch item by name
+    item = await get_item_by_name(interaction.guild.id, item_name)
+    if not item:
+        await interaction.response.send_message(f"❌ Item **{item_name}** not found.", ephemeral=True)
         return
 
-    # Get new image URL if uploaded
-    image_url = item_row["image"]
-    if new_image:
-        upload_channel = await ensure_upload_channel(interaction.guild)
-        file = await new_image.to_file()
-        message = await upload_channel.send(content=f"Re-uploaded by {interaction.user}", file=file)
-        image_url = message.attachments[0].url
-
-    # Open modal with current data
-    await interaction.response.send_modal(
-        ImageDetailsModal(
-            interaction,
-            image_url=image_url,
-            item_row=item_row,
-            is_edit=True
-        )
-    )
+    # Open modal for editing
+    await interaction.response.send_modal(ImageDetailsModal(interaction, image=None, item_row=item))
 
 
-@bot.tree.command(name="remove_item", description="Mark an item as removed (reduce qty to 0).")
-@app_commands.describe(item_id="ID of the item to remove")
-async def remove_item(interaction: discord.Interaction, item_id: int):
-    # Fetch item from DB
-    item = await get_item_by_id(item_id)
+@bot.tree.command(name="remove_item", description="Mark an item as removed (reduce qty to 0) using the item name.")
+@app_commands.describe(item_name="Name of the item to remove")
+async def remove_item(interaction: discord.Interaction, item_name: str):
+    # Fetch item from DB by name
+    item = await get_item_by_name(interaction.guild.id, item_name)
     if not item:
-        await interaction.response.send_message("❌ Item not found.", ephemeral=True)
+        await interaction.response.send_message(f"❌ Item **{item_name}** not found.", ephemeral=True)
         return
 
     # Reduce qty to 0 instead of deleting
     await update_item_db(
         guild_id=interaction.guild.id,
-        item_id=item_id,
+        item_id=item['id'],
         qty=0  # mark as removed
     )
-    await interaction.response.send_message(f"✅ Item **{item['name']}** marked as removed (qty = 0).", ephemeral=True)
+    await interaction.response.send_message(f"✅ Item **{item_name}** marked as removed (qty = 0).", ephemeral=True)
 
 
 
