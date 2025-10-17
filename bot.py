@@ -1128,7 +1128,7 @@ class ViewDatabaseSelect(discord.ui.View):
                 description=f"**Slot:** {row['item_slot']}\n"
                             f"**Zone:** {row['zone_name']}\n"
                             f"**Dropped by:** {row['npc_name']}",
-                color=discord.Color.gold()
+                color=discord.Color.blue()
             )
     
             # Thumbnail = NPC image
@@ -1215,7 +1215,7 @@ class EditDatabaseModal(discord.ui.Modal):
 @bot.tree.command(name="edit_item_db", description="Edit an existing item in the database by name.")
 @app_commands.describe(item_name="The name of the item to edit.")
 async def edit_database_item(interaction: discord.Interaction, item_name: str):
-    async with self.db_pool.acquire() as conn:
+    async with db_pool.acquire() as conn:
         item_row = await conn.fetchrow(
             "SELECT * FROM item_database WHERE guild_id=$1 AND item_name ILIKE $2",
             interaction.guild.id, item_name
