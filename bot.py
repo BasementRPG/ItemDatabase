@@ -483,10 +483,10 @@ async def view_bank(interaction: discord.Interaction):
 
     embeds = []
     for item in items:
-        embed = discord.Embed(title=item["name"])
+        embed = discord.Embed()
         embed.set_image(url=item["image"])
         if item.get("donated_by"):
-            embed.set_footer(text=f"Donated by: {item['donated_by']}")
+            embed.set_footer(text=f"Donated by: {item['donated_by']} | item["name"]")
         embeds.append(embed)
 
     # Discord limits to 10 embeds per message; send in chunks if needed
