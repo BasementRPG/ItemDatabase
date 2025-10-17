@@ -1298,9 +1298,75 @@ class DatabaseView(View):
             await interaction.response.edit_message(view=self)
             return
 
+
+        self.selected_value = self.value_select.values[0]
+        await self.fetch_results()
+        await self.show_page(interaction, 0)
+
+"""
+
         self.selected_value = selected
         await self.show_results(interaction)
+"""
 
+    async def fetch_results(self):
+        query = "SELECT * FROM item_database WHERE guild_id=$1"
+        args = [self.guild_id]
+        if self.selected_filter_type != "all":
+            query += f" AND LOWER({self.selected_filter_type}) LIKE $2"
+            args.append(f"%{self.selected_value}%")
+
+        async with self.db_pool.acquire() as conn:
+            self.results = await conn.fetch(query, *args)
+        self.current_page = 0
+
+    async def show_page(self, interaction: discord.Interaction, page: int):
+        if not self.results:
+            await interaction.response.edit_message(content="❌ No results found.", view=None)
+            return
+
+        self.current_page = page
+        start = page * 5
+        end = start + 5
+        page_items = self.results[start:end]
+
+        # Remove dropdown
+        await interaction.response.edit_message(content=None, view=None)
+
+        # Send each item as an embed
+        for row in page_items:
+            embed = discord.Embed(
+                title=row['item_name'],
+                description=f"Zone: {row['zone_name']}\nNPC: {row['npc_name']}\nSlot: {row['item_slot']}"
+            )
+            if row.get('item_image'):
+                embed.set_image(url=row['item_image'])
+            if row.get('npc_image'):
+                embed.set_thumbnail(url=row['npc_image'])
+            await interaction.followup.send(embed=embed)
+
+        # Add pagination buttons if needed
+        buttons = []
+        if page > 0:
+            buttons.append(discord.ui.Button(label="⬅ Previous", style=discord.ButtonStyle.primary, custom_id="prev_page"))
+        if end < len(self.results):
+            buttons.append(discord.ui.Button(label="Next ➡", style=discord.ButtonStyle.primary, custom_id="next_page"))
+
+        if buttons:
+            view = View()
+            for b in buttons:
+                b.callback = self.page_button_callback
+                view.add_item(b)
+            await interaction.followup.send("🔹 Navigate pages:", view=view)
+
+    async def page_button_callback(self, interaction: discord.Interaction):
+        if interaction.data['custom_id'] == "prev_page":
+            await self.show_page(interaction, self.current_page - 1)
+        elif interaction.data['custom_id'] == "next_page":
+            await self.show_page(interaction, self.current_page + 1)
+
+
+    """
     async def show_results(self, interaction: discord.Interaction):
             # Build query
             query = "SELECT * FROM item_database WHERE guild_id=$1"
@@ -1335,7 +1401,7 @@ class DatabaseView(View):
                 await interaction.followup.send(embed=embed)
 
 
-
+"""
             
 
 @bot.tree.command(name="view_item_db", description="View the guild's item database with filters.")
