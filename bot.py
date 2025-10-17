@@ -1108,7 +1108,7 @@ class ViewDatabaseSelect(discord.ui.View):
         new_view = ViewDatabaseSubSelect(self.db_pool, self.guild_id, column, opts)
         await interaction.response.edit_message(content=f"Select a {choice}:", view=new_view)
 
-       async def show_results(self, interaction, rows):
+    async def show_results(self, interaction, rows):
         if not rows:
             await interaction.response.edit_message(
                 content="❌ No items found for that filter.",
