@@ -7,7 +7,7 @@ from datetime import datetime
 import asyncpg 
 from discord.ui import View, Button
 from discord.ui import View, Select
-from discor import SelectOption, Interaction
+from discord import SelectOption, Interaction
 
 
 import aiohttp
