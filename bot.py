@@ -991,17 +991,13 @@ class ItemDatabaseModal(discord.ui.Modal):
             placeholder="Example: Silvermoon Sentinel",
             required=True
         )
-        self.slots = discord.ui.TextInput(
-            label="Item Slot - seperate by , ",
-            placeholder="Seperate by , - Example: Head, Neck, Range ",
-            required=True,
-            value = item_slot.lower(),
-        )
+        self.item_slot_field = discord.ui.TextInput(label="Item Slot", default=self.item_slot, required=True)
+        self.add_item(self.item_slot_field)
+
             
 
     async def on_submit(self, interaction: discord.Interaction):
         added_by = str(interaction.user)
-        item_slot = self.slots.value.lower()
         async with self.db_pool.acquire() as conn:
             await conn.execute(
                 """
@@ -1012,7 +1008,7 @@ class ItemDatabaseModal(discord.ui.Modal):
                 self.item_name.value,
                 self.zone_name.value,
                 self.npc_name.value,
-                self.item_slot,
+                self.item_slot_field.value.lower(),
                 self.item_image_url,
                 self.npc_image_url,
                 added_by,
@@ -1084,7 +1080,7 @@ async def add_item_db(interaction: discord.Interaction, item_image: discord.Atta
         guild_id=guild.id,
         item_image_url=item_msg.attachments[0].url,
         npc_image_url=npc_msg.attachments[0].url,
-        item_slot=item_slot,
+        item_slot=item_slot.lower(),
         db_pool=db_pool,
         item_msg_id = item_msg.id,
         npc_msg_id = npc_msg.id
