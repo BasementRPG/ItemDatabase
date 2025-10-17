@@ -1160,7 +1160,7 @@ class DatabaseSlotSelect(Select):
         self.guild_id = guild_id
         super().__init__(placeholder="Filter by Item Slot", min_values=1, max_values=1, options=[])
 
-    async def callback(self, interaction: Interaction):
+    async def callback(self, interaction: discord.Interaction):
         # Fetch items matching the selected slot
         selected_slot = self.values[0].lower()  # Ensure lowercase matching
         async with self.db_pool.acquire() as conn:
@@ -1250,7 +1250,7 @@ class EditDatabaseModal(discord.ui.Modal):
                 UPDATE item_database
                 SET item_name=$1, zone_name=$2, npc_name=$3, item_slot=$4, updated_at=NOW()
                 WHERE id=$5 AND guild_id=$6
-            """, self.item_name.value, self.zone_name.value, self.npc_name.value, self.item_slot.value,
+            """, self.item_name.value, self.zone_name.value, self.npc_name.value, self.item_slot.value.lower(),
                  self.item_row['id'], interaction.guild.id)
 
         await interaction.response.send_message(f"✅ Updated **{self.item_name.value}**!", ephemeral=True)
