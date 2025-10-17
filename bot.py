@@ -149,23 +149,33 @@ class ImageDetailsModal(discord.ui.Modal):
         item_name = self.item_name.value
         donated_by = self.donated_by.value or "Anonymous"
         added_by = str(modal_interaction.user)
-
+    
         upload_channel = await ensure_upload_channel(modal_interaction.guild)
-
-        # Read the uploaded attachment
-        image_data = await self.image_attachment.read()
-        filename = self.image_attachment.filename
-
-        # Upload the image to the upload channel
-        file = discord.File(io.BytesIO(image_data), filename=filename)
-        message = await upload_channel.send(content=f"Uploaded by {added_by}", file=file)
-        image_url = message.attachments[0].url
-
-        # Save to DB
+    
+        image_url = None
+    
+        # If editing, keep existing image if no new image is provided
+        if self.is_edit:
+            image_url = self.item_row.get("image")
+    
+        # If a new image attachment exists, upload it
+        if getattr(self, "image_attachment", None):
+            file = await self.image_attachment.to_file()
+            message = await upload_channel.send(content=f"Uploaded by {added_by}", file=file)
+            image_url = message.attachments[0].url
+    
+        # For new items, require an image
+        if not self.is_edit and not image_url:
+            await modal_interaction.response.send_message(
+                "❌ You must provide an image for a new item.", ephemeral=True
+            )
+            return
+    
+        # Save to database
         if self.is_edit:
             await update_item_db(
-                guild_id=modal_interaction.guild.id,
-                item_id=self.item_row['id'],
+                guild_id=self.guild_id,
+                item_id=self.item_id,
                 name=item_name,
                 donated_by=donated_by,
                 image=image_url,
@@ -174,7 +184,7 @@ class ImageDetailsModal(discord.ui.Modal):
             await modal_interaction.response.send_message(f"✅ Updated **{item_name}**.", ephemeral=True)
         else:
             await add_item_db(
-                guild_id=modal_interaction.guild.id,
+                guild_id=self.guild_id,
                 name=item_name,
                 image=image_url,
                 donated_by=donated_by,
@@ -182,8 +192,9 @@ class ImageDetailsModal(discord.ui.Modal):
                 added_by=added_by,
                 upload_message_id=message.id
             )
-            await modal_interaction.response.send_message(f"✅ Image item **{item_name}** added to the guild bank!", ephemeral=True)
-
+            await modal_interaction.response.send_message(
+                f"✅ Image item **{item_name}** added to the guild bank!", ephemeral=True
+            )
 
 
 
@@ -395,54 +406,27 @@ class RemoveItemModal(discord.ui.Modal):
 
 # ---------- /view_bank Command ----------
 
-@bot.tree.command(name="view_bank", description="View all items in the guild bank.")
+@bot.tree.command(name="view_bank", description="View all active image items in the guild bank.")
 async def view_bank(interaction: discord.Interaction):
-    async with db_pool.acquire() as conn:
-        rows = await conn.fetch(
-            "SELECT * FROM inventory WHERE guild_id=$1 AND qty >= 1 ORDER BY name",
-            interaction.guild.id
-        )
+    guild_id = interaction.guild.id
 
-    if not rows:
-        await interaction.response.send_message("Guild bank is empty.", ephemeral=True)
+    # Fetch all items with qty = 1 for this guild
+    items = await get_items_by_guild_and_qty(guild_id, qty=1)
+    if not items:
+        await interaction.response.send_message("❌ No active items found in the guild bank.", ephemeral=True)
         return
 
-    await interaction.response.defer(thinking=True)
+    embeds = []
+    for item in items:
+        embed = discord.Embed(title=item['name'], description=f"Donated by: {item.get('donated_by', 'Anonymous')}")
+        if item.get('image'):
+            embed.set_image(url=item['image'])
+        embeds.append(embed)
 
-
-    def code_block(text: str) -> str:
-        text = (text or "").strip()
-        return f"```{text}```" if text else "```None```"
-
-    async def build_embed_with_file(row):
-       
-        name = row.get('name')
-
-        donated_by = row.get('donated_by') or "Anonymous"
-
-
-        embed = discord.Embed(
-            color=TYPE_COLORS.get(type, discord.Color.blurple())
-        )
-        embed.set_footer(text=f"Donated by: {donated_by} | {name}")
-                            
-        # Handle uploaded images (URL)
-        if row.get('image'):
-            embed.set_image(url=row['image'])
-            return embed, None
-
-
-    # Send embeds
-    for row in rows:
-        embed, files = await build_embed_with_file(row)
-        if isinstance(files, list):
-            await interaction.channel.send(embed=embed, files=files)
-        elif isinstance(files, discord.File):
-            await interaction.channel.send(embed=embed, file=files)
-        else:
-            await interaction.channel.send(embed=embed)
-
-    await interaction.followup.send(f"✅ Sent {len(rows)} items.", ephemeral=True)
+    # Discord limits to 10 embeds per message, so send in chunks if necessary
+    chunk_size = 10
+    for i in range(0, len(embeds), chunk_size):
+        await interaction.response.send_message(embeds=embeds[i:i+chunk_size])
 
 
 
@@ -493,9 +477,11 @@ async def remove_item(interaction: discord.Interaction, item_name: str):
     await update_item_db(
         guild_id=interaction.guild.id,
         item_id=item['id'],
-        qty=0  # mark as removed
+        qty=0,  # mark as removed
+        removed_at = now()
+        removed_by = ()
     )
-    await interaction.response.send_message(f"✅ Item **{item_name}** marked as removed (qty = 0).", ephemeral=True)
+    await interaction.response.send_message(f"✅ Item **{item_name}** removed.", ephemeral=True)
 
 
 
