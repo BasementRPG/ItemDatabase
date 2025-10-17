@@ -992,8 +992,8 @@ class ItemDatabaseModal(discord.ui.Modal):
         async with self.db_pool.acquire() as conn:
             await conn.execute(
                 """
-                INSERT INTO item_database (guild_id, item_name, zone_name, npc_name, item_slot, item_image, npc_image, added_by, created_at)
-                VALUES ($1, $2, $3, $4, $5, $6, $7, $8, NOW())
+                INSERT INTO item_database (guild_id, item_name, zone_name, npc_name, item_slot, item_image, npc_image, added_by, created_at, image_message_id, npc_message_id)
+                VALUES ($1, $2, $3, $4, $5, $6, $7, $8, NOW(), image_message_id, npc_message_id)
                 """,
                 self.guild_id,
                 self.item_name.value,
@@ -1003,6 +1003,7 @@ class ItemDatabaseModal(discord.ui.Modal):
                 self.item_image_url,
                 self.npc_image_url,
                 added_by
+                
             )
         await interaction.response.send_message(
             f"✅ Item **{self.item_name.value}** added to the database!", ephemeral=True
@@ -1128,12 +1129,12 @@ class ViewDatabaseSelect(discord.ui.View):
             )
     
             # Thumbnail = item image
-            if row.get("item_image_url"):
-                embed.set_thumbnail(url=row["item_image_url"])
+            if row.get("item_image"):
+                embed.set_thumbnail(url=row["item_image"])
     
             # Main image = NPC image
-            if row.get("npc_image_url"):
-                embed.set_image(url=row["npc_image_url"])
+            if row.get("npc_image"):
+                embed.set_image(url=row["npc_image"])
     
             embeds.append(embed)
     
