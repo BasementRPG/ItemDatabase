@@ -50,7 +50,7 @@ async def ensure_upload_channel1(guild: discord.Guild):
     # create hidden channel
     overwrites = {
         guild.default_role: discord.PermissionOverwrite(view_channel=False),
-        guild.me: discord.PermissionOverwrite(send_messages=True)
+        guild.me: discord.PermissionOverwrite(view_channel=True, send_messages=True)
     }
     return await guild.create_text_channel("item-database-upload-log", overwrites=overwrites)
 
