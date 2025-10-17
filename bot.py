@@ -18,18 +18,6 @@ TOKEN = os.getenv("DISCORD_TOKEN")
 DATABASE_URL = os.getenv("DATABASE_URL")
 
 
-BG_FILES = {
-    "Weapon": "assets/backgrounds/bgweapon.png",
-    "Equipment": "assets/backgrounds/bgarmor.png",
-    "Consumable": "assets/backgrounds/bgconsumable.png",
-    "Crafting": "assets/backgrounds/bgcrafting.png",
-    "Misc": "assets/backgrounds/bgmisc.png",
-    
-}
-
-
-
-
 EQUIPMENT_SUBTYPES = ["Ammo","Back","Chest","Ear","Face","Feet","Finger","Hands","Head","Legs","Neck","Primary","Range","Secondary","Shirt","Shoulders","Waist","Wrist"]
 WEAPON_SUBTYPES = ["Ammo","Primary", "Range","Secondary"]
 
@@ -108,8 +96,6 @@ async def update_item_db(guild_id, item_id, **fields):
 
 
 
-
-
 async def delete_item_db(guild_id, item_id):
     # Reduce qty by 1
     item = await db.fetch_one("SELECT qty FROM items WHERE guild_id=? AND id=?", (guild_id, item_id))
@@ -128,22 +114,18 @@ async def delete_item_db(guild_id, item_id):
 
 
 
-
 #-----IMAGE UPLOAD ----
 
 class ImageDetailsModal(discord.ui.Modal):
-    def __init__(self, interaction: discord.Interaction, image_url: str = None, item_row=None, is_edit: bool = False):
+    def __init__(self, interaction: discord.Interaction, image: discord.Attachment, item_row=None):
         super().__init__(title="Image Item Details")
-
         self.interaction = interaction
-        self.is_edit = item_row is not None
         self.item_row = item_row
-        self.image_url = image_url
-        self.item_id = item_row['id'] if self.is_edit else None
-        self.guild_id = item_row['guild_id'] if self.is_edit else interaction.guild.id
+        self.is_edit = item_row is not None
+        self.image_attachment = image  # Save the uploaded attachment
 
         default_name = item_row['name'] if self.is_edit else ""
-        default_donor = item_row.get('donated_by') if self.is_edit else ""
+        default_donor = item_row.get('donated_by', "") if self.is_edit else ""
 
         # Item Name
         self.item_name = discord.ui.TextInput(
@@ -167,20 +149,23 @@ class ImageDetailsModal(discord.ui.Modal):
         item_name = self.item_name.value
         donated_by = self.donated_by.value or "Anonymous"
         added_by = str(modal_interaction.user)
+
         upload_channel = await ensure_upload_channel(modal_interaction.guild)
 
-        image_url = self.image_url  # Direct from upload
+        # Read the uploaded attachment
+        image_data = await self.image_attachment.read()
+        filename = self.image_attachment.filename
 
-        if not image_url:
-            await modal_interaction.response.send_message(
-                "❌ No image provided. Please attach or send an image.", ephemeral=True
-            )
-            return
+        # Upload the image to the upload channel
+        file = discord.File(io.BytesIO(image_data), filename=filename)
+        message = await upload_channel.send(content=f"Uploaded by {added_by}", file=file)
+        image_url = message.attachments[0].url
 
+        # Save to DB
         if self.is_edit:
             await update_item_db(
-                guild_id=self.guild_id,
-                item_id=self.item_id,
+                guild_id=modal_interaction.guild.id,
+                item_id=self.item_row['id'],
                 name=item_name,
                 donated_by=donated_by,
                 image=image_url,
@@ -188,22 +173,24 @@ class ImageDetailsModal(discord.ui.Modal):
             )
             await modal_interaction.response.send_message(f"✅ Updated **{item_name}**.", ephemeral=True)
         else:
-            message = await upload_channel.send(content=f"Uploaded by {added_by}", embed=discord.Embed(title=item_name).set_image(url=image_url))
-
             await add_item_db(
-                guild_id=self.guild_id,
+                guild_id=modal_interaction.guild.id,
                 name=item_name,
+                type="Image",
+                subtype="Image",
+                size="",
+                slot="",
+                stats="",
+                weight="",
+                classes="",
+                race="",
                 image=image_url,
                 donated_by=donated_by,
                 qty=1,
                 added_by=added_by,
                 upload_message_id=message.id
             )
-
-            await modal_interaction.response.send_message(
-                f"✅ Image item **{item_name}** added to the guild bank!",
-                ephemeral=True
-            )
+            await modal_interaction.response.send_message(f"✅ Image item **{item_name}** added to the guild bank!", ephemeral=True)
 
 
 
@@ -480,7 +467,7 @@ async def view_bank(interaction: discord.Interaction):
 
 # ---------- /add_item Command ----------
 
-@bot.tree.command(name="add_item", description="Add a new item to the guild bank (image required).")
+@bot.tree.command(name="add_item", description="Add a new image item to the guild bank (image required).")
 @app_commands.describe(image="Upload an image of the item.")
 async def add_item(interaction: discord.Interaction, image: discord.Attachment):
     # Ensure an image was provided
@@ -491,62 +478,59 @@ async def add_item(interaction: discord.Interaction, image: discord.Attachment):
         )
         return
 
-    # Open the modal, passing the uploaded image URL
-    await interaction.response.send_modal(ImageDetailsModal(interaction, image_url=image.url))
+    # Open modal to get item name and donated_by
+    await interaction.response.send_modal(ImageDetailsModal(interaction, image=image))
+
 
 
 
 
 
 @bot.tree.command(name="edit_item", description="Edit an existing item in the guild bank.")
-@app_commands.describe(item_name="Name of the item to edit")
-async def edit_item(interaction: discord.Interaction, item_name: str):
-    
-    guild_id = interaction.guild.id
+@app_commands.describe(item_id="The ID of the item to edit", new_image="Upload a new image (optional)")
+async def edit_item(interaction: discord.Interaction, item_id: int, new_image: discord.Attachment = None):
+    async with db_pool.acquire() as conn:
+        item_row = await conn.fetchrow("SELECT * FROM inventory WHERE id = $1 AND guild_id = $2", item_id, interaction.guild.id)
 
-    # 1️⃣ Fetch the item record
-    item = await get_item_by_name(guild_id, item_name)
-    if not item:
-        await interaction.followup.send("❌ Item not found.", ephemeral=True)
+    if not item_row:
+        await interaction.response.send_message("❌ Item not found.", ephemeral=True)
         return
 
-    # 2️⃣ Uploaded image item — open simple modal
-    if item.get("image"):
-        modal = ImageDetailsModal(interaction, item_row=item, is_edit=True)
-        await interaction.response.send_modal(modal)
-        return
+    # Get new image URL if uploaded
+    image_url = item_row["image"]
+    if new_image:
+        upload_channel = await ensure_upload_channel(interaction.guild)
+        file = await new_image.to_file()
+        message = await upload_channel.send(content=f"Re-uploaded by {interaction.user}", file=file)
+        image_url = message.attachments[0].url
 
-    # Let the user know this is edit mode
-    await interaction.followup.send(
-        content=f"🛠 Editing **{item['name']}**. You can adjust fields and re-submit to update the item.",
-        view=view,
-        ephemeral=True
+    # Open modal with current data
+    await interaction.response.send_modal(
+        ImageDetailsModal(
+            interaction,
+            image_url=image_url,
+            item_row=item_row,
+            is_edit=True
+        )
     )
 
 
-
-
-
-@bot.tree.command(name="remove_item", description="Remove an item from the guild bank.")
-@app_commands.describe(item_name="Name of the item to remove")
-async def remove_item(interaction: discord.Interaction, item_name: str):
-    async with db_pool.acquire() as conn:
-        item = await conn.fetchrow(
-            "SELECT * FROM inventory WHERE guild_id=$1 AND name=$2 AND qty=1",
-            interaction.guild.id,
-            item_name
-        )
-
+@bot.tree.command(name="remove_item", description="Mark an item as removed (reduce qty to 0).")
+@app_commands.describe(item_id="ID of the item to remove")
+async def remove_item(interaction: discord.Interaction, item_id: int):
+    # Fetch item from DB
+    item = await get_item_by_id(item_id)
     if not item:
-        await interaction.response.send_message(
-            "❌ Item not found or already removed.", ephemeral=True
-        )
+        await interaction.response.send_message("❌ Item not found.", ephemeral=True)
         return
 
-    # 🧾 Open modal to capture removal reason
-    modal = RemoveItemModal(item=item, db_pool=db_pool)
-    await interaction.response.send_modal(modal)
-
+    # Reduce qty to 0 instead of deleting
+    await update_item_db(
+        guild_id=interaction.guild.id,
+        item_id=item_id,
+        qty=0  # mark as removed
+    )
+    await interaction.response.send_message(f"✅ Item **{item['name']}** marked as removed (qty = 0).", ephemeral=True)
 
 
 
