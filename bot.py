@@ -1071,8 +1071,8 @@ async def add_item_db(interaction: discord.Interaction, item_image: discord.Atta
         item_image_url=item_msg.attachments[0].url,
         npc_image_url=npc_msg.attachments[0].url,
         item_slot=item_slot,
-        db_pool=db_pool
-        item_msg_id = item_msg.id
+        db_pool=db_pool,
+        item_msg_id = item_msg.id,
         npc_msg_id = npc_msg.id
     ))
 
