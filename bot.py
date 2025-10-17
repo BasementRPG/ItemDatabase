@@ -1360,7 +1360,7 @@ class DatabaseView(View):
             await self.show_page(interaction, self.current_page + 1)
 
 
-    """
+
     async def show_results(self, interaction: discord.Interaction):
             # Build query
             query = "SELECT * FROM item_database WHERE guild_id=$1"
@@ -1395,7 +1395,7 @@ class DatabaseView(View):
                 await interaction.followup.send(embed=embed)
 
 
-"""
+
             
 
 @bot.tree.command(name="view_item_db", description="View the guild's item database with filters.")
