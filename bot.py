@@ -6,6 +6,7 @@ from discord.ui import Modal, TextInput
 from datetime import datetime
 import asyncpg 
 from discord.ui import View, Button
+from discrod.ui import Select, View
 import aiohttp
 import io
 
