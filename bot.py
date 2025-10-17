@@ -1108,6 +1108,7 @@ class ViewDatabaseSelect(discord.ui.View):
         new_view = ViewDatabaseSubSelect(self.db_pool, self.guild_id, column, opts)
         await interaction.response.edit_message(content=f"Select a {choice}:", view=new_view)
 
+
     async def show_results(self, interaction, rows):
         if not rows:
             await interaction.response.edit_message(
@@ -1116,17 +1117,35 @@ class ViewDatabaseSelect(discord.ui.View):
             )
             return
     
-        results_text = "\n".join(
-            f"**{r['item_name']}** — {r['zone_name']} — {r['npc_name']} — Slot: {r['item_slot']}"
-            for r in rows
-        )
+        embeds = []
+        for row in rows:
+            embed = discord.Embed(
+                title=row["item_name"],
+                description=f"**Slot:** {row['item_slot']}\n"
+                            f"**Zone:** {row['zone_name']}\n"
+                            f"**Dropped by:** {row['npc_name']}",
+                color=discord.Color.gold()
+            )
     
-        await interaction.response.edit_message(
-            content=results_text,
-            view=None
-        )
-
-            
+            # Thumbnail = item image
+            if row.get("item_image_url"):
+                embed.set_thumbnail(url=row["item_image_url"])
+    
+            # Main image = NPC image
+            if row.get("npc_image_url"):
+                embed.set_image(url=row["npc_image_url"])
+    
+            embeds.append(embed)
+    
+        # Send the first one as main response (Discord only allows one edit_message response)
+        await interaction.response.edit_message(content=None, embeds=[embeds[0]], view=None)
+    
+        # Send the rest as follow-up messages if there are multiple results
+        for embed in embeds[1:]:
+            await interaction.followup.send(embed=embed, ephemeral=True)
+    
+    
+                
 
 class ViewDatabaseSubSelect(discord.ui.View):
     def __init__(self, db_pool, guild_id, column, options):
