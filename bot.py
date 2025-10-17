@@ -465,10 +465,17 @@ async def edit_item(interaction: discord.Interaction, item_name: str):
     await interaction.response.send_modal(ImageDetailsModal(interaction, image=None, item_row=item))
 
 
+
 @bot.tree.command(name="remove_item", description="Remove an item from the guild bank (reduce qty to 0).")
-async def remove_item(interaction: discord.Interaction):
+async def remove_item(interaction: discord.Interaction, item_name: str):
+    # Fetch item by name
+    item = await get_item_by_name(interaction.guild.id, item_name)
+    if not item:
+        await interaction.response.send_message(f"❌ Item **{item_name}** not found.", ephemeral=True)
+        return
+    
     # Open the modal for the user
-    await interaction.response.send_modal(RemoveItemModal(interaction.guild.id))
+    await interaction.response.send_modal(RemoveItemModal(interaction, item_row=item))
 
 
 
