@@ -132,86 +132,51 @@ async def delete_item_db(guild_id, item_id):
 #-----IMAGE UPLOAD ----
 
 class ImageDetailsModal(discord.ui.Modal):
-    def __init__(self, interaction: discord.Interaction, view=None, item_row=None, is_edit: bool = False):
-        """
-        Unified modal for adding or editing an image item.
-        """
+    def __init__(self, interaction: discord.Interaction, image_url: str = None, item_row=None, is_edit: bool = False):
         super().__init__(title="Image Item Details")
+
         self.interaction = interaction
-        self.view = view
         self.is_edit = item_row is not None
         self.item_row = item_row
+        self.image_url = image_url
+        self.item_id = item_row['id'] if self.is_edit else None
+        self.guild_id = item_row['guild_id'] if self.is_edit else interaction.guild.id
 
-        if self.is_edit:
-            self.item_id = item_row['id']
-            self.guild_id = item_row['guild_id']
-            default_name = item_row['name']
-            default_donor = item_row.get('donated_by') or "Anonymous"
-        else:
-            self.item_id = None
-            self.guild_id = interaction.guild.id
-            default_name = ""
-            default_donor = ""
+        default_name = item_row['name'] if self.is_edit else ""
+        default_donor = item_row.get('donated_by') if self.is_edit else ""
 
         # Item Name
-        self.item_name = discord.ui.TextInput(label="Item Name", placeholder="Example: Flowing Black Silk Sash", default=default_name, required=True)
+        self.item_name = discord.ui.TextInput(
+            label="Item Name",
+            placeholder="Example: Flowing Black Silk Sash",
+            default=default_name,
+            required=True
+        )
         self.add_item(self.item_name)
 
         # Donated By
-        self.donated_by = discord.ui.TextInput(label="Donated By", placeholder="Example: Thieron or Raid", default=default_donor, required=False)
+        self.donated_by = discord.ui.TextInput(
+            label="Donated By",
+            placeholder="Example: Thieron or Raid",
+            default=default_donor,
+            required=False
+        )
         self.add_item(self.donated_by)
 
     async def on_submit(self, modal_interaction: discord.Interaction):
         item_name = self.item_name.value
         donated_by = self.donated_by.value or "Anonymous"
         added_by = str(modal_interaction.user)
-
         upload_channel = await ensure_upload_channel(modal_interaction.guild)
-          
-        # Handle the image
-        image_url = None
-        if self.view and getattr(self.view, "image", None):
-            # If image is bytes, upload directly
-            if isinstance(self.view.image, (bytes, bytearray)):
-                file = discord.File(io.BytesIO(self.view.image), filename=f"{item_name}.png")
-                message = await upload_channel.send(file=file, content=f"Uploaded by {added_by}")
-                image_url = message.attachments[0].url
-        
-            # If image is already a URL (string)
-            elif isinstance(self.view.image, str):
-                # Download and re-upload so it's permanent in your upload-log
-                async with aiohttp.ClientSession() as session:
-                    async with session.get(self.view.image) as resp:
-                        if resp.status == 200:
-                            data = await resp.read()
-                            file = discord.File(io.BytesIO(data), filename=f"{item_name}.png")
-                            message = await upload_channel.send(file=file, content=f"Uploaded by {added_by}")
-                            image_url = message.attachments[0].url
-                        else:
-                            await modal_interaction.response.send_message(
-                                f"❌ Failed to download image from provided URL.", ephemeral=True
-                            )
-                            return
-        
-        elif modal_interaction.message and modal_interaction.message.attachments:
-            # If user uploaded a Discord attachment directly
-            attachment = modal_interaction.message.attachments[0]
-            message = await upload_channel.send(
-                content=f"Uploaded by {added_by}",
-                file=await attachment.to_file()
-            )
-            image_url = message.attachments[0].url
 
-        if self.is_edit and not image_url:
-            image_url = self.item_row["image"] 
-			
-        if not self.is_edit and not image_url:
+        image_url = self.image_url  # Direct from upload
+
+        if not image_url:
             await modal_interaction.response.send_message(
                 "❌ No image provided. Please attach or send an image.", ephemeral=True
             )
             return
 
-        # Save to database
         if self.is_edit:
             await update_item_db(
                 guild_id=self.guild_id,
@@ -223,6 +188,8 @@ class ImageDetailsModal(discord.ui.Modal):
             )
             await modal_interaction.response.send_message(f"✅ Updated **{item_name}**.", ephemeral=True)
         else:
+            message = await upload_channel.send(content=f"Uploaded by {added_by}", embed=discord.Embed(title=item_name).set_image(url=image_url))
+
             await add_item_db(
                 guild_id=self.guild_id,
                 name=item_name,
@@ -232,9 +199,12 @@ class ImageDetailsModal(discord.ui.Modal):
                 added_by=added_by,
                 upload_message_id=message.id
             )
+
             await modal_interaction.response.send_message(
-                f"✅ Image item **{item_name}** added to the guild bank!", ephemeral=True
+                f"✅ Image item **{item_name}** added to the guild bank!",
+                ephemeral=True
             )
+
 
 
 
@@ -513,8 +483,6 @@ async def view_bank(interaction: discord.Interaction):
 @bot.tree.command(name="add_item", description="Add a new item to the guild bank (image required).")
 @app_commands.describe(image="Upload an image of the item.")
 async def add_item(interaction: discord.Interaction, image: discord.Attachment):
-    view.image = image.url
-    view.waiting_for_image = False	
     # Ensure an image was provided
     if not image:
         await interaction.response.send_message(
@@ -523,8 +491,9 @@ async def add_item(interaction: discord.Interaction, image: discord.Attachment):
         )
         return
 
-    # Pass the image URL into the modal
-    await interaction.response.send_modal(ImageDetailsModal(view=view))
+    # Open the modal, passing the uploaded image URL
+    await interaction.response.send_modal(ImageDetailsModal(interaction, image_url=image.url))
+
 
 
 
