@@ -1091,8 +1091,6 @@ async def add_item_db(interaction: discord.Interaction, item_image: discord.Atta
 
 
 
-from discord.ui import View, Select, SelectOption
-import discord
 
 class ViewDatabaseSelect(View):
     def __init__(self, db_pool, guild_id):
