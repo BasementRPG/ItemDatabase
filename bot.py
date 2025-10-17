@@ -7,7 +7,7 @@ from datetime import datetime
 import asyncpg 
 from discord.ui import View, Button
 from discord.ui import View, Select
-from discord import SelectOption
+from discord import SelectOption, Embed
 
 import aiohttp
 import io
@@ -1098,96 +1098,41 @@ class ViewDatabaseSelect(View):
         self.db_pool = db_pool
         self.guild_id = guild_id
 
+        # Selected filter type and value
         self.selected_filter_type = None
         self.selected_value = None
 
-        # Filter type dropdown
-        self.filter_type_select = Select(
-            placeholder="Choose filter type",
-            options=[
-                SelectOption(label="Slot", value="slot"),
-                SelectOption(label="Item Name", value="item_name"),
-                SelectOption(label="NPC", value="npc_name"),
-                SelectOption(label="Zone", value="zone_name"),
-                SelectOption(label="All", value="all")
-            ],
-            min_values=1,
-            max_values=1
-        )
-        self.filter_type_select.callback = self.filter_type_callback
-        self.add_item(self.filter_type_select)
+        # Dropdowns
+        self.slot_select = DatabaseSlotSelect(db_pool, guild_id, self.on_filter_selected)
+        self.item_select = DatabaseItemSelect(db_pool, guild_id, self.on_filter_selected)
+        self.npc_select = DatabaseNPCSelect(db_pool, guild_id, self.on_filter_selected)
+        self.zone_select = DatabaseZoneSelect(db_pool, guild_id, self.on_filter_selected)
 
-        # Value dropdown (dynamic)
-        self.value_select = Select(
-            placeholder="Select a value",
-            options=[],
-            min_values=1,
-            max_values=1,
-            disabled=True
-        )
-        self.value_select.callback = self.value_select_callback
-        self.add_item(self.value_select)
+        # Add to view
+        self.add_item(self.slot_select)
+        self.add_item(self.item_select)
+        self.add_item(self.npc_select)
+        self.add_item(self.zone_select)
 
-    async def filter_type_callback(self, interaction: discord.Interaction):
-        self.selected_filter_type = self.filter_type_select.values[0]
-
-        if self.selected_filter_type == "all":
-            self.value_select.disabled = True
-            await self.show_results(interaction)
-            return
-
-        # Populate dropdown values from database
-        async with self.db_pool.acquire() as conn:
-            column = {
-                "slot": "item_slot",
-                "item_name": "item_name",
-                "npc_name": "npc_name",
-                "zone_name": "zone_name"
-            }[self.selected_filter_type]
-
-            rows = await conn.fetch(f"SELECT DISTINCT {column} FROM item_database WHERE guild_id=$1", self.guild_id)
-            options = []
-
-            for row in rows:
-                val = row[column]
-                if val:
-                    # For item_slot, split multi-slot values
-                    if column == "item_slot":
-                        for s in val.split(","):
-                            options.append(SelectOption(label=s.strip().title(), value=s.strip().lower()))
-                    else:
-                        options.append(SelectOption(label=val.title(), value=val.lower()))
-
-            # For item_name, add "All Items" option at top
-            if self.selected_filter_type == "item_name":
-                options.insert(0, SelectOption(label="All Items", value="all_items"))
-
-            self.value_select.options = sorted(options, key=lambda o: o.label)
-            self.value_select.disabled = False
-
-        await interaction.response.edit_message(view=self)
-
-    async def value_select_callback(self, interaction: discord.Interaction):
-        if not self.value_select.values:
-            return
-        self.selected_value = self.value_select.values[0]
+    async def on_filter_selected(self, interaction, selected_value):
+        self.selected_value = selected_value
         await self.show_results(interaction)
 
-    async def show_results(self, interaction: discord.Interaction):
+    async def show_results(self, interaction):
         query = "SELECT * FROM item_database WHERE guild_id=$1"
         args = [self.guild_id]
 
-        if self.selected_filter_type and self.selected_filter_type != "all":
-            col_map = {
-                "slot": "item_slot",
-                "item_name": "item_name",
-                "npc_name": "npc_name",
-                "zone_name": "zone_name"
-            }
-            column = col_map[self.selected_filter_type]
-            if self.selected_value != "all_items":
-                query += f" AND LOWER({column}) LIKE $2"
-                args.append(f"%{self.selected_value}%")
+        # Apply filter based on dropdown that triggered callback
+        if self.selected_value and self.selected_value != "all":
+            if self.slot_select.values and self.selected_value in self.slot_select.values:
+                query += " AND LOWER(item_slot) LIKE $2"
+            elif self.item_select.values and self.selected_value in self.item_select.values:
+                query += " AND LOWER(item_name) LIKE $2"
+            elif self.npc_select.values and self.selected_value in self.npc_select.values:
+                query += " AND LOWER(npc_name) LIKE $2"
+            elif self.zone_select.values and self.selected_value in self.zone_select.values:
+                query += " AND LOWER(zone_name) LIKE $2"
+            args.append(f"%{self.selected_value}%")
 
         async with self.db_pool.acquire() as conn:
             rows = await conn.fetch(query, *args)
@@ -1196,22 +1141,75 @@ class ViewDatabaseSelect(View):
             await interaction.response.edit_message(content="❌ No results found.", view=self)
             return
 
-        # Build embeds with item image main, npc image thumbnail
+        # Build the embed(s)
         embeds = []
         for row in rows:
-            embed = discord.Embed(
-                title=row['item_name'],
-                description=f"NPC: {row['npc_name']}\nZone: {row['zone_name']}\nSlot: {row['item_slot']}"
-            )
+            embed = Embed(title=row['item_name'], description=f"NPC: {row['npc_name']} | Zone: {row['zone_name']} | Slot: {row['item_slot']}")
             if row.get('item_image_url'):
                 embed.set_image(url=row['item_image_url'])
             if row.get('npc_image_url'):
                 embed.set_thumbnail(url=row['npc_image_url'])
             embeds.append(embed)
 
-        # Discord allows max 10 embeds per message
-        await interaction.response.edit_message(content=None, view=self, embeds=embeds[:10])
+        await interaction.response.edit_message(content=None, embeds=embeds, view=self)
 
+
+class DatabaseSlotSelect(Select):
+    def __init__(self, db_pool, guild_id, callback):
+        super().__init__(placeholder="Filter by Slot", min_values=1, max_values=1, options=[])
+        self.db_pool = db_pool
+        self.guild_id = guild_id
+        self.user_callback = callback
+        self.custom_id = "slot_select"
+
+    async def populate_options(self):
+        async with self.db_pool.acquire() as conn:
+            rows = await conn.fetch("SELECT DISTINCT item_slot FROM item_database WHERE guild_id=$1", self.guild_id)
+        slot_set = set()
+        for row in rows:
+            for slot in row['item_slot'].split(','):
+                slot_set.add(slot.strip().lower())
+        self.options = [SelectOption(label=s.title(), value=s) for s in sorted(slot_set)]
+        self.options.insert(0, SelectOption(label="All Slots", value="all"))  # Add "All" option
+
+
+class DatabaseItemSelect(Select):
+    def __init__(self, db_pool, guild_id, callback):
+        super().__init__(placeholder="Filter by Item Name", min_values=1, max_values=1, options=[])
+        self.db_pool = db_pool
+        self.guild_id = guild_id
+        self.user_callback = callback
+        self.custom_id = "item_select"
+
+    async def populate_options(self):
+        async with self.db_pool.acquire() as conn:
+            rows = await conn.fetch("SELECT DISTINCT item_name FROM item_database WHERE guild_id=$1", self.guild_id)
+        self.options = [SelectOption(label=row['item_name'], value=row['item_name'].lower()) for row in rows]
+        self.options.insert(0, SelectOption(label="All Items", value="all"))
+
+
+class DatabaseNPCSelect(DatabaseItemSelect):
+    def __init__(self, db_pool, guild_id, callback):
+        super().__init__(db_pool, guild_id, callback)
+        self.custom_id = "npc_select"
+
+    async def populate_options(self):
+        async with self.db_pool.acquire() as conn:
+            rows = await conn.fetch("SELECT DISTINCT npc_name FROM item_database WHERE guild_id=$1", self.guild_id)
+        self.options = [SelectOption(label=row['npc_name'], value=row['npc_name'].lower()) for row in rows]
+        self.options.insert(0, SelectOption(label="All NPCs", value="all"))
+
+
+class DatabaseZoneSelect(DatabaseItemSelect):
+    def __init__(self, db_pool, guild_id, callback):
+        super().__init__(db_pool, guild_id, callback)
+        self.custom_id = "zone_select"
+
+    async def populate_options(self):
+        async with self.db_pool.acquire() as conn:
+            rows = await conn.fetch("SELECT DISTINCT zone_name FROM item_database WHERE guild_id=$1", self.guild_id)
+        self.options = [SelectOption(label=row['zone_name'], value=row['zone_name'].lower()) for row in rows]
+        self.options.insert(0, SelectOption(label="All Zones", value="all"))
 
 # Example usage in command:
 @bot.tree.command(name="view_item_db", description="View the item database.")
