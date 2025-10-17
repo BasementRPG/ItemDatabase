@@ -1275,7 +1275,7 @@ class DatabaseView(View):
 
 @bot.tree.command(name="view_item_db", description="View the item database")
 async def view_item_db(interaction: Interaction):
-    view = DatabaseView(bot.db_pool, interaction.guild.id)
+    view = DatabaseView(db_pool, interaction.guild.id)
     await view.setup()
     await interaction.response.send_message("Select a slot to filter items:", view=view)
 
