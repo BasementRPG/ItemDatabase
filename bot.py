@@ -1193,11 +1193,31 @@ class DatabaseNPCSelect(DatabaseItemSelect):
         super().__init__(db_pool, guild_id, callback)
         self.custom_id = "npc_select"
 
+   
     async def populate_options(self):
         async with self.db_pool.acquire() as conn:
-            rows = await conn.fetch("SELECT DISTINCT npc_name FROM item_database WHERE guild_id=$1", self.guild_id)
-        self.options = [SelectOption(label=row['npc_name'], value=row['npc_name'].lower()) for row in rows]
-        self.options.insert(0, SelectOption(label="All NPCs", value="all"))
+            if self.table == "items":
+                rows = await conn.fetch("SELECT DISTINCT item_name FROM items ORDER BY item_name ASC")
+            elif self.table == "zones":
+                rows = await conn.fetch("SELECT DISTINCT zone FROM items ORDER BY zone ASC")
+            elif self.table == "npcs":
+                rows = await conn.fetch("SELECT DISTINCT npc_name FROM items ORDER BY npc_name ASC")
+            elif self.table == "slots":
+                rows = await conn.fetch("SELECT DISTINCT slot FROM items ORDER BY slot ASC")
+            else:
+                rows = []
+    
+        self.options = [
+            discord.SelectOption(
+                label=row[0][:100],  # truncate label
+                value=row[0][:100]   # truncate value
+            )
+            for row in rows if row[0]
+        ]
+    
+        # Add 'All' at the top
+        self.options.insert(0, discord.SelectOption(label="All", value="all"))
+
 
 
 class DatabaseZoneSelect(DatabaseItemSelect):
