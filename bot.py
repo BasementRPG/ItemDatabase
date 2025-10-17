@@ -1230,38 +1230,84 @@ async def edit_database_item(interaction: discord.Interaction, item_name: str):
 
 
 
-@bot.tree.command(name="remove_item_db", description="Remove an item from the database by name.")
-@app_commands.describe(item_name="The name of the item to remove.")
-async with db_pool.acquire() as conn:
-    row = await conn.fetchrow(
-        "SELECT item_image_message_id, npc_image_message_id FROM item_database WHERE item_name=$1 AND guild_id=$2",
-        item_name, interaction.guild_id
-    )
 
-    if row:
-        upload_channel = discord.utils.get(interaction.guild.text_channels, name="item-database-upload-log")
-        if upload_channel:
-            for msg_id in [row["item_image_message_id"], row["npc_image_message_id"]]:
-                if msg_id:
-                    try:
-                        msg = await upload_channel.fetch_message(msg_id)
-                        await msg.delete()
-                    except discord.NotFound:
-                        pass
-                    except Exception as e:
-                        print(f"⚠️ Failed to delete message {msg_id}: {e}")
+class ConfirmRemoveItemView(View):
+    def __init__(self, item_name, db_pool):
+        super().__init__(timeout=60)
+        self.item_name = item_name
+        self.db_pool = db_pool
 
-        await conn.execute(
-            "DELETE FROM item_database WHERE item_name=$1 AND guild_id=$2",
-            item_name, interaction.guild_id
+    @discord.ui.button(label="✅ Confirm", style=discord.ButtonStyle.danger)
+    async def confirm(self, interaction: discord.Interaction, button: Button):
+        try:
+            async with self.db_pool.acquire() as conn:
+                # Fetch message IDs to delete the images
+                row = await conn.fetchrow("""
+                    SELECT item_image_message_id, npc_image_message_id 
+                    FROM item_database 
+                    WHERE item_name=$1 AND guild_id=$2
+                """, self.item_name, interaction.guild_id)
+
+                if not row:
+                    await interaction.response.edit_message(
+                        content=f"❌ Item **{self.item_name}** not found in the database.",
+                        view=None
+                    )
+                    return
+
+                # Delete the uploaded messages
+                upload_channel = discord.utils.get(interaction.guild.text_channels, name="item-database-upload-log")
+                if upload_channel:
+                    for msg_id in [row["item_image_message_id"], row["npc_image_message_id"]]:
+                        if msg_id:
+                            try:
+                                msg = await upload_channel.fetch_message(msg_id)
+                                await msg.delete()
+                            except discord.NotFound:
+                                pass
+                            except Exception as e:
+                                print(f"⚠️ Failed to delete message {msg_id}: {e}")
+
+                # Remove entry from database
+                await conn.execute("""
+                    DELETE FROM item_database 
+                    WHERE item_name=$1 AND guild_id=$2
+                """, self.item_name, interaction.guild_id)
+
+            await interaction.response.edit_message(
+                content=f"🗑️ **{self.item_name}** was successfully removed from the database.",
+                view=None
+            )
+
+        except Exception as e:
+            import traceback
+            traceback.print_exc()
+            await interaction.response.edit_message(
+                content=f"❌ Error while removing **{self.item_name}**: {e}",
+                view=None
+            )
+
+    @discord.ui.button(label="❌ Cancel", style=discord.ButtonStyle.secondary)
+    async def cancel(self, interaction: discord.Interaction, button: Button):
+        await interaction.response.edit_message(
+            content=f"❎ Removal of **{self.item_name}** canceled.",
+            view=None
         )
 
-    if result == "DELETE 0":
-        await interaction.response.send_message("❌ No item found with that name.", ephemeral=True)
-    else:
-        await interaction.response.send_message(f"🗑️ **{item_name}** has been removed from the database.", ephemeral=True)
 
 
+
+
+@bot.tree.command(name="remove_item_db", description="Remove an item from the item database by name.")
+@app_commands.describe(item_name="Name of the item to remove.")
+async def remove_itemdb(interaction: discord.Interaction, item_name: str):
+    # Ask for confirmation first
+    view = ConfirmRemoveItemView(item_name=item_name, db_pool=db_pool)
+    await interaction.response.send_message(
+        f"⚠️ Are you sure you want to remove **{item_name}** from the item database?",
+        view=view,
+        ephemeral=True
+    )
 
 
 
