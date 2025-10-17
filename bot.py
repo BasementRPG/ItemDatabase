@@ -478,7 +478,7 @@ async def remove_item(interaction: discord.Interaction, item_name: str):
         guild_id=interaction.guild.id,
         item_id=item['id'],
         qty=0,  # mark as removed
-        removed_at = now()
+        removed_at = now(),
         removed_by = ()
     )
     await interaction.response.send_message(f"✅ Item **{item_name}** removed.", ephemeral=True)
