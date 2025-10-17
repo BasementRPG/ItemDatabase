@@ -1129,7 +1129,7 @@ class ViewDatabaseSelect(discord.ui.View):
 
 
     
-    async def show_results(self, interaction: Interaction, rows):
+    async def show_results(self, interaction: discord.Interaction, rows):
         if not rows:
             await interaction.response.edit_message(content="❌ No items found.", view=None)
             return
