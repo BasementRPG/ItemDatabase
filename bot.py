@@ -1244,33 +1244,20 @@ class ViewDatabaseSelect(View):
         self.filter_type_select.callback = self.filter_type_callback
         self.add_item(self.filter_type_select)
 
-        # Second dropdown: dynamic values
-        self.value_select = Select(
-            placeholder="Select a value",
-            options=[],
-            min_values=1,
-            max_values=1,
-            disabled=True
-        )
-        self.value_select.callback = self.value_select_callback
-        self.add_item(self.value_select)
-
     async def filter_type_callback(self, interaction: Interaction):
         self.selected_filter_type = self.filter_type_select.values[0]
 
         if self.selected_filter_type == "all":
-            self.value_select.disabled = True
             await self.show_results(interaction)
             return
 
-        # Populate values based on the selected filter
+        # Build the second dropdown dynamically
         async with self.db_pool.acquire() as conn:
             rows = await conn.fetch(
                 f"SELECT DISTINCT {self.selected_filter_type} FROM item_database WHERE guild_id=$1",
                 self.guild_id
             )
 
-        # Flatten slot values and deduplicate
         value_set = set()
         for row in rows:
             val = row[self.selected_filter_type]
@@ -1281,29 +1268,37 @@ class ViewDatabaseSelect(View):
                 else:
                     value_set.add(val.lower())
 
-        # Build SelectOption list
+        # Build options
         options = [SelectOption(label=v.title(), value=v) for v in sorted(value_set)]
-        # Add previous option at the bottom
         options.append(SelectOption(label=f"{self.previous_arrow} Previous", value="previous"))
 
-        self.value_select.options = options
-        self.value_select.disabled = False
+        # Create the second dropdown dynamically
+        value_select = Select(
+            placeholder="Select a value",
+            options=options,
+            min_values=1,
+            max_values=1
+        )
+
+        async def value_callback(interaction: Interaction):
+            selected = value_select.values[0]
+            if selected == "previous":
+                # Go back to first dropdown
+                for child in self.children[:]:
+                    if child is value_select:
+                        self.remove_item(child)
+                await interaction.response.edit_message(view=self)
+                return
+
+            self.selected_value = selected
+            await self.show_results(interaction)
+
+        value_select.callback = value_callback
+        self.add_item(value_select)
 
         await interaction.response.edit_message(view=self)
 
-    async def value_select_callback(self, interaction: Interaction):
-        selected = self.value_select.values[0]
-        if selected == "previous":
-            # Go back to filter type select
-            self.value_select.disabled = True
-            await interaction.response.edit_message(view=self)
-            return
-
-        self.selected_value = selected
-        await self.show_results(interaction)
-
     async def show_results(self, interaction: Interaction):
-        # Build query
         query = "SELECT * FROM item_database WHERE guild_id=$1"
         args = [self.guild_id]
 
@@ -1315,17 +1310,18 @@ class ViewDatabaseSelect(View):
             rows = await conn.fetch(query, *args)
 
         if not rows:
-            await interaction.response.send_message("❌ No results found.", ephemeral=True)
+            await interaction.followup.send("❌ No results found.", ephemeral=True)
             return
 
-        # Send results as embeds with item image main, npc image thumbnail
         for row in rows:
-            embed = discord.Embed(title=row['item_name'], description=f"NPC: {row['npc_name']}\nZone: {row['zone_name']}\nSlot: {row['item_slot']}")
+            embed = discord.Embed(
+                title=row['item_name'],
+                description=f"NPC: {row['npc_name']}\nZone: {row['zone_name']}\nSlot: {row['item_slot']}"
+            )
             embed.set_image(url=row['item_image'])
             if row['npc_image']:
                 embed.set_thumbnail(url=row['npc_image'])
             await interaction.followup.send(embed=embed)
-
             
 
 @bot.tree.command(name="view_item_db", description="View the guild's item database with filters.")
