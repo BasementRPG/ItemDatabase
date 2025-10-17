@@ -1257,9 +1257,10 @@ class ViewDatabaseSelect(View):
         self.value_select.visible = False  # Hidden initially
         self.add_item(self.value_select)
 
+ 
     async def filter_type_callback(self, interaction: discord.Interaction):
         self.selected_filter_type = self.filter_type_select.values[0]
-
+    
         # If "All" is selected, show results immediately
         if self.selected_filter_type == "all":
             self.filter_type_select.disabled = True
@@ -1267,13 +1268,13 @@ class ViewDatabaseSelect(View):
             await interaction.response.edit_message(view=self)
             await self.show_results(interaction, filter_type=None, filter_value=None)
             return
-
+    
         # Populate second dropdown based on selected filter
         async with self.db_pool.acquire() as conn:
             column = self.selected_filter_type
             rows = await conn.fetch(f"SELECT DISTINCT {column} FROM item_database WHERE guild_id=$1", self.guild_id)
             options_set = set()
-
+    
             for row in rows:
                 value = row[column]
                 if not value:
@@ -1283,17 +1284,26 @@ class ViewDatabaseSelect(View):
                         options_set.add(slot.strip().lower())
                 else:
                     options_set.add(value.strip().lower())
-
+    
+            if not options_set:
+                # No values for this filter, show results immediately
+                self.filter_type_select.disabled = True
+                self.value_select.visible = False
+                await interaction.response.edit_message(view=self)
+                await self.show_results(interaction, filter_type=column, filter_value=None)
+                return
+    
+            # Build SelectOption list
             options_list = [discord.SelectOption(label=v.title(), value=v) for v in sorted(options_set)]
-            # Add Previous arrow at the bottom
             options_list.append(discord.SelectOption(label="⬅️ Previous", value="previous"))
-
-            # Clear old options and add new ones
+    
+            # Populate second dropdown
             self.value_select.options = options_list
             self.value_select.visible = True
             self.filter_type_select.visible = False  # hide first dropdown
-
+    
         await interaction.response.edit_message(view=self)
+
 
     async def value_select_callback(self, interaction: discord.Interaction):
         selected = self.value_select.values[0]
