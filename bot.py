@@ -1300,42 +1300,42 @@ class ViewDatabaseSelect(View):
 
 
     async def show_results(self, interaction: discord.Interaction):
-    query = "SELECT * FROM item_database WHERE guild_id=$1"
-    args = [self.guild_id]
-
-    if self.selected_filter_type != "all" and self.selected_value:
-        query += f" AND LOWER({self.selected_filter_type}) LIKE $2"
-        args.append(f"%{self.selected_value}%")
-
-    async with self.db_pool.acquire() as conn:
-        rows = await conn.fetch(query, *args)
-
-    if not rows:
-        # Use response.send_message first if no previous response
+        query = "SELECT * FROM item_database WHERE guild_id=$1"
+        args = [self.guild_id]
+    
+        if self.selected_filter_type != "all" and self.selected_value:
+            query += f" AND LOWER({self.selected_filter_type}) LIKE $2"
+            args.append(f"%{self.selected_value}%")
+    
+        async with self.db_pool.acquire() as conn:
+            rows = await conn.fetch(query, *args)
+    
+        if not rows:
+            # Use response.send_message first if no previous response
+            try:
+                await interaction.response.send_message("❌ No results found.", ephemeral=True)
+            except discord.errors.InteractionResponded:
+                await interaction.followup.send("❌ No results found.", ephemeral=True)
+            return
+    
+        # Build embeds
+        embeds = []
+        for row in rows:
+            embed = discord.Embed(
+                title=row['item_name'],
+                description=f"NPC: {row['npc_name']}\nZone: {row['zone_name']}\nSlot: {row['item_slot']}"
+            )
+            embed.set_image(url=row['item_image'])
+            if row['npc_image']:
+                embed.set_thumbnail(url=row['npc_image'])
+            embeds.append(embed)
+    
+        # Send first message as the interaction response
         try:
-            await interaction.response.send_message("❌ No results found.", ephemeral=True)
+            await interaction.response.send_message(embeds=embeds, view=None)
         except discord.errors.InteractionResponded:
-            await interaction.followup.send("❌ No results found.", ephemeral=True)
-        return
-
-    # Build embeds
-    embeds = []
-    for row in rows:
-        embed = discord.Embed(
-            title=row['item_name'],
-            description=f"NPC: {row['npc_name']}\nZone: {row['zone_name']}\nSlot: {row['item_slot']}"
-        )
-        embed.set_image(url=row['item_image'])
-        if row['npc_image']:
-            embed.set_thumbnail(url=row['npc_image'])
-        embeds.append(embed)
-
-    # Send first message as the interaction response
-    try:
-        await interaction.response.send_message(embeds=embeds, view=None)
-    except discord.errors.InteractionResponded:
-        for embed in embeds:
-            await interaction.followup.send(embed=embed)
+            for embed in embeds:
+                await interaction.followup.send(embed=embed)
             
 
 @bot.tree.command(name="view_item_db", description="View the guild's item database with filters.")
