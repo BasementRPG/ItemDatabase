@@ -42,7 +42,8 @@ async def ensure_upload_channel(guild: discord.Guild):
         guild.me: discord.PermissionOverwrite(view_channel=True, send_messages=True)
     }
     return await guild.create_text_channel("guild-bank-upload-log", overwrites=overwrites)
-   
+
+async def ensure_upload_channel1(guild: discord.Guild): 
     for db in guild.text_channels:
         if db.name == "item-database-upload-log":
             return db
@@ -981,9 +982,10 @@ class ItemDatabaseModal(discord.ui.Modal):
         async with self.db_pool.acquire() as conn:
             await conn.execute(
                 """
-                INSERT INTO item_database (item_name, zone_name, npc_name, item_slot, item_image, npc_image, added_by, created_at)
-                VALUES ($1, $2, $3, $4, $5, $6, $7, NOW())
+                INSERT INTO item_database (guild_id, item_name, zone_name, npc_name, item_slot, item_image, npc_image, added_by, created_at)
+                VALUES ($1, $2, $3, $4, $5, $6, $7,$8, NOW())
                 """,
+                interaction.guild.id,
                 self.item_name.value,
                 self.zone_name.value,
                 self.npc_name.value,
@@ -1029,10 +1031,8 @@ async def add_item_db(interaction: discord.Interaction, item_image: discord.Atta
         await interaction.response.send_message("❌ Both item and NPC images are required.", ephemeral=True)
         return
 
-    # Upload images to a channel to get permanent URLs
-    upload_channel = discord.utils.get(interaction.guild.text_channels, name="item-database-upload-log")
-    if not upload_channel:
-        upload_channel = await interaction.guild.create_text_channel("item-database-upload-log")
+        # Ensure upload channel exists
+    upload_channel = await ensure_upload_channel1(modal_interaction.guild)
 
     item_msg = await upload_channel.send(file=await item_image.to_file())
     npc_msg = await upload_channel.send(file=await npc_image.to_file())
@@ -1045,6 +1045,49 @@ async def add_item_db(interaction: discord.Interaction, item_image: discord.Atta
         db_pool=db_pool
     ))
 
+@bot.tree.command(name="view_database", description="View or search items in the database.")
+@app_commands.describe(
+    item_name="Filter by item name (optional)",
+    item_slot="Filter by slot (optional)",
+    zone_name="Filter by zone (optional)",
+    npc_name="Filter by NPC (optional)"
+)
+async def view_database(interaction: discord.Interaction, item_name: str = None, item_slot: str = None, zone_name: str = None, npc_name: str = None):
+    query = "SELECT * FROM item_database WHERE guild_id=$1"
+    values = [interaction.guild.id]
+
+    # Dynamic filters
+    if item_name:
+        query += " AND item_name ILIKE $%d" % (len(values)+1)
+        values.append(f"%{item_name}%")
+    if item_slot:
+        query += " AND item_slot ILIKE $%d" % (len(values)+1)
+        values.append(f"%{item_slot}%")
+    if zone_name:
+        query += " AND zone_name ILIKE $%d" % (len(values)+1)
+        values.append(f"%{zone_name}%")
+    if npc_name:
+        query += " AND npc_name ILIKE $%d" % (len(values)+1)
+        values.append(f"%{npc_name}%")
+
+    query += " ORDER BY item_name ASC"
+
+    async with db_pool.acquire() as conn:
+        rows = await conn.fetch(query, *values)
+
+    if not rows:
+        await interaction.response.send_message("❌ No items found.", ephemeral=True)
+        return
+
+    embeds = []
+    for row in rows:
+        embed = discord.Embed(title=row["item_name"], description=f"Slot: {row['item_slot']}\nZone: {row['zone_name']}\nNPC: {row['npc_name']}")
+        embed.set_image(url=row["item_image"])
+        embed.set_thumbnail(url=row["npc_image"])
+        embeds.append(embed)
+
+    for embed in embeds:
+        await interaction.followup.send(embed=embed)
 
 
 
