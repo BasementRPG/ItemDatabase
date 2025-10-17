@@ -1,6 +1,6 @@
 import os
 import discord
-from discord import app_commands, Interation
+from discord import app_commands, Interaction
 from discord.ext import commands
 from discord.ui import Modal, TextInput
 from datetime import datetime
