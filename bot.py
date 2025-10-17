@@ -1251,10 +1251,10 @@ class ViewDatabaseSelect(View):
             options=[],
             min_values=1,
             max_values=1,
-            disabled=True  # start disabled until filter type selected
+            
         )
         self.value_select.callback = self.value_select_callback
-        self.add_item(self.value_select)
+        
 
     async def filter_type_callback(self, interaction: discord.Interaction):
         self.selected_filter_type = self.filter_type_select.values[0]
@@ -1297,8 +1297,8 @@ class ViewDatabaseSelect(View):
 
         # Enable and populate second dropdown
         self.value_select.options = sorted(unique_options, key=lambda o: o.label)
-        self.value_select.disabled = False
-
+        
+        self.add_item(self.value_select)
         # Remove first dropdown so only second shows
         self.remove_item(self.filter_type_select)
 
