@@ -526,7 +526,7 @@ async def edit_item(interaction: discord.Interaction, name: str):
 
 @bot.tree.command(name="remove_item", description="Remove an item from the guild bank by name.")
 @app_commands.describe(item_name="Name of the item to remove.")
-async def remove_item(interaction: discord.Interaction, name: str):
+async def remove_item(interaction: discord.Interaction, item_name: str):
     guild_id = interaction.guild.id
 
     # Fetch the full item from DB by name + guild
