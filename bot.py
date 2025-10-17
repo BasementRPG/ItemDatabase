@@ -521,22 +521,17 @@ async def view_bank(interaction: discord.Interaction):
 @bot.tree.command(name="add_item", description="Add a new item to the guild bank (image required).")
 @app_commands.describe(image="Upload an image of the item.")
 async def add_item(interaction: discord.Interaction, image: discord.Attachment):
-    # Validate that an image was provided
+    # Ensure an image was provided
     if not image:
         await interaction.response.send_message(
-            "❌ You must upload an image of the item to add it.",
+            "❌ You must upload an image of the item.",
             ephemeral=True
         )
         return
 
-    # Create the view and attach image info
-    view = ItemEntryView(interaction.user, db_pool=db_pool)
-    active_views[interaction.user.id] = view
-    view.image = image.url
-    view.waiting_for_image = False
+    # Pass the image URL into the modal
+    await interaction.response.send_modal(ImageDetailsModal(image_url=image.url))
 
-    # Open the minimal modal for item name + donated_by
-    await interaction.response.send_modal(ImageDetailsModal(interaction, view=view))
 
 
 
@@ -553,22 +548,10 @@ async def edit_item(interaction: discord.Interaction, item_name: str):
         return
 
     # 2️⃣ Uploaded image item — open simple modal
-    if item.get("image") and not item.get("created_images"):
+    if item.get("image"):
         modal = ImageDetailsModal(interaction, item_row=item, is_edit=True)
         await interaction.response.send_modal(modal)
         return
-
-    # 3️⃣ Created/generated item — reopen full ItemEntryView flow
-    if item.get("created_images"):
-        await interaction.response.defer(ephemeral=True)
-        view = ItemEntryView(
-            db_pool=db_pool,
-            author=interaction.user,
-            type=item["type"],
-            item_id=item["id"],
-            existing_data=item,
-            is_edit=True
-        )
 
     # Let the user know this is edit mode
     await interaction.followup.send(
