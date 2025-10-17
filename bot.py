@@ -207,6 +207,57 @@ class ImageDetailsModal(discord.ui.Modal):
             await modal_interaction.response.send_message(f"✅ Image item **{item_name}** added!", ephemeral=True)
 
 
+class EditItemModal(discord.ui.Modal):
+    def __init__(self, interaction: discord.Interaction, item_row: dict):
+        """
+        Modal to edit an existing item.
+        """
+        super().__init__(title="Edit Item Details")
+        self.interaction = interaction
+        self.item_row = item_row
+        self.guild_id = item_row['guild_id']
+        self.item_id = item_row['id']
+
+        # Pre-fill the current values
+        default_name = item_row['name']
+        default_donor = item_row.get('donated_by') or "Anonymous"
+
+        # Item Name
+        self.item_name = discord.ui.TextInput(
+            label="Item Name",
+            placeholder="Example: Flowing Black Silk Sash",
+            default=default_name,
+            required=True
+        )
+        self.add_item(self.item_name)
+
+        # Donated By
+        self.donated_by = discord.ui.TextInput(
+            label="Donated By",
+            placeholder="Example: Thieron or Raid",
+            default=default_donor,
+            required=False
+        )
+        self.add_item(self.donated_by)
+
+    async def on_submit(self, modal_interaction: discord.Interaction):
+        item_name = self.item_name.value
+        donated_by = self.donated_by.value or "Anonymous"
+        added_by = str(modal_interaction.user)
+
+        # Update DB without touching the image
+        await update_item_db(
+            guild_id=self.guild_id,
+            item_id=self.item_id,
+            name=item_name,
+            donated_by=donated_by,
+            image=self.item_row['image'],  # keep existing image
+            added_by=added_by
+        )
+
+        await modal_interaction.response.send_message(
+            f"✅ Updated **{item_name}**.", ephemeral=True
+        )
 
 
 
@@ -453,29 +504,25 @@ async def add_item(interaction: discord.Interaction, image: discord.Attachment):
     await interaction.response.send_modal(ImageDetailsModal(interaction, image_url=image.url))
 
 
-@bot.tree.command(name="edit_item", description="Edit an existing item in the guild bank by name.")
+@bot.tree.command(name="edit_item", description="Edit an existing item by name.")
 @app_commands.describe(name="Name of the item to edit.")
 async def edit_item(interaction: discord.Interaction, name: str):
-    # Fetch item from DB using name and guild_id
-    item_row = await get_item_by_name(interaction.guild.id, name)
+    guild_id = interaction.guild.id
+    # Fetch item from DB by name and guild
+    item_row = await get_item_by_name(guild_id, name)
     if not item_row:
-        await interaction.response.send_message(f"❌ No item named '{name}' found.", ephemeral=True)
+        await interaction.response.send_message(
+            f"❌ No item named '{name}' found.", ephemeral=True
+        )
         return
 
-    # Open modal with existing data
-    await interaction.response.send_modal(ImageDetailsModal(interaction, image_url=item_row.get("image"), item_row=item_row))
+    await interaction.response.send_modal(EditItemModal(interaction, item_row=item_row))
 
-
-@bot.tree.command(name="remove_item", description="Remove an item from the guild bank (reduce qty to 0).")
-async def remove_item(interaction: discord.Interaction, item_name: str):
-    # Fetch item by name
-    item = await get_item_by_name(interaction.guild.id, item_name)
-    if not item:
-        await interaction.response.send_message(f"❌ Item **{item_name}** not found.", ephemeral=True)
-        return
-    
-    # Open the modal for the user
-    await interaction.response.send_modal(RemoveItemModal(interaction, item_row=item))
+@bot.tree.command(name="remove_item", description="Remove an item from the guild bank by name.")
+@app_commands.describe(name="Name of the item to remove.")
+async def remove_item(interaction: discord.Interaction, name: str):
+    # Open modal with the item name
+    await interaction.response.send_modal(RemoveItemModal(interaction, item=name))
 
 
 
