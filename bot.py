@@ -1223,13 +1223,14 @@ class DatabaseView(View):
         super().__init__(timeout=120)
         self.db_pool = db_pool
         self.guild_id = guild_id
-        self.current_stage = "filter_type"  # Track if first dropdown or value dropdown
+        self.selected_filter_type = None
+        self.selected_value = None
 
-        # Initial filter type dropdown
-        self.select = Select(
+        # Initial dropdown for filter type
+        self.filter_select = Select(
             placeholder="Choose filter type",
             options=[
-                discord.SelectOption(label="Slot", value="slot"),
+                discord.SelectOption(label="Slot", value="item_slot"),
                 discord.SelectOption(label="Item Name", value="item_name"),
                 discord.SelectOption(label="NPC Name", value="npc_name"),
                 discord.SelectOption(label="Zone Name", value="zone_name"),
@@ -1238,54 +1239,62 @@ class DatabaseView(View):
             min_values=1,
             max_values=1
         )
-        self.select.callback = self.select_callback
-        self.add_item(self.select)
+        self.filter_select.callback = self.filter_select_callback
+        self.add_item(self.filter_select)
 
-    async def select_callback(self, interaction: discord.Interaction):
-        selected = self.select.values[0]
+    async def filter_select_callback(self, interaction: discord.Interaction):
+        self.selected_filter_type = self.filter_select.values[0]
 
-        if self.current_stage == "filter_type":
-            if selected == "all":
-                await self.show_results(interaction, None, None)
-                return
-
-            # Replace dropdown with database values for that column
-            async with self.db_pool.acquire() as conn:
-                if selected == "slot":
-                    rows = await conn.fetch("SELECT item_slot FROM item_database WHERE guild_id=$1", self.guild_id)
-                    # Handle multiple slots
-                    values_set = set()
-                    for row in rows:
-                        for slot in row['item_slot'].split(','):
-                            values_set.add(slot.strip())
-                    options = [discord.SelectOption(label=v, value=v.lower()) for v in sorted(values_set)]
-                else:
-                    col = selected
-                    rows = await conn.fetch(f"SELECT DISTINCT {col} FROM item_database WHERE guild_id=$1", self.guild_id)
-                    options = [discord.SelectOption(label=row[col], value=row[col].lower()) for row in rows]
-
-            self.select.options = options
-            self.select.placeholder = f"Select {selected.replace('_',' ').title()}"
-            self.current_stage = "value_select"
-            await interaction.response.edit_message(view=self)
+        if self.selected_filter_type == "all":
+            # No second dropdown, just show all results
+            await self.show_results(interaction)
             return
 
-        if self.current_stage == "value_select":
-            # User picked a value, show results
-            await self.show_results(interaction, self.select.values[0], self.select.placeholder)
+        # Fetch unique values for the selected filter
+        async with self.db_pool.acquire() as conn:
+            rows = await conn.fetch(
+                f"SELECT DISTINCT {self.selected_filter_type} FROM item_database WHERE guild_id=$1", 
+                self.guild_id
+            )
 
-    async def show_results(self, interaction: discord.Interaction, value, column_name):
+        # Build options, flatten slots if needed (e.g., "chest, legs")
+        options = []
+        for row in rows:
+            value = row[self.selected_filter_type]
+            if value:
+                if self.selected_filter_type == "item_slot" and ',' in value:
+                    for slot in value.split(','):
+                        slot = slot.strip()
+                        if slot:
+                            options.append(discord.SelectOption(label=slot.title(), value=slot.lower()))
+                else:
+                    options.append(discord.SelectOption(label=value.title(), value=value.lower()))
+
+        # Remove the old filter dropdown and replace with new value dropdown
+        self.clear_items()
+        self.value_select = Select(
+            placeholder=f"Select {self.selected_filter_type.replace('_',' ').title()}",
+            options=sorted(options, key=lambda o: o.label),
+            min_values=1,
+            max_values=1
+        )
+        self.value_select.callback = self.value_select_callback
+        self.add_item(self.value_select)
+
+        await interaction.response.edit_message(view=self)
+
+    async def value_select_callback(self, interaction: discord.Interaction):
+        self.selected_value = self.value_select.values[0]
+        await self.show_results(interaction)
+
+    async def show_results(self, interaction: discord.Interaction):
+        # Build query
         query = "SELECT * FROM item_database WHERE guild_id=$1"
         args = [self.guild_id]
 
-        if value and column_name:
-            col = column_name.split(" ")[0].lower()
-            if col == "slot":
-                query += " AND (" + " OR ".join([f"LOWER(item_slot) LIKE $2"]) + ")"
-                args.append(f"%{value}%")
-            else:
-                query += f" AND LOWER({col}) = $2"
-                args.append(value)
+        if self.selected_filter_type and self.selected_filter_type != "all":
+            query += f" AND LOWER({self.selected_filter_type}) LIKE $2"
+            args.append(f"%{self.selected_value}%")
 
         async with self.db_pool.acquire() as conn:
             rows = await conn.fetch(query, *args)
@@ -1294,21 +1303,22 @@ class DatabaseView(View):
             await interaction.response.edit_message(content="❌ No results found.", view=None)
             return
 
-        # Send embeds
-        embeds = []
+        # Remove dropdown view first
+        await interaction.response.edit_message(view=None, content="🔹 Showing results:")
+
+        # Send each item as an embed with item image main, NPC thumbnail
         for row in rows:
             embed = discord.Embed(
                 title=row['item_name'],
                 description=f"Zone: {row['zone_name']}\nNPC: {row['npc_name']}\nSlot: {row['item_slot']}"
             )
-            embed.set_image(url=row['item_image'])
-            embed.set_thumbnail(url=row['npc_image'])
-            embeds.append(embed)
+            if row.get('item_image'):
+                embed.set_image(url=row['item_image'])
+            if row.get('npc_image'):
+                embed.set_thumbnail(url=row['npc_image'])
 
-        # Remove dropdown and send embeds
-        await interaction.response.edit_message(content=None, view=None)
-        for embed in embeds:
             await interaction.followup.send(embed=embed)
+            
 
 @bot.tree.command(name="view_item_db", description="View the guild's item database with filters.")
 async def view_item_db(interaction: discord.Interaction):
