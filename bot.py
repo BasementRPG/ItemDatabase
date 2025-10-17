@@ -1178,6 +1178,8 @@ class ViewDatabaseSelect(View):
 
         await interaction.response.edit_message(content=content, view=self)
 
+
+
 class DatabaseSlotSelect(Select):
     def __init__(self, db_pool, guild_id, callback):
         self.db_pool = db_pool
@@ -1209,14 +1211,6 @@ class DatabaseSlotSelect(Select):
 @bot.tree.command(name="view_item_db", description="View and filter items in the database.")
 async def view_database(interaction: discord.Interaction):
     view = ViewDatabaseSelect(db_pool=db_pool, guild_id=interaction.guild.id)
-    await view.populate_options()
-
-    # Update dropdown options
-    view.slot_select.options = view.slot_options
-    view.npc_select.options = view.npc_options
-    view.zone_select.options = view.zone_options
-    view.item_select.options = view.item_options
-
     await interaction.response.send_message("Select a filter to view items:", view=view, ephemeral=True)
 
 
