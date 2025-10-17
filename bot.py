@@ -1301,10 +1301,38 @@ class DatabaseView(View):
         self.selected_value = selected
         await self.show_results(interaction)
 
-    async def show_results(self, interaction: discord.Interaction):
+async def show_results(self, interaction: discord.Interaction):
         # Build query
         query = "SELECT * FROM item_database WHERE guild_id=$1"
         args = [self.guild_id]
+
+        if self.selected_filter_type and self.selected_filter_type != "all":
+            query += f" AND LOWER({self.selected_filter_type}) LIKE $2"
+            args.append(f"%{self.selected_value}%")
+
+        async with self.db_pool.acquire() as conn:
+            rows = await conn.fetch(query, *args)
+
+        if not rows:
+            await interaction.response.edit_message(content="❌ No results found.", view=None)
+            return
+
+        # Remove dropdown view first
+       
+        await interaction.response.edit_message(view=None, content="🔹 Showing results:") 
+
+        # Send each item as an embed with item image main, NPC thumbnail
+        for row in rows:
+            embed = discord.Embed(
+                title=row['item_name'],
+                description=f"Zone: {row['zone_name']}\nNPC: {row['npc_name']}\nSlot: {row['item_slot']}"
+            )
+            if row.get('item_image'):
+                embed.set_image(url=row['item_image'])
+            if row.get('npc_image'):
+                embed.set_thumbnail(url=row['npc_image'])
+
+            await interaction.followup.send(embed=embed)
 
 
 
