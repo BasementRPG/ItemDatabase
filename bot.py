@@ -495,7 +495,7 @@ async def view_bank(interaction: discord.Interaction):
 
 # ---------- /add_item Command ----------
 
-@bot.tree.command(name="add_item", description="Add a new image item to the guild bank (image required).")
+@bot.tree.command(name="add_bankitem", description="Add a new image item to the guild bank (image required).")
 @app_commands.describe(image="Upload an image of the item.")
 async def add_item(interaction: discord.Interaction, image: discord.Attachment):
     if not image:
@@ -506,7 +506,7 @@ async def add_item(interaction: discord.Interaction, image: discord.Attachment):
     await interaction.response.send_modal(ImageDetailsModal(interaction, image_url=image.url))
 
 
-@bot.tree.command(name="edit_item", description="Edit an existing item by name.")
+@bot.tree.command(name="edit_bankitem", description="Edit an existing item by name.")
 @app_commands.describe(item_name="Name of the item to edit.")
 async def edit_item(interaction: discord.Interaction, item_name: str):
     guild_id = interaction.guild.id
@@ -520,7 +520,7 @@ async def edit_item(interaction: discord.Interaction, item_name: str):
 
     await interaction.response.send_modal(EditItemModal(interaction, item_row=item_row))
 
-@bot.tree.command(name="remove_item", description="Remove an item from the guild bank by name.")
+@bot.tree.command(name="remove_bankitem", description="Remove an item from the guild bank by name.")
 @app_commands.describe(item_name="Name of the item to remove.")
 async def remove_item(interaction: discord.Interaction, item_name: str):
     guild_id = interaction.guild.id
