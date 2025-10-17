@@ -43,16 +43,20 @@ async def ensure_upload_channel(guild: discord.Guild):
     }
     return await guild.create_text_channel("guild-bank-upload-log", overwrites=overwrites)
 
-async def ensure_upload_channel1(guild: discord.Guild): 
-    for db in guild.text_channels:
-        if db.name == "item-database-upload-log":
-            return db
-    # create hidden channel
+
+
+async def ensure_upload_channel1(guild: discord.Guild):
+    """Ensure the hidden item database upload log exists or create it."""
+    for ch in guild.text_channels:
+        if ch.name == "item-database-upload-log":
+            return ch
+
     overwrites = {
         guild.default_role: discord.PermissionOverwrite(view_channel=False),
         guild.me: discord.PermissionOverwrite(view_channel=True, send_messages=True)
     }
     return await guild.create_text_channel("item-database-upload-log", overwrites=overwrites)
+
 
 
 
@@ -1031,19 +1035,35 @@ class ItemDatabaseModal(discord.ui.Modal):
     
 ])
 async def add_item_db(interaction: discord.Interaction, item_image: discord.Attachment, npc_image: discord.Attachment, item_slot: str):
-    # Validate uploads
+    """Uploads images and opens modal for item info entry."""
+    # ✅ Require both images
     if not item_image or not npc_image:
         await interaction.response.send_message("❌ Both item and NPC images are required.", ephemeral=True)
         return
 
-        # Ensure upload channel exists
-    upload_channel = await ensure_upload_channel1(interaction.guild)
+    guild = interaction.guild
+    upload_channel = await ensure_upload_channel1(guild)
 
-    item_msg = await upload_channel.send(file=await item_image.to_file())
-    npc_msg = await upload_channel.send(file=await npc_image.to_file())
+    # ✅ Upload both images to hidden log
+    try:
+        item_msg = await upload_channel.send(
+            file=await item_image.to_file(),
+            content=f"📦 Uploaded item image by {interaction.user.mention}"
+        )
+        npc_msg = await upload_channel.send(
+            file=await npc_image.to_file(),
+            content=f"👹 Uploaded NPC image by {interaction.user.mention}"
+        )
+    except discord.Forbidden:
+        await interaction.response.send_message("❌ I don't have permission to upload files in this server.", ephemeral=True)
+        return
+    except Exception as e:
+        await interaction.response.send_message(f"❌ Upload failed: {e}", ephemeral=True)
+        return
 
-    # Open modal for additional info
+    # ✅ Open the modal for extra info entry
     await interaction.response.send_modal(ItemDatabaseModal(
+        guild_id=guild.id,
         item_image_url=item_msg.attachments[0].url,
         npc_image_url=npc_msg.attachments[0].url,
         item_slot=item_slot,
