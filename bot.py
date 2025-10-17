@@ -1158,6 +1158,7 @@ class DatabaseSlotSelect(Select):
     def __init__(self, db_pool, guild_id, callback):
         super().__init__(placeholder="Filter by Slot", min_values=1, max_values=1, options=[])
         self.db_pool = db_pool
+        self.table = "slots"
         self.guild_id = guild_id
         self.user_callback = callback
         self.custom_id = "slot_select"
@@ -1177,6 +1178,7 @@ class DatabaseItemSelect(Select):
     def __init__(self, db_pool, guild_id, callback):
         super().__init__(placeholder="Filter by Item Name", min_values=1, max_values=1, options=[])
         self.db_pool = db_pool
+        self.table = "items"
         self.guild_id = guild_id
         self.user_callback = callback
         self.custom_id = "item_select"
@@ -1192,6 +1194,7 @@ class DatabaseNPCSelect(DatabaseItemSelect):
     def __init__(self, db_pool, guild_id, callback):
         super().__init__(db_pool, guild_id, callback)
         self.custom_id = "npc_select"
+        self.table = "npc"
 
    
     async def populate_options(self):
@@ -1223,6 +1226,8 @@ class DatabaseNPCSelect(DatabaseItemSelect):
 class DatabaseZoneSelect(DatabaseItemSelect):
     def __init__(self, db_pool, guild_id, callback):
         super().__init__(db_pool, guild_id, callback)
+        self.db_pool = db_pool
+        self.table = "zones"
         self.custom_id = "zone_select"
 
     async def populate_options(self):
