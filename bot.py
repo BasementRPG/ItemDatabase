@@ -521,8 +521,25 @@ async def edit_item(interaction: discord.Interaction, name: str):
 @bot.tree.command(name="remove_item", description="Remove an item from the guild bank by name.")
 @app_commands.describe(name="Name of the item to remove.")
 async def remove_item(interaction: discord.Interaction, name: str):
-    # Open modal with the item name
-    await interaction.response.send_modal(RemoveItemModal(interaction, item=name))
+    guild_id = interaction.guild.id
+
+    # Fetch the full item from DB by name + guild
+    async with db_pool.acquire() as conn:
+        item_row = await conn.fetchrow(
+            "SELECT * FROM inventory WHERE guild_id=$1 AND name=$2 AND qty=1",
+            guild_id,
+            name
+        )
+
+    if not item_row:
+        await interaction.response.send_message(
+            f"❌ No item named '{name}' found.", ephemeral=True
+        )
+        return
+
+    # Open the modal with the full item
+    await interaction.response.send_modal(RemoveItemModal(item_row, db_pool))
+
 
 
 
