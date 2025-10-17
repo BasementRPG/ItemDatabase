@@ -936,6 +936,114 @@ async def view_donations(interaction: discord.Interaction):
     await interaction.response.send_message(embed=embed, view=view, ephemeral=True)
 
 
+# --------------- Modal ----------------
+class ItemDatabaseModal(discord.ui.Modal):
+    def __init__(self, item_image_url, npc_image_url, item_slot, db_pool):
+        super().__init__(title="Add Item Database Entry")
+        self.item_image_url = item_image_url
+        self.npc_image_url = npc_image_url
+        self.item_slot = item_slot
+        self.db_pool = db_pool
+
+        self.item_name = discord.ui.TextInput(
+            label="Item Name",
+            placeholder="Example: Flowing Black Silk Sash",
+            required=True
+        )
+        self.add_item(self.item_name)
+
+        self.zone_name = discord.ui.TextInput(
+            label="Zone Name",
+            placeholder="Example: Shadowfang Keep",
+            required=True
+        )
+        self.add_item(self.zone_name)
+
+        self.npc_name = discord.ui.TextInput(
+            label="NPC Name",
+            placeholder="Example: Silvermoon Sentinel",
+            required=True
+        )
+        self.add_item(self.npc_name)
+
+    async def on_submit(self, interaction: discord.Interaction):
+        added_by = str(interaction.user)
+        async with self.db_pool.acquire() as conn:
+            await conn.execute(
+                """
+                INSERT INTO item_database (item_name, zone_name, npc_name, item_slot, item_image, npc_image, added_by, created_at)
+                VALUES ($1, $2, $3, $4, $5, $6, $7, NOW())
+                """,
+                self.item_name.value,
+                self.zone_name.value,
+                self.npc_name.value,
+                self.item_slot,
+                self.item_image_url,
+                self.npc_image_url,
+                added_by
+            )
+        await interaction.response.send_message(
+            f"✅ Item **{self.item_name.value}** added to the database!", ephemeral=True
+        )
+
+# --------------- Slash Command ----------------
+@bot.tree.command(name="add_item_db", description="Add a new item to the database")
+@app_commands.describe(
+    item_image="Upload an image of the item",
+    npc_image="Upload an image of the NPC that drops the item",
+    item_slot="Select the item slot"
+)
+@app_commands.choices(item_slot=[
+    app_commands.Choice(name="Ammo", value="Ammo"),
+    app_commands.Choice(name="Back", value="Back"),
+    app_commands.Choice(name="Chest", value="Chest"),
+    app_commands.Choice(name="Ear", value="Ear"),
+    app_commands.Choice(name="Feet", value="Feet"),
+    app_commands.Choice(name="Finger", value="Finer"),
+    app_commands.Choice(name="Hands", value="Hands"),
+    app_commands.Choice(name="Head", value="Head"),
+    app_commands.Choice(name="Legs", value="Legs"),
+    app_commands.Choice(name="Primary", value="Primary"),
+    app_commands.Choice(name="Primary 2h", value="Primary 2h"),
+    app_commands.Choice(name="Range", value="Range"),
+    app_commands.Choice(name="Secondary", value="Secondary"),
+    app_commands.Choice(name="Shirt", value="Shirt"),
+    app_commands.Choice(name="Shoulders", value="Shoulders"),
+    app_commands.Choice(name="Waist", value="Waist"),
+    app_commands.Choice(name="Wrist", value="Wrist"),
+    
+])
+async def add_item_db(interaction: discord.Interaction, item_image: discord.Attachment, npc_image: discord.Attachment, item_slot: str):
+    # Validate uploads
+    if not item_image or not npc_image:
+        await interaction.response.send_message("❌ Both item and NPC images are required.", ephemeral=True)
+        return
+
+    # Upload images to a channel to get permanent URLs
+    upload_channel = discord.utils.get(interaction.guild.text_channels, name="guild-bank-upload-log")
+    if not upload_channel:
+        upload_channel = await interaction.guild.create_text_channel("guild-bank-upload-log")
+
+    item_msg = await upload_channel.send(file=await item_image.to_file())
+    npc_msg = await upload_channel.send(file=await npc_image.to_file())
+
+    # Open modal for additional info
+    await interaction.response.send_modal(ItemDatabaseModal(
+        item_image_url=item_msg.attachments[0].url,
+        npc_image_url=npc_msg.attachments[0].url,
+        item_slot=item_slot,
+        db_pool=db_pool
+    ))
+
+
+
+
+
+
+
+
+
+
 
 
 
