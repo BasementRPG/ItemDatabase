@@ -1245,13 +1245,13 @@ class ViewDatabaseSelect(View):
         self.filter_select.callback = self.filter_select_callback
         self.add_item(self.filter_select)
 
-        # Second dropdown: populated dynamically
+        # Second dropdown: dynamically populated
         self.value_select = Select(
             placeholder="Select a value",
             options=[],  # start empty
             min_values=1,
             max_values=1,
-            visible=False  # hidden until populated
+            disabled=True  # start disabled
         )
         self.value_select.callback = self.value_select_callback
         self.add_item(self.value_select)
@@ -1261,12 +1261,12 @@ class ViewDatabaseSelect(View):
 
         if self.selected_filter_type == "all":
             self.filter_select.disabled = True
-            self.value_select.visible = False
+            self.value_select.disabled = True
             await interaction.response.edit_message(view=self)
             await self.show_results(interaction, None, None)
             return
 
-        # populate options for the second dropdown
+        # Populate second dropdown options
         async with self.db_pool.acquire() as conn:
             rows = await conn.fetch(
                 f"SELECT DISTINCT {self.selected_filter_type} FROM item_database WHERE guild_id=$1",
@@ -1285,9 +1285,8 @@ class ViewDatabaseSelect(View):
                 options_set.add(value.strip().lower())
 
         if not options_set:
-            # no options, skip second dropdown
             self.filter_select.disabled = True
-            self.value_select.visible = False
+            self.value_select.disabled = True
             await interaction.response.edit_message(view=self)
             await self.show_results(interaction, self.selected_filter_type, None)
             return
