@@ -1192,8 +1192,9 @@ class DatabaseItemSelect(Select):
 
 class DatabaseNPCSelect(DatabaseItemSelect):
     def __init__(self, db_pool, guild_id, callback):
-        super().__init__(db_pool, guild_id, callback)
+        super().__init__(placeholder="Filter by NPC Name", min_values=1, max_values=1, options=[])
         self.custom_id = "npc_select"
+        self.db_pool = db_pool
         self.table = "npc"
 
    
