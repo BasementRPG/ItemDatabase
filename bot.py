@@ -1091,119 +1091,107 @@ async def add_item_db(interaction: discord.Interaction, item_image: discord.Atta
 
 
 class ViewDatabaseSelect(View):
-    def __init__(self, db_pool, guild_id):
+    def __init__(self, guild_id, db_pool):
         super().__init__(timeout=120)
-        self.db_pool = db_pool
         self.guild_id = guild_id
-
-        # Selected filter type and value
-        self.selected_filter_type = None
+        self.db_pool = db_pool
+        self.filter_type = None
         self.selected_value = None
 
-        # Filter type dropdown
-        self.filter_type_select = Select(
-            placeholder="Choose filter type",
-            options=[
-                SelectOption(label="Slot", value="slot"),
-                SelectOption(label="Item Name", value="item_name"),
-                SelectOption(label="NPC", value="npc_name"),
-                SelectOption(label="Zone", value="zone_name"),
-                SelectOption(label="All", value="all")
-            ],
-            min_values=1,
-            max_values=1
-        )
-        self.filter_type_select.callback = self.filter_type_callback
-        self.add_item(self.filter_type_select)
+        # First dropdown: choose what to filter by
+        self.add_item(FilterTypeSelect(self))
 
-        # Dynamic value dropdown
-        self.value_select = Select(
-            placeholder="Select a value",
-            options=[],
-            min_values=1,
-            max_values=1
-        )
-        self.value_select.callback = self.value_select_callback
+        # Second dropdown: values based on filter
+        self.value_select = FilterValueSelect(self)
         self.add_item(self.value_select)
 
-    async def filter_type_callback(self, interaction):
-        self.selected_filter_type = self.filter_type_select.values[0]
-
-        # If "All" is selected, skip value dropdown
-        if self.selected_filter_type == "all":
-            self.value_select.disabled = True
-            await self.show_results(interaction)
-            return
-
-        # Populate value dropdown based on selected filter
-        async with self.db_pool.acquire() as conn:
-            column = self.selected_filter_type
-            rows = await conn.fetch(f"SELECT DISTINCT {column} FROM item_database WHERE guild_id=$1", self.guild_id)
-            options = []
-            for row in rows:
-                value = row[column]
-                if value:
-                    options.append(SelectOption(label=value.title(), value=value.lower()))
-            self.value_select.options = sorted(options, key=lambda o: o.label)
-            self.value_select.disabled = False
-
-        await interaction.response.edit_message(view=self)
-
-    async def value_select_callback(self, interaction):
-        if not self.value_select.values:
-            return
-        self.selected_value = self.value_select.values[0]
-        await self.show_results(interaction)
-
-    async def show_results(self, interaction):
-        # Build SQL query based on filter
-        query = "SELECT * FROM item_database WHERE guild_id=$1"
-        args = [self.guild_id]
-
-        if self.selected_filter_type and self.selected_filter_type != "all":
-            query += f" AND LOWER({self.selected_filter_type}) LIKE $2"
-            args.append(f"%{self.selected_value}%")
-
-        async with self.db_pool.acquire() as conn:
-            rows = await conn.fetch(query, *args)
-
-        if not rows:
-            await interaction.response.edit_message(content="❌ No results found.", view=self)
-            return
-
-        # Build message content
-        content = ""
+    async def show_results(self, interaction: discord.Interaction, rows):
+        # Show all rows as embeds
+        embeds = []
         for row in rows:
-            content += f"**{row['item_name']}** | {row['npc_name']} | {row['zone_name']} | {row['item_slot']}\n"
+            embed = Embed(title=row["item_name"])
+            embed.set_image(url=row["item_image_url"])
+            embed.set_thumbnail(url=row["npc_image_url"])
+            embed.add_field(name="Slot", value=row["item_slot"], inline=True)
+            embed.add_field(name="NPC", value=row["npc_name"], inline=True)
+            embed.add_field(name="Zone", value=row["zone_name"], inline=True)
+            embeds.append(embed)
 
-        await interaction.response.edit_message(content=content, view=self)
+        # Send in batches of 10 embeds max
+        for i in range(0, len(embeds), 10):
+            await interaction.followup.send(embeds=embeds[i:i+10])
 
 
 
-class DatabaseSlotSelect(Select):
-    def __init__(self, db_pool, guild_id, callback):
-        self.db_pool = db_pool
-        self.guild_id = guild_id
-        self.user_callback = callback
-        super().__init__(placeholder="Filter by Slot", min_values=1, max_values=1, options=[])
+class FilterValueSelect(Select):
+    def __init__(self, parent_view):
+        # Start with dummy option to satisfy Discord
+        options = [SelectOption(label="Select a filter type first", value="dummy")]
+        super().__init__(placeholder="Select a value...", min_values=1, max_values=1, options=options)
+        self.parent_view = parent_view
 
     async def populate_options(self):
-        async with self.db_pool.acquire() as conn:
-            rows = await conn.fetch(
-                "SELECT DISTINCT item_slot FROM item_database WHERE guild_id=$1", self.guild_id
-            )
+        # Fill options dynamically from database
+        async with self.parent_view.db_pool.acquire() as conn:
+            filter_type = self.parent_view.filter_type
+            guild_id = self.parent_view.guild_id
 
-        slot_set = set()
-        for row in rows:
-            for slot in row['item_slot'].split(','):
-                slot_set.add(slot.strip().lower())
-
-        self.options = [discord.SelectOption(label=s.title(), value=s) for s in sorted(slot_set)]
+            if filter_type == "all":
+                self.options = [SelectOption(label="All Items", value="all")]
+            else:
+                column_map = {
+                    "slot": "item_slot",
+                    "npc": "npc_name",
+                    "zone": "zone_name",
+                    "item_name": "item_name"
+                }
+                col = column_map.get(filter_type)
+                rows = await conn.fetch(f"SELECT DISTINCT {col} FROM item_database WHERE guild_id=$1", guild_id)
+                self.options = [SelectOption(label=row[col], value=row[col]) for row in rows]
 
     async def callback(self, interaction: discord.Interaction):
-        # ✅ Correct way: use self.values (not interaction.values)
-        selected_slot = self.values[0].lower()
-        await self.user_callback(interaction, selected_slot)
+        self.parent_view.selected_value = self.values[0]
+        async with self.parent_view.db_pool.acquire() as conn:
+            if self.parent_view.selected_value == "all":
+                rows = await conn.fetch("SELECT * FROM item_database WHERE guild_id=$1 ORDER BY item_name ASC", self.parent_view.guild_id)
+            else:
+                col_map = {
+                    "slot": "item_slot",
+                    "npc": "npc_name",
+                    "zone": "zone_name",
+                    "item_name": "item_name"
+                }
+                col = col_map[self.parent_view.filter_type]
+                rows = await conn.fetch(
+                    f"SELECT * FROM item_database WHERE guild_id=$1 AND {col} ILIKE $2 ORDER BY item_name ASC",
+                    self.parent_view.guild_id, self.parent_view.selected_value
+                )
+
+        await self.parent_view.show_results(interaction, rows)
+
+
+
+
+
+
+class FilterTypeSelect(Select):
+    def __init__(self, parent_view):
+        options = [
+            SelectOption(label="Slot", value="slot"),
+            SelectOption(label="NPC", value="npc"),
+            SelectOption(label="Zone", value="zone"),
+            SelectOption(label="Item Name", value="item_name"),
+            SelectOption(label="All", value="all"),
+        ]
+        super().__init__(placeholder="Filter by...", min_values=1, max_values=1, options=options)
+        self.parent_view = parent_view
+
+    async def callback(self, interaction: discord.Interaction):
+        self.parent_view.filter_type = self.values[0]
+        # Populate value select based on filter
+        await self.parent_view.value_select.populate_options()
+        await interaction.response.edit_message(view=self.parent_view)
+
 
 
 
