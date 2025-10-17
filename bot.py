@@ -1264,11 +1264,11 @@ class DatabaseView(View):
             if value:
                 if self.selected_filter_type == "item_slot" and ',' in value:
                     for slot in value.split(','):
-                        slot = slot.strip()
-                        if slot:
-                            options.append(discord.SelectOption(label=slot.title(), value=slot.lower()))
+                        slot_set.add(slot.strip()).lower())
                 else:
-                    options.append(discord.SelectOption(label=value.title(), value=value.lower()))
+                    slot_set.add(value.lower())
+        # Create options
+        options = [discord.SelectOption(label=s.title(), value=s) for s in sorted(slot_set)]
 
 
         options.append(discord.SelectOption(label=" Previous", value="previous"))
