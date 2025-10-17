@@ -521,6 +521,7 @@ async def view_bank(interaction: discord.Interaction):
 @bot.tree.command(name="add_item", description="Add a new item to the guild bank (image required).")
 @app_commands.describe(image="Upload an image of the item.")
 async def add_item(interaction: discord.Interaction, image: discord.Attachment):
+	view=
     # Ensure an image was provided
     if not image:
         await interaction.response.send_message(
@@ -530,7 +531,7 @@ async def add_item(interaction: discord.Interaction, image: discord.Attachment):
         return
 
     # Pass the image URL into the modal
-    await interaction.response.send_modal(ImageDetailsModal(view=image.url))
+    await interaction.response.send_modal(ImageDetailsModal(image_url=image.url))
 
 
 
