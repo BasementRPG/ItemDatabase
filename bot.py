@@ -1319,7 +1319,7 @@ async def view_item_db(interaction: discord.Interaction):
         )
         return
 
-    view = DatabaseView(bot.db_pool, interaction.guild.id)
+    view = DatabaseView(db_pool, interaction.guild.id)
     await interaction.response.send_message(
         "Select a filter type to start:", view=view, ephemeral=True
     )
