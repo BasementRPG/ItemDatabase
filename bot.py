@@ -1095,11 +1095,13 @@ class ViewDatabaseSelect(View):
         super().__init__(timeout=120)
         self.guild_id = guild_id
         self.db_pool = db_pool
-        self.filter_type = None
-        self.selected_value = None
 
-        # Initial dropdown: filter type
-        self.add_item(FilterTypeSelect(self))
+        # Add dropdowns for each filter type
+        self.add_item(SlotSelect(self))
+        self.add_item(NPCSelect(self))
+        self.add_item(ZoneSelect(self))
+        self.add_item(ItemNameSelect(self))
+        self.add_item(AllSelect(self))
 
     async def show_results(self, interaction: discord.Interaction, rows):
         embeds = []
@@ -1113,71 +1115,123 @@ class ViewDatabaseSelect(View):
             embeds.append(embed)
 
         for i in range(0, len(embeds), 10):
-            await interaction.followup.send(embeds=embeds[i:i+10])
+            await interaction.response.send_message(embeds=embeds[i:i+10], ephemeral=False)
 
 
-class FilterTypeSelect(Select):
+# ---------------- Dropdown Classes ----------------
+class SlotSelect(Select):
     def __init__(self, parent_view):
-        options = [
-            SelectOption(label="Slot", value="slot"),
-            SelectOption(label="NPC", value="npc"),
-            SelectOption(label="Zone", value="zone"),
-            SelectOption(label="Item Name", value="item_name"),
-            SelectOption(label="All", value="all"),
-        ]
-        super().__init__(placeholder="Filter by...", min_values=1, max_values=1, options=options)
+        super().__init__(placeholder="Filter by Slot", min_values=1, max_values=1, options=[])
         self.parent_view = parent_view
+        self.populate_options()
 
-    async def callback(self, interaction: discord.Interaction):
-        self.parent_view.filter_type = self.values[0]
-
-        # Fetch possible values from DB
-        async with self.parent_view.db_pool.acquire() as conn:
-            if self.values[0] == "all":
-                options = [SelectOption(label="All Items", value="all")]
-            else:
-                col_map = {
-                    "slot": "item_slot",
-                    "npc": "npc_name",
-                    "zone": "zone_name",
-                    "item_name": "item_name"
-                }
-                col = col_map[self.values[0]]
-                rows = await conn.fetch(f"SELECT DISTINCT {col} FROM item_database WHERE guild_id=$1 ORDER BY {col} ASC", self.parent_view.guild_id)
-                options = [SelectOption(label=row[col], value=row[col]) for row in rows]
-
-        # Replace the dropdown in the view
-        self.parent_view.clear_items()
-        self.parent_view.add_item(FilterValueSelect(self.parent_view, options))
-        await interaction.response.edit_message(view=self.parent_view)
-
-
-class FilterValueSelect(Select):
-    def __init__(self, parent_view, options):
-        super().__init__(placeholder="Select a value...", min_values=1, max_values=1, options=options)
-        self.parent_view = parent_view
-
-    async def callback(self, interaction: discord.Interaction):
-        self.parent_view.selected_value = self.values[0]
-
-        async with self.parent_view.db_pool.acquire() as conn:
-            if self.values[0] == "all":
-                rows = await conn.fetch("SELECT * FROM item_database WHERE guild_id=$1 ORDER BY item_name ASC", self.parent_view.guild_id)
-            else:
-                col_map = {
-                    "slot": "item_slot",
-                    "npc": "npc_name",
-                    "zone": "zone_name",
-                    "item_name": "item_name"
-                }
-                col = col_map[self.parent_view.filter_type]
+    def populate_options(self):
+        # Fetch unique slots from DB, split multi-slot items by comma
+        import asyncio
+        async def get_options():
+            async with self.parent_view.db_pool.acquire() as conn:
                 rows = await conn.fetch(
-                    f"SELECT * FROM item_database WHERE guild_id=$1 AND {col} ILIKE $2 ORDER BY item_name ASC",
-                    self.parent_view.guild_id, self.values[0]
+                    "SELECT DISTINCT item_slot FROM item_database WHERE guild_id=$1", self.parent_view.guild_id
                 )
+            slots = set()
+            for row in rows:
+                for slot in row["item_slot"].lower().split(","):
+                    slots.add(slot.strip())
+            self.options = [SelectOption(label=s, value=s) for s in sorted(slots)]
+        asyncio.create_task(get_options())
 
+    async def callback(self, interaction: discord.Interaction):
+        value = self.values[0]
+        async with self.parent_view.db_pool.acquire() as conn:
+            # Match against any slot in the comma-separated list
+            rows = await conn.fetch(
+                "SELECT * FROM item_database WHERE guild_id=$1 AND item_slot ILIKE '%' || $2 || '%' ORDER BY item_name ASC",
+                self.parent_view.guild_id, value
+            )
         await self.parent_view.show_results(interaction, rows)
 
+
+class NPCSelect(Select):
+    def __init__(self, parent_view):
+        super().__init__(placeholder="Filter by NPC", min_values=1, max_values=1, options=[])
+        self.parent_view = parent_view
+        self.populate_options()
+
+    def populate_options(self):
+        import asyncio
+        async def get_options():
+            async with self.parent_view.db_pool.acquire() as conn:
+                rows = await conn.fetch("SELECT DISTINCT npc_name FROM item_database WHERE guild_id=$1", self.parent_view.guild_id)
+            self.options = [SelectOption(label=row["npc_name"], value=row["npc_name"]) for row in sorted(rows, key=lambda x: x["npc_name"].lower())]
+        asyncio.create_task(get_options())
+
+    async def callback(self, interaction: discord.Interaction):
+        value = self.values[0]
+        async with self.parent_view.db_pool.acquire() as conn:
+            rows = await conn.fetch(
+                "SELECT * FROM item_database WHERE guild_id=$1 AND npc_name=$2 ORDER BY item_name ASC",
+                self.parent_view.guild_id, value
+            )
+        await self.parent_view.show_results(interaction, rows)
+
+
+class ZoneSelect(Select):
+    def __init__(self, parent_view):
+        super().__init__(placeholder="Filter by Zone", min_values=1, max_values=1, options=[])
+        self.parent_view = parent_view
+        self.populate_options()
+
+    def populate_options(self):
+        import asyncio
+        async def get_options():
+            async with self.parent_view.db_pool.acquire() as conn:
+                rows = await conn.fetch("SELECT DISTINCT zone_name FROM item_database WHERE guild_id=$1", self.parent_view.guild_id)
+            self.options = [SelectOption(label=row["zone_name"], value=row["zone_name"]) for row in sorted(rows, key=lambda x: x["zone_name"].lower())]
+        asyncio.create_task(get_options())
+
+    async def callback(self, interaction: discord.Interaction):
+        value = self.values[0]
+        async with self.parent_view.db_pool.acquire() as conn:
+            rows = await conn.fetch(
+                "SELECT * FROM item_database WHERE guild_id=$1 AND zone_name=$2 ORDER BY item_name ASC",
+                self.parent_view.guild_id, value
+            )
+        await self.parent_view.show_results(interaction, rows)
+
+
+class ItemNameSelect(Select):
+    def __init__(self, parent_view):
+        super().__init__(placeholder="Filter by Item Name", min_values=1, max_values=1, options=[])
+        self.parent_view = parent_view
+        self.populate_options()
+
+    def populate_options(self):
+        import asyncio
+        async def get_options():
+            async with self.parent_view.db_pool.acquire() as conn:
+                rows = await conn.fetch("SELECT DISTINCT item_name FROM item_database WHERE guild_id=$1", self.parent_view.guild_id)
+            self.options = [SelectOption(label=row["item_name"], value=row["item_name"]) for row in sorted(rows, key=lambda x: x["item_name"].lower())]
+        asyncio.create_task(get_options())
+
+    async def callback(self, interaction: discord.Interaction):
+        value = self.values[0]
+        async with self.parent_view.db_pool.acquire() as conn:
+            rows = await conn.fetch(
+                "SELECT * FROM item_database WHERE guild_id=$1 AND item_name=$2 ORDER BY item_name ASC",
+                self.parent_view.guild_id, value
+            )
+        await self.parent_view.show_results(interaction, rows)
+
+
+class AllSelect(Select):
+    def __init__(self, parent_view):
+        super().__init__(placeholder="Show All Items", min_values=1, max_values=1, options=[SelectOption(label="All Items", value="all")])
+        self.parent_view = parent_view
+
+    async def callback(self, interaction: discord.Interaction):
+        async with self.parent_view.db_pool.acquire() as conn:
+            rows = await conn.fetch("SELECT * FROM item_database WHERE guild_id=$1 ORDER BY item_name ASC", self.parent_view.guild_id)
+        await self.parent_view.show_results(interaction, rows)
 
 @bot.tree.command(name="view_item_db", description="View and filter items in the database.")
 async def view_database(interaction: discord.Interaction):
