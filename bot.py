@@ -5,7 +5,7 @@ from discord.ext import commands
 from discord.ui import Modal, TextInput
 from datetime import datetime
 import asyncpg 
-from PIL import Image, ImageDraw, ImageFont
+from discord.ui import View, Button
 import aiohttp
 import io
 
