@@ -1298,29 +1298,43 @@ class ViewDatabaseSelect(View):
 
         await interaction.response.edit_message(view=self)
 
-    async def show_results(self, interaction: Interaction):
-        query = "SELECT * FROM item_database WHERE guild_id=$1"
-        args = [self.guild_id]
 
-        if self.selected_filter_type != "all" and self.selected_value:
-            query += f" AND LOWER({self.selected_filter_type}) LIKE $2"
-            args.append(f"%{self.selected_value}%")
+    async def show_results(self, interaction: discord.Interaction):
+    query = "SELECT * FROM item_database WHERE guild_id=$1"
+    args = [self.guild_id]
 
-        async with self.db_pool.acquire() as conn:
-            rows = await conn.fetch(query, *args)
+    if self.selected_filter_type != "all" and self.selected_value:
+        query += f" AND LOWER({self.selected_filter_type}) LIKE $2"
+        args.append(f"%{self.selected_value}%")
 
-        if not rows:
+    async with self.db_pool.acquire() as conn:
+        rows = await conn.fetch(query, *args)
+
+    if not rows:
+        # Use response.send_message first if no previous response
+        try:
+            await interaction.response.send_message("❌ No results found.", ephemeral=True)
+        except discord.errors.InteractionResponded:
             await interaction.followup.send("❌ No results found.", ephemeral=True)
-            return
+        return
 
-        for row in rows:
-            embed = discord.Embed(
-                title=row['item_name'],
-                description=f"NPC: {row['npc_name']}\nZone: {row['zone_name']}\nSlot: {row['item_slot']}"
-            )
-            embed.set_image(url=row['item_image'])
-            if row['npc_image']:
-                embed.set_thumbnail(url=row['npc_image'])
+    # Build embeds
+    embeds = []
+    for row in rows:
+        embed = discord.Embed(
+            title=row['item_name'],
+            description=f"NPC: {row['npc_name']}\nZone: {row['zone_name']}\nSlot: {row['item_slot']}"
+        )
+        embed.set_image(url=row['item_image'])
+        if row['npc_image']:
+            embed.set_thumbnail(url=row['npc_image'])
+        embeds.append(embed)
+
+    # Send first message as the interaction response
+    try:
+        await interaction.response.send_message(embeds=embeds, view=None)
+    except discord.errors.InteractionResponded:
+        for embed in embeds:
             await interaction.followup.send(embed=embed)
             
 
