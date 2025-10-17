@@ -62,7 +62,7 @@ async def ensure_upload_channel1(guild: discord.Guild):
 
 
 
-async def add_item_db(guild_id, upload_message_id, name, image=None, donated_by=None, qty=None, added_by=None, ):
+async def add_item_db_bank(guild_id, upload_message_id, name, image=None, donated_by=None, qty=None, added_by=None, ):
     created_at1 = datetime.utcnow()
     async with db_pool.acquire() as conn:
         await conn.execute('''
@@ -210,7 +210,7 @@ class ImageDetailsModal(discord.ui.Modal):
             )
             await modal_interaction.response.send_message(f"✅ Updated **{item_name}**.", ephemeral=True)
         else:
-            await add_item_db(
+            await add_item_db_bank(
                 guild_id=self.guild_id,
                 name=item_name,
                 image=self.image_url,
@@ -1009,7 +1009,7 @@ class ItemDatabaseModal(discord.ui.Modal):
         )
 
 # --------------- Slash Command ----------------
-@bot.tree.command(name="add_itemdb", description="Add a new item to the database")
+@bot.tree.command(name="add_item_db", description="Add a new item to the database")
 @app_commands.describe(
     item_image="Upload an image of the item",
     npc_image="Upload an image of the NPC that drops the item",
@@ -1035,7 +1035,7 @@ class ItemDatabaseModal(discord.ui.Modal):
     app_commands.Choice(name="Wrist", value="Wrist"),
     
 ])
-async def add_itemdb(interaction: discord.Interaction, item_image: discord.Attachment, npc_image: discord.Attachment, item_slot: str):
+async def add_item_db(interaction: discord.Interaction, item_image: discord.Attachment, npc_image: discord.Attachment, item_slot: str):
     """Uploads images and opens modal for item info entry."""
     # ✅ Require both images
     if not item_image or not npc_image:
@@ -1108,23 +1108,24 @@ class ViewDatabaseSelect(discord.ui.View):
         new_view = ViewDatabaseSubSelect(self.db_pool, self.guild_id, column, opts)
         await interaction.response.edit_message(content=f"Select a {choice}:", view=new_view)
 
-    async def show_results(self, interaction, rows):
+       async def show_results(self, interaction, rows):
         if not rows:
-            await interaction.response.edit_message(content="❌ No items found.", view=None)
-            return
-        embeds = []
-        for row in rows:
-            embed = discord.Embed(
-                title=row["item_name"],
-                description=f"🗺️ Zone: {row['zone_name']}\n🧙 NPC: {row['npc_name']}\n🎒 Slot: {row['item_slot']}",
-                color=discord.Color.blurple()
+            await interaction.response.edit_message(
+                content="❌ No items found for that filter.",
+                view=None
             )
-            embed.set_image(url=row["item_image"])
-            embed.set_thumbnail(url=row["npc_image"])
-            embeds.append(embed)
-        await interaction.response.edit_message(content=None, view=None)
-        for e in embeds:
-            await interaction.followup.send(embed=e)
+            return
+    
+        results_text = "\n".join(
+            f"**{r['item_name']}** — {r['zone_name']} — {r['npc_name']} — Slot: {r['item_slot']}"
+            for r in rows
+        )
+    
+        await interaction.response.edit_message(
+            content=results_text,
+            view=None
+        )
+
             
 
 class ViewDatabaseSubSelect(discord.ui.View):
@@ -1150,7 +1151,7 @@ class ViewDatabaseSubSelect(discord.ui.View):
         await view.show_results(interaction, rows)
 
 
-@bot.tree.command(name="view_database", description="View and filter the item database.")
+@bot.tree.command(name="view_item_db", description="View and filter the item database.")
 async def view_database(interaction: discord.Interaction):
     view = ViewDatabaseSelect(db_pool, interaction.guild.id)
     await interaction.response.send_message("🔍 Choose a filter to browse the database:", view=view, ephemeral=True)
@@ -1188,7 +1189,7 @@ class EditDatabaseModal(discord.ui.Modal):
         await interaction.response.send_message(f"✅ Updated **{self.item_name.value}**!", ephemeral=True)
 
 
-@bot.tree.command(name="edit_database_item", description="Edit an existing item in the database by name.")
+@bot.tree.command(name="edit_item_db", description="Edit an existing item in the database by name.")
 @app_commands.describe(item_name="The name of the item to edit.")
 async def edit_database_item(interaction: discord.Interaction, item_name: str):
     async with db_pool.acquire() as conn:
@@ -1205,7 +1206,7 @@ async def edit_database_item(interaction: discord.Interaction, item_name: str):
 
 
 
-@bot.tree.command(name="remove_database_item", description="Remove an item from the database by name.")
+@bot.tree.command(name="remove_item_db", description="Remove an item from the database by name.")
 @app_commands.describe(item_name="The name of the item to remove.")
 async def remove_database_item(interaction: discord.Interaction, item_name: str):
     async with db_pool.acquire() as conn:
