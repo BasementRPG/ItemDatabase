@@ -148,7 +148,7 @@ class ImageDetailsModal(discord.ui.Modal):
         self.donated_by = discord.ui.TextInput(
             label="Donated By",
             placeholder="Example: Thieron or Raid",
-            default=default_donor or "Anonymous",
+            default=default_donor,
             required=False
         )
         self.add_item(self.donated_by)
@@ -466,28 +466,34 @@ class RemoveItemModal(discord.ui.Modal):
 
 
 # ---------- /view_bank Command ----------
-
-@bot.tree.command(name="view_bank", description="View all active image items in the guild bank.")
+@bot.tree.command(name="view_bank", description="View all image items in the guild bank.")
 async def view_bank(interaction: discord.Interaction):
     guild_id = interaction.guild.id
 
-    # Fetch all items with qty = 1 for this guild
-    items = await get_items_by_guild_and_qty(guild_id, qty=1)
+    # Fetch all items with qty=1 for this guild
+    async with db_pool.acquire() as conn:
+        items = await conn.fetch(
+            "SELECT name, image, donated_by FROM inventory WHERE guild_id=$1 AND qty=1",
+            guild_id
+        )
+
     if not items:
-        await interaction.response.send_message("❌ No active items found in the guild bank.", ephemeral=True)
+        await interaction.response.send_message("The guild bank is empty.", ephemeral=True)
         return
 
     embeds = []
     for item in items:
-        embed = discord.Embed(title=item['name'], description=f"Donated by: {item.get('donated_by', 'Anonymous')}")
-        if item.get('image'):
-            embed.set_image(url=item['image'])
+        embed = discord.Embed(title=item["name"])
+        embed.set_image(url=item["image"])
+        if item.get("donated_by"):
+            embed.set_footer(text=f"Donated by: {item['donated_by']}")
         embeds.append(embed)
 
-    # Discord limits to 10 embeds per message, so send in chunks if necessary
-    chunk_size = 10
-    for i in range(0, len(embeds), chunk_size):
-        await interaction.response.send_message(embeds=embeds[i:i+chunk_size])
+    # Discord limits to 10 embeds per message; send in chunks if needed
+    for i in range(0, len(embeds), 10):
+        await interaction.channel.send(embeds=embeds[i:i+10])
+
+    await interaction.response.send_message("✅ Guild bank items displayed.", ephemeral=True)
 
 
 
@@ -519,7 +525,7 @@ async def edit_item(interaction: discord.Interaction, name: str):
     await interaction.response.send_modal(EditItemModal(interaction, item_row=item_row))
 
 @bot.tree.command(name="remove_item", description="Remove an item from the guild bank by name.")
-@app_commands.describe(name="Name of the item to remove.")
+@app_commands.describe(item_name="Name of the item to remove.")
 async def remove_item(interaction: discord.Interaction, name: str):
     guild_id = interaction.guild.id
 
