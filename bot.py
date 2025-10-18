@@ -984,6 +984,13 @@ class ItemDatabaseModal(discord.ui.Modal):
         )
         self.add_item(self.zone_name)
 
+        self.zone_area = discord.ui.TextInput(
+            label="Area in the Zone",
+            placeholder="Example: Goblin Camp",
+            required=False
+        )
+        self.add_item(self.zone_area)
+
         self.npc_name = discord.ui.TextInput(
             label="NPC Name",
             placeholder="Example: Silvermoon Sentinel",
@@ -1001,8 +1008,8 @@ class ItemDatabaseModal(discord.ui.Modal):
         async with self.db_pool.acquire() as conn:
             await conn.execute(
                 """
-                INSERT INTO item_database (guild_id, item_name, zone_name, npc_name, item_slot, item_image, npc_image, added_by, created_at, image_message_id, npc_message_id)
-                VALUES ($1, $2, $3, $4, $5, $6, $7, $8, NOW(), $9, $10)
+                INSERT INTO item_database (guild_id, item_name, zone_name, npc_name, item_slot, item_image, npc_image, added_by, created_at, image_message_id, npc_message_id, zone_area)
+                VALUES ($1, $2, $3, $4, $5, $6, $7, $8, NOW(), $9, $10, $11)
                 """,
                 self.guild_id,
                 self.item_name.value,
@@ -1014,6 +1021,7 @@ class ItemDatabaseModal(discord.ui.Modal):
                 added_by,
                 self.item_msg_id,
                 self.npc_msg_id
+                self.zone_area
                 
             )
         await interaction.response.send_message(
@@ -1047,6 +1055,8 @@ class ItemDatabaseModal(discord.ui.Modal):
     app_commands.Choice(name="Wrist", value="Wrist"),
     
 ])
+
+
 async def add_item_db(interaction: discord.Interaction, item_image: discord.Attachment, npc_image: discord.Attachment, item_slot: str):
     """Uploads images and opens modal for item info entry."""
     # ✅ Require both images
@@ -1106,6 +1116,9 @@ class EditDatabaseModal(discord.ui.Modal):
         self.zone_name = discord.ui.TextInput(label="Zone Name", default=item_row['zone_name'])
         self.add_item(self.zone_name)
 
+        self.zone_area = discord.ui.TextInput(label="Zone Name", default=item_row['zone_area'])
+        self.add_item(self.zone_area)
+
         self.npc_name = discord.ui.TextInput(label="NPC Name", default=item_row['npc_name'])
         self.add_item(self.npc_name)
 
@@ -1116,9 +1129,9 @@ class EditDatabaseModal(discord.ui.Modal):
         async with self.db_pool.acquire() as conn:
             await conn.execute("""
                 UPDATE item_database
-                SET item_name=$1, zone_name=$2, npc_name=$3, item_slot=$4, updated_at=NOW()
-                WHERE id=$5 AND guild_id=$6
-            """, self.item_name.value, self.zone_name.value, self.npc_name.value, self.item_slot.value.lower(),
+                SET item_name=$1, zone_name=$2, zone_area=$3, npc_name=$4, item_slot=$5, updated_at=NOW()
+                WHERE id=$6 AND guild_id=$7
+            """, self.item_name.value, self.zone_name.value, self.zone_area.value, self.npc_name.value, self.item_slot.value.lower(),
                  self.item_row['id'], interaction.guild.id)
 
         await interaction.response.send_message(f"✅ Updated **{self.item_name.value}**!", ephemeral=True)
@@ -1260,6 +1273,7 @@ class PaginatedResultsView(discord.ui.View):
             title = item.get("item_name") or item.get("name") or "Unknown Item"
             npc_name = item.get("npc_name") or "Unknown NPC"
             zone_name = item.get("zone_name") or "Unknown Zone"
+            zone_area = item.get("zone_area") or ""
             slot = item.get("item_slot") or item.get("slot") or ""
             item_image = item.get("item_image") or item.get("image")
             npc_image = item.get("npc_image") or None
@@ -1383,13 +1397,15 @@ class PaginatedResultsView(discord.ui.View):
             title = i.get("item_name") or "Unknown Item"
             npc_name = i.get("npc_name") or "Unknown NPC"
             zone_name = i.get("zone_name") or "Unknown Zone"
+            zone_area = i.get("zone_area") or ""
             slot = i.get("item_slot") or ""
             item_image = i.get("item_image")
             npc_image = i.get("npc_image")
 
             embed = discord.Embed(title=title, color=discord.Color.blurple())
             embed.add_field(name="NPC", value=npc_name, inline=True)
-            embed.add_field(name="Zone", value=zone_name, inline=True)
+            embed.add_field(name="Zone", value=f"{zone_name} - {zone_area}", inline=True)
+            embed.add_field(name="Zone Area", value=zone_area, inline=True)
             embed.add_field(name="Slot", value=slot, inline=True)
             if item_image:
                 embed.set_image(url=item_image)
@@ -1437,13 +1453,14 @@ class PaginatedResultsView(discord.ui.View):
         title = item.get("item_name") or "Unknown Item"
         npc_name = item.get("npc_name") or "Unknown NPC"
         zone_name = item.get("zone_name") or "Unknown Zone"
+        zone_area = item.get("zone_area") or ""
         slot = item.get("item_slot") or ""
         item_image = item.get("item_image")
         npc_image = item.get("npc_image")
 
         embed = discord.Embed(title=title, color=discord.Color.green())
         embed.add_field(name="NPC", value=npc_name, inline=True)
-        embed.add_field(name="Zone", value=zone_name, inline=True)
+        embed.add_field(name="Zone", value=f"{zone_name} - {zone_area}", inline=True)
         embed.add_field(name="Slot", value=slot, inline=True)
         if item_image:
             embed.set_image(url=item_image)
