@@ -1521,8 +1521,6 @@ class DatabaseView(View):
             msg = await interaction.original_response()
             await msg.edit(content=None, embeds=embeds, view=view)
 
-
-
         await show_results(interaction, rows)
 
 
