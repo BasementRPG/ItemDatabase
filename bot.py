@@ -1437,40 +1437,74 @@ class DatabaseView(View):
         self.filter_select.callback = self.filter_select_callback
         self.add_item(self.filter_select)
 
-    async def filter_select_callback(self, interaction):
-        selected_filter = self.filter_select.values[0]
 
-        # if All → show all items
-        if selected_filter == "all":
+    async def filter_select_callback(self, interaction: discord.Interaction):
+        filter_type = self.filter_select.values[0].lower()
+
+        # 🧩 Handle "All" directly — no second dropdown
+        if filter_type == "all":
             async with self.db_pool.acquire() as conn:
-                rows = await conn.fetch("SELECT * FROM item_database WHERE guild_id=$1", self.guild_id)
-            await show_results(interaction, rows)
+                rows = await conn.fetch(
+                    "SELECT * FROM item_database WHERE guild_id=$1 ORDER BY LOWER(item_name)",
+                    self.guild_id,
+                )
+
+            rows = [dict(r) for r in rows]
+            if not rows:
+                await interaction.response.edit_message(content="❌ No results found.", view=None)
+                return
+
+            for r in rows:
+                r["_db_pool"] = self.db_pool
+                r["_guild_id"] = self.guild_id
+
+            view = PaginatedResultsView(rows, per_page=5, author_id=interaction.user.id)
+            embeds = view.build_embeds_for_current_page()
+
+            # 🧹 Replace dropdown with embeds (no dropdown remains)
+            await interaction.response.edit_message(content=None, embeds=embeds, view=view)
             return
 
+        # 🧭 Otherwise, build second dropdown dynamically
         async with self.db_pool.acquire() as conn:
-            rows = await conn.fetch(f"SELECT DISTINCT {selected_filter} FROM item_database WHERE guild_id=$1", self.guild_id)
+            query = f"SELECT DISTINCT {filter_type} FROM item_database WHERE guild_id=$1"
+            rows = await conn.fetch(query, self.guild_id)
 
-        # Build options (handle slot multi-values)
-        values_set = set()
-        for r in rows:
-            val = r[selected_filter]
-            if not val:
+        options = []
+        seen_values = set()
+
+        for row in rows:
+            value = (row[filter_type] or "").strip().lower()
+            if not value:
                 continue
-            if selected_filter == "slot" or selected_filter == "item_slot":
-                for s in val.split(","):
-                    values_set.add(s.strip().lower())
-            else:
-                values_set.add(val.strip().lower())
+            # Handle multi-slot entries
+            if filter_type == "item_slot" and "," in value:
+                for slot in value.split(","):
+                    slot = slot.strip().lower()
+                    if slot and slot not in seen_values:
+                        seen_values.add(slot)
+                        options.append(discord.SelectOption(label=slot.title(), value=slot))
+            elif value not in seen_values:
+                seen_values.add(value)
+                options.append(discord.SelectOption(label=value.title(), value=value))
 
-        options = [discord.SelectOption(label=v.title(), value=v) for v in sorted(values_set)]
+        # Add back/previous option
         options.append(discord.SelectOption(label="⬅️ Previous", value="previous"))
 
-        value_select = Select(placeholder=f"Select {selected_filter.title()}", options=options)
-        value_select.callback = lambda i: self.value_select_callback(i, selected_filter)
-        new_view = View(timeout=120)
-        new_view.add_item(value_select)
+        # 🔄 Replace the current dropdown with the populated one
+        self.clear_items()
+        self.value_select = discord.ui.Select(
+            placeholder=f"Select {filter_type.title()}",
+            options=options,
+            min_values=1,
+            max_values=1,
+        )
 
-        await interaction.response.edit_message(content=None, view=new_view)
+        self.value_select.callback = lambda i: self.value_select_callback(i, filter_type)
+        self.add_item(self.value_select)
+
+        await interaction.response.edit_message(content=f"Select a {filter_type}:", view=self)
+
 
 
 
