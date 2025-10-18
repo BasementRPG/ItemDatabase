@@ -1282,7 +1282,14 @@ class PaginatedResultsView(discord.ui.View):
                 title=title,
                 color=discord.Color.blue()
             )
+            
+            raw_slot = item.get("item_slot") or ""
+            
+                # Handle multi-slot entries like "chest, legs"
+            slot = ", ".join([s.strip().capitalize() for s in raw_slot.split(",")])
 
+
+            
             # Primary details in fields
             embed.add_field(name="NPC", value=npc_name, inline=True)
             embed.add_field(name="Zone", value=zone_name, inline=True)
@@ -1402,6 +1409,11 @@ class PaginatedResultsView(discord.ui.View):
             item_image = i.get("item_image")
             npc_image = i.get("npc_image")
 
+            raw_slot = item.get("item_slot") or ""
+            
+                # Handle multi-slot entries like "chest, legs"
+            slot = ", ".join([s.strip().capitalize() for s in raw_slot.split(",")])
+            
             embed = discord.Embed(title=title, color=discord.Color.blurple())
             embed.add_field(name="NPC", value=npc_name, inline=True)
             embed.add_field(name="Zone", value=f"{zone_name} \n{zone_area}", inline=True)
