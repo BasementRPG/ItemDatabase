@@ -1612,7 +1612,7 @@ class DatabaseView(View):
             r["_guild_id"] = self.guild_id
 
         view = PaginatedResultsView(rows, per_page=5, author_id=interaction.user.id)
-        embeds = view.build_embeds_for_current_page()
+        embeds = view.build_embeds_for_current_page(interation)
 
         # 🧩 Replace dropdowns with embeds
         if not interaction.response.is_done():
@@ -1637,7 +1637,7 @@ async def show_results(interaction, items):
         i["_guild_id"] = interaction.guild.id
 
     view = PaginatedResultsView(items, per_page=5, author_id=interaction.user.id)
-    embeds = view.build_embeds_for_current_page()
+    embeds = view.build_embeds_for_current_page(interaction)
     await interaction.response.send_message(embeds=embeds, view=view)
 
             
