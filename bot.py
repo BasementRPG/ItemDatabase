@@ -1527,7 +1527,7 @@ class DatabaseView(View):
                 r["_guild_id"] = self.guild_id
 
             view = PaginatedResultsView(rows, per_page=5, author_id=interaction.user.id)
-            embeds = view.build_embeds_for_current_page()
+            embeds = view.build_embeds_for_current_page(interaction)
 
             # 🧹 Replace dropdown with embeds (no dropdown remains)
             await interaction.response.edit_message(content=None, embeds=embeds, view=view)
