@@ -953,6 +953,22 @@ async def view_donations(interaction: discord.Interaction):
     await interaction.response.send_message(embed=embed, view=view, ephemeral=True)
 
 
+class ConfirmUpdateView(discord.ui.View):
+    def __init__(self):
+        super().__init__(timeout=30)
+        self.value = None
+
+    @discord.ui.button(label="✅ Yes, update existing entry", style=discord.ButtonStyle.success)
+    async def confirm(self, interaction: discord.Interaction, button: discord.ui.Button):
+        self.value = True
+        self.stop()
+        await interaction.response.edit_message(content="Updating existing entry...", view=None)
+
+    @discord.ui.button(label="❌ Cancel", style=discord.ButtonStyle.danger)
+    async def cancel(self, interaction: discord.Interaction, button: discord.ui.Button):
+        self.value = False
+        self.stop()
+        await interaction.response.edit_message(content="Update canceled.", view=None)
 
 
 
@@ -1004,30 +1020,84 @@ class ItemDatabaseModal(discord.ui.Modal):
             
 
     async def on_submit(self, interaction: discord.Interaction):
-        added_by = str(interaction.user)
+        guild_id = interaction.guild.id
+        added_by = interaction.user.name
+    
         async with self.db_pool.acquire() as conn:
+            # Check if item already exists
+            existing = await conn.fetchrow(
+                """
+                SELECT * FROM item_database
+                WHERE guild_id=$1 AND LOWER(item_name)=LOWER($2) AND LOWER(npc_name)=LOWER($3)
+                """,
+                guild_id,
+                self.item_name.value.strip(),
+                self.npc_name.value.strip()
+            )
+    
+            # ⚠️ If it exists, ask user before overwriting
+            if existing:
+                view = ConfirmUpdateView()
+                await interaction.response.send_message(
+                    f"⚠️ `{self.item_name.value}` for `{self.npc_name.value}` already exists.\n"
+                    "Do you want to update this entry?",
+                    view=view,
+                    ephemeral=True
+                )
+                await view.wait()
+    
+                if view.value is None or not view.value:
+                    return  # user canceled
+    
+            # ✅ Insert or update (UPSERT)
             await conn.execute(
                 """
-                INSERT INTO item_database (guild_id, item_name, zone_name, zone_area, npc_name, item_slot, item_image, npc_image, added_by, image_message_id, npc_message_id, created_at)
-                VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, NOW())
+                INSERT INTO item_database (
+                    guild_id,
+                    item_name,
+                    zone_name,
+                    zone_area,
+                    npc_name,
+                    item_slot,
+                    item_image,
+                    npc_image,
+                    added_by,
+                    item_msg_id,
+                    npc_msg_id
+                )
+                VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)
+                ON CONFLICT (guild_id, item_name, npc_name)
+                DO UPDATE SET
+                    zone_name   = EXCLUDED.zone_name,
+                    zone_area   = EXCLUDED.zone_area,
+                    item_slot   = EXCLUDED.item_slot,
+                    item_image  = EXCLUDED.item_image,
+                    npc_image   = EXCLUDED.npc_image,
+                    added_by    = EXCLUDED.added_by,
+                    item_msg_id = EXCLUDED.item_msg_id,
+                    npc_msg_id  = EXCLUDED.npc_msg_id,
+                    updated_at  = NOW();
                 """,
                 self.guild_id,
-                self.item_name.value,
-                self.zone_name.value,
-                self.zone_area.value,
-                self.npc_name.value,
-                self.item_slot_field.value.lower(),
-                self.item_image_url,
-                self.npc_image_url,
+                self.item_name.value.strip(),
+                self.zone_name.value.strip() if self.zone_name.value else None,
+                self.zone_area.value.strip() if self.zone_area.value else None,
+                self.npc_name.value.strip(),
+                self.item_slot_field.value.lower().strip() if self.item_slot_field.value else None,
+                self.item_image_url.strip() if self.item_image_url else None,
+                self.npc_image_url.strip() if self.npc_image_url else None,
                 added_by,
                 self.item_msg_id,
-                self.npc_msg_id
-                
-                
+                self.npc_msg_id,
             )
-        await interaction.response.send_message(
-            f"✅ Item **{self.item_name.value}** added to the database!", ephemeral=True
+    
+        await interaction.followup.send(
+            f"✅ `{self.item_name.value}` added or updated successfully.",
+            ephemeral=True
         )
+
+
+
 
 # --------------- Slash Command ----------------
 @bot.tree.command(name="add_item_db", description="Add a new item to the database")
@@ -1096,11 +1166,6 @@ async def add_item_db(interaction: discord.Interaction, item_image: discord.Atta
         item_msg_id = item_msg.id,
         npc_msg_id = npc_msg.id
     ))
-
-
-
-
-
 
 
 
@@ -1502,7 +1567,6 @@ class DatabaseView(View):
                 discord.SelectOption(label="Slot", value="item_slot"),
                 discord.SelectOption(label="NPC Name", value="npc_name"),
                 discord.SelectOption(label="Zone Name", value="zone_name"),
-                discord.SelectOption(label="Item Name", value="item_name"),
                 discord.SelectOption(label="All", value="all")
             ]
         )
