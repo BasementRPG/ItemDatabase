@@ -1608,11 +1608,11 @@ class DatabaseView(View):
 
 
 
-        await show_results(interaction, rows)
+        await show_results(interaction, rows, self.db_pool, self.guild_id)
 
 
 # ---------- RESULTS DISPLAY ----------
-async def show_results(interaction, items):
+async def show_results(interaction, items, db_pool=None, guild_id=None):
     if not items:
         await interaction.response.send_message("❌ No results found.", ephemeral=True)
         return
@@ -1622,7 +1622,7 @@ async def show_results(interaction, items):
         i["_db_pool"] = db_pool
         i["_guild_id"] = interaction.guild.id
 
-    view = PaginatedResultsView(items, per_page=5, author_id=interaction.user.id)
+    view = PaginatedResultsView(items, db_pool, guild_id, per_page=5, author_id=interaction.user.id)
     embeds = view.build_embeds_for_current_page(interaction)
     await interaction.response.send_message(embeds=embeds, view=view)
 
