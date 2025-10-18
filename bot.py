@@ -1613,18 +1613,30 @@ class DatabaseView(View):
 
 # ---------- RESULTS DISPLAY ----------
 async def show_results(interaction, items, db_pool=None, guild_id=None):
-    if not items:
-        await interaction.response.send_message("❌ No results found.", ephemeral=True)
-        return
-    items = [dict(i) for i in items]
-    # add meta info for "back" creation
-    for i in items:
-        i["_db_pool"] = db_pool
-        i["_guild_id"] = interaction.guild.id
+    """Safely show paginated embeds whether or not the interaction has already been responded to."""
+    view = PaginatedResultsView(
+        items,
+        db_pool,
+        guild_id,
+        per_page=5,
+        author_id=interaction.user.id
+    )
 
-    view = PaginatedResultsView(items, db_pool, guild_id, per_page=5, author_id=interaction.user.id)
     embeds = view._build_embeds()
-    await interaction.response.send_message(content=None, embeds=embeds, view=view)
+
+    # ✅ Check whether we already responded to this interaction
+    if not interaction.response.is_done():
+        # first response
+        await interaction.response.edit_message(content=None, embeds=embeds, view=view)
+    else:
+        # interaction already responded — edit the existing message instead
+        try:
+            msg = await interaction.original_response()
+            await msg.edit(content=None, embeds=embeds, view=view)
+        except Exception:
+            # fallback: send a follow-up message (usually shouldn't happen)
+            await interaction.followup.send(content=None, embeds=embeds, view=view)
+
 
             
 
