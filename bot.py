@@ -1374,30 +1374,37 @@ class PaginatedResultsView(discord.ui.View):
 
     async def _edit_message_with_current_page(self, interaction: discord.Interaction):
         self._update_button_states()
+
+        # build_embeds_for_current_page returns list of (embed, item)
         embed_items = self.build_embeds_for_current_page()
 
-        # 🔹 Extract only the embeds for Discord’s message payload
+        # ✅ Extract embeds and items separately
         embeds = [embed for embed, _ in embed_items]
+        items = [item for _, item in embed_items]
 
-        # 🔹 Create new view for navigation + send buttons
+        # ✅ Create a view with nav + "Send" buttons
         view = discord.ui.View(timeout=120)
         view.add_item(self.previous_button)
         view.add_item(self.next_button)
         view.add_item(self.back_button)
 
-        # Add per-item "Send 📤" buttons
-        for _, item in embed_items:
+        # Add a "Send" button for each item on the page
+        for item in items:
             view.add_item(SendItemButton(item))
 
-        # 🔹 Update message with embeds + buttons
-        if not interaction.response.is_done():
-            await interaction.response.edit_message(embeds=embeds, view=view)
-        else:
-            if self._last_message:
-                await self._last_message.edit(embeds=embeds, view=view)
+        # ✅ Now safely edit the message
+        try:
+            if not interaction.response.is_done():
+                await interaction.response.edit_message(embeds=embeds, view=view)
             else:
-                msg = await interaction.followup.send(embeds=embeds, view=view)
-                self._last_message = msg
+                if self._last_message:
+                    await self._last_message.edit(embeds=embeds, view=view)
+                else:
+                    msg = await interaction.followup.send(embeds=embeds, view=view)
+                    self._last_message = msg
+        except Exception as e:
+            print(f"⚠️ Error updating message: {e}")
+
 
 
 
