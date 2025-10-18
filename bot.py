@@ -1488,7 +1488,7 @@ class DatabaseView(View):
                 r["_db_pool"] = self.db_pool
                 r["_guild_id"] = self.guild_id
 
-            view = PaginatedResultsView(rows, self.db_pool, self.guild.id, per_page=5, author_id=interaction.user.id)
+            view = PaginatedResultsView(rows, self.db_pool, self.guild_id, per_page=5, author_id=interaction.user.id)
             embeds = view.build_embeds_for_current_page()
 
             # 🧹 Replace dropdown with embeds (no dropdown remains)
