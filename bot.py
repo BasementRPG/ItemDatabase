@@ -1368,7 +1368,6 @@ class PaginatedResultsView(discord.ui.View):
                 value=(
                     f"[📤 Send this item privately]"
                     f"(https://discord.com/channels/{interaction.guild.id}/{interaction.channel.id})\n"
-                    "_Use `/send_item <item_name>` to get this item as an ephemeral message._"
                 ),
                 inline=False
             )
