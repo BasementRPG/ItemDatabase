@@ -1274,7 +1274,7 @@ class PaginatedResultsView(discord.ui.View):
             npc_name = item.get("npc_name") or "Unknown NPC"
             zone_name = item.get("zone_name") or "Unknown Zone"
             zone_area = item.get("zone_area") or ""
-            slot = item.get("item_slot") or item.get("slot") or ""
+            raw_slot = item.get("item_slot") or item.get("slot") or ""
             item_image = item.get("item_image") or item.get("image")
             npc_image = item.get("npc_image") or None
 
@@ -1283,7 +1283,7 @@ class PaginatedResultsView(discord.ui.View):
                 color=discord.Color.blue()
             )
             
-            raw_slot = item.get("item_slot") or ""
+            
             
                 # Handle multi-slot entries like "chest, legs"
             slot = ", ".join([s.strip().capitalize() for s in raw_slot.split(",")])
@@ -1405,11 +1405,10 @@ class PaginatedResultsView(discord.ui.View):
             npc_name = i.get("npc_name") or "Unknown NPC"
             zone_name = i.get("zone_name") or "Unknown Zone"
             zone_area = i.get("zone_area") or ""
-            slot = i.get("item_slot") or ""
+            raw_slot = i.get("item_slot") or ""
             item_image = i.get("item_image")
             npc_image = i.get("npc_image")
 
-            raw_slot = item.get("item_slot") or ""
             
                 # Handle multi-slot entries like "chest, legs"
             slot = ", ".join([s.strip().capitalize() for s in raw_slot.split(",")])
