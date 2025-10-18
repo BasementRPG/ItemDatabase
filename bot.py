@@ -1041,7 +1041,7 @@ class ItemDatabaseModal(discord.ui.Modal):
     app_commands.Choice(name="Chest", value="Chest"),
     app_commands.Choice(name="Ear", value="Ear"),
     app_commands.Choice(name="Feet", value="Feet"),
-    app_commands.Choice(name="Finger", value="Finer"),
+    app_commands.Choice(name="Finger", value="Finger"),
     app_commands.Choice(name="Hands", value="Hands"),
     app_commands.Choice(name="Head", value="Head"),
     app_commands.Choice(name="Legs", value="Legs"),
