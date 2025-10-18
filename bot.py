@@ -1020,7 +1020,7 @@ class ItemDatabaseModal(discord.ui.Modal):
                 self.npc_image_url,
                 added_by,
                 self.item_msg_id,
-                self.npc_msg_id
+                self.npc_msg_id,
                 self.zone_area
                 
             )
