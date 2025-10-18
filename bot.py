@@ -452,7 +452,7 @@ class RemoveItemModal(discord.ui.Modal):
                     """
                     UPDATE inventory
                     SET image=NULL,
-                        created_images=NULL,
+    
                         upload_message_id=NULL,
                         qty=0,
                         removed_by=$2,
