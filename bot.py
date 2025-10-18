@@ -1518,7 +1518,7 @@ async def view_item_db(interaction: discord.Interaction):
     await interaction.response.send_message(
         content="Select a filter type to begin:",
         view=view,
-        ephemeral=True  # make visible only to the user, remove if you want public
+        ephemeral=False  # make visible only to the user, remove if you want public
     )
 
 
