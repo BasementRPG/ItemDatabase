@@ -1427,7 +1427,7 @@ class DatabaseView(View):
         self.filter_select = Select(
             placeholder="Choose filter type",
             options=[
-                discord.SelectOption(label="Slot", value="slot"),
+                discord.SelectOption(label="Slot", value="item_slot"),
                 discord.SelectOption(label="NPC Name", value="npc_name"),
                 discord.SelectOption(label="Zone Name", value="zone_name"),
                 discord.SelectOption(label="Item Name", value="item_name"),
@@ -1491,7 +1491,7 @@ async def show_results(interaction, items):
     if not items:
         await interaction.response.send_message("❌ No results found.", ephemeral=True)
         return
-
+    items = [dict(i) for i in items]
     # add meta info for "back" creation
     for i in items:
         i["_db_pool"] = db_pool
