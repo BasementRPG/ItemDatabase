@@ -1473,22 +1473,39 @@ class DatabaseView(View):
         await interaction.response.edit_message(content=None, view=new_view)
 
 
+
     async def value_select_callback(self, interaction, filter_type):
         chosen_value = interaction.data["values"][0]
 
+        # 🧭 If user selected "Previous"
         if chosen_value == "previous":
             await interaction.response.edit_message(
                 content="Choose a filter type:",
+                embeds=[],
                 view=DatabaseView(self.db_pool, self.guild_id)
             )
             return
 
-        query = f"SELECT * FROM item_database WHERE guild_id=$1 AND LOWER({filter_type}) LIKE $2"
         async with self.db_pool.acquire() as conn:
-            rows = await conn.fetch(query, self.guild_id, f"%{chosen_value}%")
+            if filter_type == "all":
+                query = "SELECT * FROM item_database WHERE guild_id=$1 ORDER BY LOWER(item_name)"
+                rows = await conn.fetch(query, self.guild_id)
+            else:
+                query = f"""
+                    SELECT * FROM item_database
+                    WHERE guild_id=$1
+                      AND LOWER({filter_type}) LIKE $2
+                    ORDER BY LOWER(item_name)
+                """
+                rows = await conn.fetch(query, self.guild_id, f"%{chosen_value}%")
 
-        # Convert immutable Records to dict
+        # Convert immutable asyncpg.Record -> dict
         rows = [dict(r) for r in rows]
+
+        if not rows:
+            await interaction.response.edit_message(content="❌ No results found.", view=None)
+            return
+
         for r in rows:
             r["_db_pool"] = self.db_pool
             r["_guild_id"] = self.guild_id
@@ -1496,8 +1513,14 @@ class DatabaseView(View):
         view = PaginatedResultsView(rows, per_page=5, author_id=interaction.user.id)
         embeds = view.build_embeds_for_current_page()
 
-        # 💡 Replace the dropdowns entirely with the embed results
-        await interaction.response.edit_message(content=None, embeds=embeds, view=view)
+        # 🧩 Replace dropdowns with embeds
+        if not interaction.response.is_done():
+            await interaction.response.edit_message(content=None, embeds=embeds, view=view)
+        else:
+            # If already responded, edit the message instead of trying to send a new one
+            msg = await interaction.original_response()
+            await msg.edit(content=None, embeds=embeds, view=view)
+
 
 
         await show_results(interaction, rows)
