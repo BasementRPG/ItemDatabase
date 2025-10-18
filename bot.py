@@ -1062,7 +1062,7 @@ class ItemDatabaseModal(discord.ui.Modal):
                     item_image,
                     npc_image,
                     added_by,
-                    item_msg_id
+                    item_msg_id,
                     npc_msg_id
                 )
                 VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)
