@@ -1261,7 +1261,7 @@ class PaginatedResultsView(discord.ui.View):
             npc_name = item.get("npc_name") or "Unknown NPC"
             zone_name = item.get("zone_name") or "Unknown Zone"
             slot = item.get("item_slot") or item.get("slot") or ""
-            item_image = item.get("item_image") or item.get("created_images") or item.get("image")
+            item_image = item.get("item_image") or item.get("image")
             npc_image = item.get("npc_image") or None
 
             embed = discord.Embed(
