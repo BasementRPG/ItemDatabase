@@ -1346,7 +1346,7 @@ class PaginatedResultsView(discord.ui.View):
         return self.items[start:start + self.per_page]
 
     def build_embeds_for_current_page(self) -> list[discord.Embed]:
-        """Return embeds only (no tuples)."""
+        """Return embeds for the current page, with fake 'Send 📤' links."""
         embeds = []
         for item in self.get_page_items():
             title = item.get("item_name") or "Unknown Item"
@@ -1355,22 +1355,34 @@ class PaginatedResultsView(discord.ui.View):
             slot = item.get("item_slot") or ""
             item_image = item.get("item_image")
             npc_image = item.get("npc_image")
-
+    
             embed = discord.Embed(title=title, color=discord.Color.blurple())
             embed.add_field(name="NPC", value=npc_name, inline=True)
             embed.add_field(name="Zone", value=zone_name, inline=True)
             embed.add_field(name="Slot", value=slot, inline=True)
-
+    
+            # Add “fake” clickable link styled text under item details
+            embed.add_field(
+                name="Actions",
+                value=(
+                    f"[📤 Send this item privately]"
+                    f"(https://discord.com/channels/{interaction.guild.id}/{interaction.channel.id})\n"
+                    "_Use `/send_item <item_name>` to get this item as an ephemeral message._"
+                ),
+                inline=False
+            )
+    
             if item_image:
                 embed.set_image(url=item_image)
             if npc_image:
                 embed.set_thumbnail(url=npc_image)
-
+    
             embed.set_footer(
                 text=f"Page {self.current_page + 1} of {self.max_page + 1} — Total: {len(self.items)}"
             )
             embeds.append(embed)
         return embeds
+
 
     async def _edit_message_with_current_page(self, interaction: discord.Interaction):
         self._update_button_states()
