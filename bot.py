@@ -1380,7 +1380,7 @@ class PaginatedResultsView(discord.ui.View):
         page_items = self.get_page_items()
 
         # ✅ Rebuild the view
-        view = discord.ui.View(timeout=120)
+        view = discord.ui.View(timeout=None)
         view.add_item(self.previous_button)
         view.add_item(self.next_button)
         view.add_item(self.back_button)
@@ -1443,7 +1443,7 @@ class PaginatedResultsView(discord.ui.View):
 
     class SendItemButton(discord.ui.Button):
         def __init__(self, item):
-            super().__init__(style=discord.ButtonStyle.primary, label="Send 📤")
+            super().__init__(style=discord.ButtonStyle.secondary, label="Send 📤")
             self.item = item
 
         async def callback(self, interaction: discord.Interaction):
