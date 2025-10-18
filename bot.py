@@ -1405,7 +1405,6 @@ class PaginatedResultsView(discord.ui.View):
             embed = discord.Embed(title=title, color=discord.Color.blurple())
             embed.add_field(name="NPC", value=npc_name, inline=True)
             embed.add_field(name="Zone", value=f"{zone_name} - {zone_area}", inline=True)
-            embed.add_field(name="Zone Area", value=zone_area, inline=True)
             embed.add_field(name="Slot", value=slot, inline=True)
             if item_image:
                 embed.set_image(url=item_image)
