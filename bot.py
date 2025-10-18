@@ -1409,7 +1409,7 @@ class PaginatedResultsView(discord.ui.View):
 
     class BackToFiltersButton(discord.ui.Button):
         def __init__(self, owner):
-            super().__init__(style=discord.ButtonStyle.danger, label="Back to Filters", emoji="🔄", timeout=None)
+            super().__init__(style=discord.ButtonStyle.danger, label="Back to Filters", emoji="🔄")
             self.owner = owner
 
         async def callback(self, interaction):
