@@ -985,7 +985,7 @@ class ItemDatabaseModal(discord.ui.Modal):
         self.add_item(self.zone_name)
 
         self.zone_area = discord.ui.TextInput(
-            label="Area in the Zone",
+            label="Zone Area",
             placeholder="Example: Goblin Camp",
             required=False
         )
@@ -1008,8 +1008,8 @@ class ItemDatabaseModal(discord.ui.Modal):
         async with self.db_pool.acquire() as conn:
             await conn.execute(
                 """
-                INSERT INTO item_database (guild_id, item_name, zone_name, npc_name, item_slot, item_image, npc_image, added_by, created_at, image_message_id, npc_message_id, zone_area)
-                VALUES ($1, $2, $3, $4, $5, $6, $7, $8, NOW(), $9, $10, $11)
+                INSERT INTO item_database (guild_id, item_name, zone_name, npc_name, item_slot, item_image, npc_image, added_by, image_message_id, npc_message_id, zone_area, , created_at)
+                VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, NOW())
                 """,
                 self.guild_id,
                 self.item_name.value,
@@ -1116,7 +1116,7 @@ class EditDatabaseModal(discord.ui.Modal):
         self.zone_name = discord.ui.TextInput(label="Zone Name", default=item_row['zone_name'])
         self.add_item(self.zone_name)
 
-        self.zone_area = discord.ui.TextInput(label="Zone Name", default=item_row['zone_area'])
+        self.zone_area = discord.ui.TextInput(label="Zone Area", default=item_row['zone_area'])
         self.add_item(self.zone_area)
 
         self.npc_name = discord.ui.TextInput(label="NPC Name", default=item_row['npc_name'])
