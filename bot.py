@@ -1368,17 +1368,32 @@ class PaginatedResultsView(discord.ui.View):
             embed.set_footer(
                 text=f"Page {self.current_page + 1} of {self.max_page + 1} — Total: {len(self.items)}"
             )
-            embeds.append(embed)
+            embeds.append((embed, item))
         return embeds
 
-    async def _edit_message_with_current_page(self, interaction):
+
+    async def _edit_message_with_current_page(self, interaction: discord.Interaction):
         self._update_button_states()
-        embeds = self.build_embeds_for_current_page()
+        embed_items = self.build_embeds_for_current_page()
+
+        # Create a sub-view containing the page navigation + per-item send buttons
+        view = discord.ui.View(timeout=120)
+        view.add_item(self.previous_button)
+        view.add_item(self.next_button)
+        view.add_item(self.back_button)
+
+        for _, item in embed_items:
+            view.add_item(SendItemButton(item))
+
+        embeds = [e for e, _ in embed_items]
+
+        # Now edit the message
         if not interaction.response.is_done():
-            await interaction.response.edit_message(embeds=embeds, view=self)
+            await interaction.response.edit_message(embeds=embeds, view=view)
         else:
             if self._last_message:
-                await self._last_message.edit(embeds=embeds, view=self)
+                await self._last_message.edit(embeds=embeds, view=view)
+
 
     # --- Buttons ---
     class PreviousPageButton(discord.ui.Button):
@@ -1416,6 +1431,35 @@ class PaginatedResultsView(discord.ui.View):
             await interaction.response.edit_message(
                 content="Choose a filter again:", embeds=[], view=DatabaseView(self.owner.items[0]["_db_pool"], self.owner.items[0]["_guild_id"])
             )
+
+    
+    class SendItemButton(discord.ui.Button):
+        def __init__(self, item):
+            super().__init__(style=discord.ButtonStyle.primary, label="Send 📤")
+            self.item = item
+    
+        async def callback(self, interaction: discord.Interaction):
+            item = self.item
+            title = item.get("item_name") or "Unknown Item"
+            npc_name = item.get("npc_name") or "Unknown NPC"
+            zone_name = item.get("zone_name") or "Unknown Zone"
+            slot = item.get("item_slot") or ""
+            item_image = item.get("item_image")
+            npc_image = item.get("npc_image")
+    
+            embed = discord.Embed(title=title, color=discord.Color.green())
+            embed.add_field(name="NPC", value=npc_name, inline=True)
+            embed.add_field(name="Zone", value=zone_name, inline=True)
+            embed.add_field(name="Slot", value=slot, inline=True)
+    
+            if item_image:
+                embed.set_image(url=item_image)
+            if npc_image:
+                embed.set_thumbnail(url=npc_image)
+    
+            await interaction.response.send_message(embed=embed, ephemeral=True)
+
+    
 
 # ---------- FILTER VIEW ----------
 class DatabaseView(View):
