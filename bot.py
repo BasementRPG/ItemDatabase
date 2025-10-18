@@ -1324,18 +1324,16 @@ class PaginatedResultsView(discord.ui.View):
         self.per_page = per_page
         self.current_page = 0
         self.max_page = max(0, math.ceil(len(items) / per_page) - 1)
-        self.author_id = author_id  # optional: restrict button use to the command author
+        self.author_id = author_id
+        self._last_message = None
 
         self.previous_button = self.PreviousPageButton(self)
         self.next_button = self.NextPageButton(self)
         self.back_button = self.BackToFiltersButton(self)
 
-        # Add buttons in order
         self.add_item(self.previous_button)
         self.add_item(self.next_button)
         self.add_item(self.back_button)
-
-        self._last_message = None  # will store the sent message object
 
         self._update_button_states()
 
@@ -1345,153 +1343,163 @@ class PaginatedResultsView(discord.ui.View):
 
     def get_page_items(self):
         start = self.current_page * self.per_page
-        end = start + self.per_page
-        return self.items[start:end]
+        return self.items[start:start + self.per_page]
 
     def build_embeds_for_current_page(self) -> list[discord.Embed]:
         embeds = []
-        page_items = self.get_page_items()
-        for item in page_items:
-            title = item.get("item_name") or item.get("name") or "Unknown Item"
+        for item in self.get_page_items():
+            title = item.get("item_name") or "Unknown Item"
             npc_name = item.get("npc_name") or "Unknown NPC"
             zone_name = item.get("zone_name") or "Unknown Zone"
-            slot = item.get("item_slot") or item.get("slot") or ""
-            item_image = item.get("item_image") or item.get("created_images") or item.get("image")
-            npc_image = item.get("npc_image") or None
+            slot = item.get("item_slot") or ""
+            item_image = item.get("item_image")
+            npc_image = item.get("npc_image")
 
-            embed = discord.Embed(
-                title=title,
-                color=discord.Color.blue()
-            )
-
-            # Primary details in fields
+            embed = discord.Embed(title=title, color=discord.Color.blurple())
             embed.add_field(name="NPC", value=npc_name, inline=True)
             embed.add_field(name="Zone", value=zone_name, inline=True)
             embed.add_field(name="Slot", value=slot, inline=True)
 
-            # Add the main image (item) and thumbnail (npc)
             if item_image:
                 embed.set_image(url=item_image)
             if npc_image:
                 embed.set_thumbnail(url=npc_image)
 
+            embed.set_footer(
+                text=f"Page {self.current_page + 1} of {self.max_page + 1} — Total: {len(self.items)}"
+            )
             embeds.append(embed)
-
-        # Add page footer to each embed so users know where they are
-        for e in embeds:
-            e.set_footer(text=f"Page {self.current_page + 1} of {self.max_page + 1} — Total results: {len(self.items)}")
-
         return embeds
 
-    async def _edit_message_with_current_page(self, interaction: discord.Interaction):
+    async def _edit_message_with_current_page(self, interaction):
         self._update_button_states()
         embeds = self.build_embeds_for_current_page()
+        if not interaction.response.is_done():
+            await interaction.response.edit_message(embeds=embeds, view=self)
+        else:
+            if self._last_message:
+                await self._last_message.edit(embeds=embeds, view=self)
 
-        # If interaction hasn't been responded to yet, use response.edit_message/send_message accordingly
-        try:
-            if not interaction.response.is_done():
-                # If the original interaction hasn't been answered, we edit the original deferred response (unlikely for nav buttons)
-                await interaction.response.edit_message(embeds=embeds, view=self)
-            else:
-                # Most common: nav buttons after initial send -> use followup edit on the original message object
-                if self._last_message:
-                    await self._last_message.edit(embeds=embeds, view=self)
-                else:
-                    # fallback: send a followup and store message
-                    msg = await interaction.followup.send(embeds=embeds, view=self)
-                    self._last_message = msg
-        except Exception:
-            # fallback to editing via response if possible
-            try:
-                await interaction.response.edit_message(embeds=embeds, view=self)
-            except Exception:
-                # give up silently; caller should log if needed
-                pass
-
-    # Button classes
-  
+    # --- Buttons ---
     class PreviousPageButton(discord.ui.Button):
-        def __init__(self, owner_view):
+        def __init__(self, owner):
             super().__init__(style=discord.ButtonStyle.secondary, emoji="⬅️")
-            self.owner = owner_view  # <-- do NOT use `.parent`
-    
-        async def callback(self, interaction: discord.Interaction):
-            # optionally restrict to command author
+            self.owner = owner
+
+        async def callback(self, interaction):
             if self.owner.author_id and interaction.user.id != self.owner.author_id:
-                await interaction.response.send_message("You can't control this pagination.", ephemeral=True)
+                await interaction.response.send_message("You can’t control this pagination.", ephemeral=True)
                 return
-    
             if self.owner.current_page > 0:
                 self.owner.current_page -= 1
                 await self.owner._edit_message_with_current_page(interaction)
-    
-    
+
     class NextPageButton(discord.ui.Button):
-        def __init__(self, owner_view):
+        def __init__(self, owner):
             super().__init__(style=discord.ButtonStyle.secondary, emoji="➡️")
-            self.owner = owner_view
-    
-        async def callback(self, interaction: discord.Interaction):
+            self.owner = owner
+
+        async def callback(self, interaction):
             if self.owner.author_id and interaction.user.id != self.owner.author_id:
-                await interaction.response.send_message("You can't control this pagination.", ephemeral=True)
+                await interaction.response.send_message("You can’t control this pagination.", ephemeral=True)
                 return
-    
             if self.owner.current_page < self.owner.max_page:
                 self.owner.current_page += 1
                 await self.owner._edit_message_with_current_page(interaction)
-    
-    
+
     class BackToFiltersButton(discord.ui.Button):
-        def __init__(self, owner_view):
+        def __init__(self, owner):
             super().__init__(style=discord.ButtonStyle.danger, label="Back to Filters", emoji="🔄")
-            self.owner = owner_view
-    
-        async def callback(self, interaction: discord.Interaction):
-            try:
-                await interaction.response.edit_message(content="Choose a filter again:", embeds=[], view=None)
-            except Exception:
-                await interaction.response.send_message("Choose a filter again:", ephemeral=True)
+            self.owner = owner
 
+        async def callback(self, interaction):
+            await interaction.response.edit_message(
+                content="Choose a filter again:", embeds=[], view=DatabaseView(self.owner.items[0]["_db_pool"], self.owner.items[0]["_guild_id"])
+            )
 
-    async def show_results(interaction: discord.Interaction, items: list[dict], per_page: int = 5, author_only: bool = True):
-        """
-        Display DB query results using PaginatedResultsView.
-    
-        - interaction: the triggering Interaction
-        - items: list of dicts from DB rows (must include keys like item_name, npc_name, zone_name, item_slot, item_image, npc_image)
-        - per_page: items per page
-        - author_only: if True restricts nav buttons to the command user
-        """
-        if not items:
-            # safe send
-            if not interaction.response.is_done():
-                await interaction.response.send_message("❌ No results found.", ephemeral=True)
-            else:
-                await interaction.followup.send("❌ No results found.", ephemeral=True)
+# ---------- FILTER VIEW ----------
+class DatabaseView(View):
+    def __init__(self, db_pool, guild_id):
+        super().__init__(timeout=120)
+        self.db_pool = db_pool
+        self.guild_id = guild_id
+
+        self.filter_select = Select(
+            placeholder="Choose filter type",
+            options=[
+                discord.SelectOption(label="Slot", value="slot"),
+                discord.SelectOption(label="NPC Name", value="npc_name"),
+                discord.SelectOption(label="Zone Name", value="zone_name"),
+                discord.SelectOption(label="Item Name", value="item_name"),
+                discord.SelectOption(label="All", value="all")
+            ]
+        )
+        self.filter_select.callback = self.filter_select_callback
+        self.add_item(self.filter_select)
+
+    async def filter_select_callback(self, interaction):
+        selected_filter = self.filter_select.values[0]
+
+        # if All → show all items
+        if selected_filter == "all":
+            async with self.db_pool.acquire() as conn:
+                rows = await conn.fetch("SELECT * FROM item_database WHERE guild_id=$1", self.guild_id)
+            await show_results(interaction, rows)
             return
-    
-        author_id = interaction.user.id if author_only else None
-        view = PaginatedResultsView(items, per_page=per_page, author_id=author_id)
-        embeds = view.build_embeds_for_current_page()
-    
-        # Send initial message and capture it so future edits use the same message
-        if not interaction.response.is_done():
-            msg = await interaction.response.send_message(embeds=embeds, view=view)
-            # discord.py's send_message returns None when used with response; we must fetch followup message
-            # Best approach: use followup to get the actual message object
-            try:
-                followup_msg = await interaction.original_response()
-                view._last_message = followup_msg
-            except Exception:
-                # Some versions may behave differently; store nothing and rely on edit via interaction
-                view._last_message = None
-        else:
-            # If already responded, use followup to send the initial message
-            msg = await interaction.followup.send(embeds=embeds, view=view)
-            view._last_message = msg
-    
-        # done — future button presses will edit view._last_message
-        return view
+
+        async with self.db_pool.acquire() as conn:
+            rows = await conn.fetch(f"SELECT DISTINCT {selected_filter} FROM item_database WHERE guild_id=$1", self.guild_id)
+
+        # Build options (handle slot multi-values)
+        values_set = set()
+        for r in rows:
+            val = r[selected_filter]
+            if not val:
+                continue
+            if selected_filter == "slot" or selected_filter == "item_slot":
+                for s in val.split(","):
+                    values_set.add(s.strip().lower())
+            else:
+                values_set.add(val.strip().lower())
+
+        options = [discord.SelectOption(label=v.title(), value=v) for v in sorted(values_set)]
+        options.append(discord.SelectOption(label="⬅️ Previous", value="previous"))
+
+        value_select = Select(placeholder=f"Select {selected_filter.title()}", options=options)
+        value_select.callback = lambda i: self.value_select_callback(i, selected_filter)
+        new_view = View(timeout=120)
+        new_view.add_item(value_select)
+
+        await interaction.response.edit_message(content=None, view=new_view)
+
+    async def value_select_callback(self, interaction, filter_type):
+        chosen_value = interaction.data["values"][0]
+
+        if chosen_value == "previous":
+            await interaction.response.edit_message(content="Choose a filter type:", view=DatabaseView(self.db_pool, self.guild_id))
+            return
+
+        query = f"SELECT * FROM item_database WHERE guild_id=$1 AND LOWER({filter_type}) LIKE $2"
+        async with self.db_pool.acquire() as conn:
+            rows = await conn.fetch(query, self.guild_id, f"%{chosen_value}%")
+
+        await show_results(interaction, rows)
+
+
+# ---------- RESULTS DISPLAY ----------
+async def show_results(interaction, items):
+    if not items:
+        await interaction.response.send_message("❌ No results found.", ephemeral=True)
+        return
+
+    # add meta info for "back" creation
+    for i in items:
+        i["_db_pool"] = db_pool
+        i["_guild_id"] = interaction.guild.id
+
+    view = PaginatedResultsView(items, per_page=5, author_id=interaction.user.id)
+    embeds = view.build_embeds_for_current_page()
+    await interaction.response.send_message(embeds=embeds, view=view)
 
             
 
