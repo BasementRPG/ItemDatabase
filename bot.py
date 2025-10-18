@@ -1376,23 +1376,29 @@ class PaginatedResultsView(discord.ui.View):
         self._update_button_states()
         embed_items = self.build_embeds_for_current_page()
 
-        # Create a sub-view containing the page navigation + per-item send buttons
+        # 🔹 Extract only the embeds for Discord’s message payload
+        embeds = [embed for embed, _ in embed_items]
+
+        # 🔹 Create new view for navigation + send buttons
         view = discord.ui.View(timeout=120)
         view.add_item(self.previous_button)
         view.add_item(self.next_button)
         view.add_item(self.back_button)
 
+        # Add per-item "Send 📤" buttons
         for _, item in embed_items:
             view.add_item(SendItemButton(item))
 
-        embeds = [e for e, _ in embed_items]
-
-        # Now edit the message
+        # 🔹 Update message with embeds + buttons
         if not interaction.response.is_done():
             await interaction.response.edit_message(embeds=embeds, view=view)
         else:
             if self._last_message:
                 await self._last_message.edit(embeds=embeds, view=view)
+            else:
+                msg = await interaction.followup.send(embeds=embeds, view=view)
+                self._last_message = msg
+
 
 
     # --- Buttons ---
