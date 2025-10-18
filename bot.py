@@ -1452,45 +1452,45 @@ class PaginatedResultsView(discord.ui.View):
                 await interaction.response.send_message("Choose a filter again:", ephemeral=True)
 
 
-async def show_results(interaction: discord.Interaction, items: list[dict], per_page: int = 5, author_only: bool = True):
-    """
-    Display DB query results using PaginatedResultsView.
-
-    - interaction: the triggering Interaction
-    - items: list of dicts from DB rows (must include keys like item_name, npc_name, zone_name, item_slot, item_image, npc_image)
-    - per_page: items per page
-    - author_only: if True restricts nav buttons to the command user
-    """
-    if not items:
-        # safe send
+    async def show_results(interaction: discord.Interaction, items: list[dict], per_page: int = 5, author_only: bool = True):
+        """
+        Display DB query results using PaginatedResultsView.
+    
+        - interaction: the triggering Interaction
+        - items: list of dicts from DB rows (must include keys like item_name, npc_name, zone_name, item_slot, item_image, npc_image)
+        - per_page: items per page
+        - author_only: if True restricts nav buttons to the command user
+        """
+        if not items:
+            # safe send
+            if not interaction.response.is_done():
+                await interaction.response.send_message("❌ No results found.", ephemeral=True)
+            else:
+                await interaction.followup.send("❌ No results found.", ephemeral=True)
+            return
+    
+        author_id = interaction.user.id if author_only else None
+        view = PaginatedResultsView(items, per_page=per_page, author_id=author_id)
+        embeds = view.build_embeds_for_current_page()
+    
+        # Send initial message and capture it so future edits use the same message
         if not interaction.response.is_done():
-            await interaction.response.send_message("❌ No results found.", ephemeral=True)
+            msg = await interaction.response.send_message(embeds=embeds, view=view)
+            # discord.py's send_message returns None when used with response; we must fetch followup message
+            # Best approach: use followup to get the actual message object
+            try:
+                followup_msg = await interaction.original_response()
+                view._last_message = followup_msg
+            except Exception:
+                # Some versions may behave differently; store nothing and rely on edit via interaction
+                view._last_message = None
         else:
-            await interaction.followup.send("❌ No results found.", ephemeral=True)
-        return
-
-    author_id = interaction.user.id if author_only else None
-    view = PaginatedResultsView(items, per_page=per_page, author_id=author_id)
-    embeds = view.build_embeds_for_current_page()
-
-    # Send initial message and capture it so future edits use the same message
-    if not interaction.response.is_done():
-        msg = await interaction.response.send_message(embeds=embeds, view=view)
-        # discord.py's send_message returns None when used with response; we must fetch followup message
-        # Best approach: use followup to get the actual message object
-        try:
-            followup_msg = await interaction.original_response()
-            view._last_message = followup_msg
-        except Exception:
-            # Some versions may behave differently; store nothing and rely on edit via interaction
-            view._last_message = None
-    else:
-        # If already responded, use followup to send the initial message
-        msg = await interaction.followup.send(embeds=embeds, view=view)
-        view._last_message = msg
-
-    # done — future button presses will edit view._last_message
-    return view
+            # If already responded, use followup to send the initial message
+            msg = await interaction.followup.send(embeds=embeds, view=view)
+            view._last_message = msg
+    
+        # done — future button presses will edit view._last_message
+        return view
 
             
 
