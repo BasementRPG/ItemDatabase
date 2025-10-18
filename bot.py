@@ -1224,7 +1224,7 @@ async def remove_itemdb(interaction: discord.Interaction, item_name: str):
 
 class PaginatedResultsView(discord.ui.View):
     def __init__(self, items: list[dict], per_page: int = 5, author_id: int | None = None):
-        super().__init__(timeout=180)
+        super().__init__(timeout=None)
         self.items = items
         self.per_page = per_page
         self.current_page = 0
@@ -1317,52 +1317,32 @@ class PaginatedResultsView(discord.ui.View):
 
 
 
-class PaginatedResultsView(discord.ui.View):
-    def __init__(self, items: list[dict], db_pool, guild_id: int, per_page: int = 5, author_id: int | None = None):
+import math
+import discord
+from discord.ui import View, Button
+
+class ItemCardView(View):
+    """A tiny view that puts a Send 📤 button under a single item embed."""
+    def __init__(self, item: dict):
         super().__init__(timeout=180)
-        self.items = items
-        self.db_pool = db_pool
-        self.guild_id = guild_id
-        self.per_page = per_page
-        self.current_page = 0
-        self.max_page = max(0, math.ceil(len(items) / per_page) - 1)
-        self.author_id = author_id  # restrict navigation to command author
-        self._last_message = None
+        self.item = item
+        self.add_item(self.SendItemButton(self.item))
 
-        # Add buttons
-        self.previous_button = self.PreviousPageButton(self)
-        self.next_button = self.NextPageButton(self)
-        self.back_button = self.BackToFiltersButton(self)
-        self._update_button_states()
+    class SendItemButton(Button):
+        def __init__(self, item):
+            super().__init__(style=discord.ButtonStyle.primary, label="Send 📤")
+            self.item = item
 
-        self.add_item(self.previous_button)
-        self.add_item(self.next_button)
-        self.add_item(self.back_button)
+        async def callback(self, interaction: discord.Interaction):
+            i = self.item
+            title = i.get("item_name") or "Unknown Item"
+            npc_name = i.get("npc_name") or "Unknown NPC"
+            zone_name = i.get("zone_name") or "Unknown Zone"
+            slot = i.get("item_slot") or ""
+            item_image = i.get("item_image")
+            npc_image = i.get("npc_image")
 
-        # Add inline "Send" buttons
-        for item in self.get_page_items():
-            self.add_item(self.SendItemButton(item))
-
-    def _update_button_states(self):
-        self.previous_button.disabled = self.current_page <= 0
-        self.next_button.disabled = self.current_page >= self.max_page
-
-    def get_page_items(self):
-        start = self.current_page * self.per_page
-        end = start + self.per_page
-        return self.items[start:end]
-
-    def build_embeds_for_current_page(self) -> list[discord.Embed]:
-        embeds = []
-        for item in self.get_page_items():
-            title = item.get("item_name") or "Unknown Item"
-            npc_name = item.get("npc_name") or "Unknown NPC"
-            zone_name = item.get("zone_name") or "Unknown Zone"
-            slot = item.get("item_slot") or ""
-            item_image = item.get("item_image")
-            npc_image = item.get("npc_image")
-
-            embed = discord.Embed(title=title, color=discord.Color.blue())
+            embed = discord.Embed(title=title, color=discord.Color.green())
             embed.add_field(name="NPC", value=npc_name, inline=True)
             embed.add_field(name="Zone", value=zone_name, inline=True)
             embed.add_field(name="Slot", value=slot, inline=True)
@@ -1371,78 +1351,178 @@ class PaginatedResultsView(discord.ui.View):
             if npc_image:
                 embed.set_thumbnail(url=npc_image)
 
-            embed.set_footer(text=f"Page {self.current_page + 1} of {self.max_page + 1} — Total: {len(self.items)}")
-            embeds.append(embed)
-        return embeds
+            await interaction.response.send_message(embed=embed, ephemeral=True)
 
-    async def _edit_message_with_current_page(self, interaction: discord.Interaction):
-        self._update_button_states()
-        self.clear_items()
-        self.add_item(self.previous_button)
-        self.add_item(self.next_button)
-        self.add_item(self.back_button)
-        for item in self.get_page_items():
-            self.add_item(self.SendItemButton(item))
 
-        embeds = self.build_embeds_for_current_page()
-        try:
+class ResultsControllerView(View):
+    """
+    Controller message with Prev / Next / Back-to-Filters.
+    It manages a batch of per-item messages underneath.
+    """
+    def __init__(self, *, items: list[dict], db_pool, guild_id: int, per_page: int = 5, author_id: int | None = None):
+        super().__init__(timeout=300)
+        self.items = items
+        self.db_pool = db_pool
+        self.guild_id = guild_id
+        self.per_page = per_page
+        self.current_page = 0
+        self.max_page = max(0, math.ceil(len(items) / per_page) - 1)
+        self.author_id = author_id
+
+        self._controller_message: discord.Message | None = None
+        self._posted_item_message_ids: list[int] = []
+
+        # Buttons
+        self.add_item(self.PreviousPageButton(self))
+        self.add_item(self.NextPageButton(self))
+        self.add_item(self.BackToFiltersButton(self))
+
+        self._sync_button_states()
+
+    # ---------- helpers ----------
+    def _sync_button_states(self):
+        for child in self.children:
+            if isinstance(child, self.PreviousPageButton):
+                child.disabled = self.current_page <= 0
+            if isinstance(child, self.NextPageButton):
+                child.disabled = self.current_page >= self.max_page
+
+    def _page_slice(self):
+        start = self.current_page * self.per_page
+        return self.items[start:start + self.per_page]
+
+    def _build_item_embed(self, item: dict) -> discord.Embed:
+        title = item.get("item_name") or "Unknown Item"
+        npc_name = item.get("npc_name") or "Unknown NPC"
+        zone_name = item.get("zone_name") or "Unknown Zone"
+        slot = item.get("item_slot") or ""
+        item_image = item.get("item_image")
+        npc_image = item.get("npc_image")
+
+        embed = discord.Embed(title=title, color=discord.Color.blurple())
+        embed.add_field(name="NPC", value=npc_name, inline=True)
+        embed.add_field(name="Zone", value=zone_name, inline=True)
+        embed.add_field(name="Slot", value=slot, inline=True)
+        if item_image:
+            embed.set_image(url=item_image)
+        if npc_image:
+            embed.set_thumbnail(url=npc_image)
+        embed.set_footer(text=f"Page {self.current_page + 1} of {self.max_page + 1} — Total: {len(self.items)}")
+        return embed
+
+    async def _clear_page_messages(self, interaction: discord.Interaction):
+        """Delete the previously posted item messages (ignore failures)."""
+        if not self._posted_item_message_ids:
+            return
+        # Delete messages by ID in the same channel
+        for mid in self._posted_item_message_ids:
+            try:
+                msg = await interaction.channel.fetch_message(mid)
+                await msg.delete()
+            except Exception:
+                pass
+        self._posted_item_message_ids.clear()
+
+    async def _post_page_messages(self, interaction: discord.Interaction):
+        """Post each item as its own message with a local Send button."""
+        page_items = self._page_slice()
+        for it in page_items:
+            embed = self._build_item_embed(it)
+            v = ItemCardView(it)
+            m = await interaction.channel.send(embed=embed, view=v)
+            self._posted_item_message_ids.append(m.id)
+
+    async def _render(self, interaction: discord.Interaction, *, fresh: bool = False):
+        """Render (or re-render) the controller and the batch of item messages."""
+        # Update nav state
+        self._sync_button_states()
+
+        if fresh:
+            # First time: send controller message
+            content = f"Showing results (page {self.current_page + 1}/{self.max_page + 1}). Use the buttons below."
+            await interaction.response.send_message(content=content, view=self)
+            try:
+                self._controller_message = await interaction.original_response()
+            except Exception:
+                self._controller_message = None
+        else:
+            # Edit controller message
             if not interaction.response.is_done():
-                await interaction.response.edit_message(embeds=embeds, view=self)
+                await interaction.response.edit_message(
+                    content=f"Showing results (page {self.current_page + 1}/{self.max_page + 1}). Use the buttons below.",
+                    view=self
+                )
             else:
-                if self._last_message:
-                    await self._last_message.edit(embeds=embeds, view=self)
-                else:
-                    msg = await interaction.followup.send(embeds=embeds, view=self)
-                    self._last_message = msg
-        except Exception as e:
-            print(f"[Pagination Error] {e}")
+                if self._controller_message:
+                    await self._controller_message.edit(
+                        content=f"Showing results (page {self.current_page + 1}/{self.max_page + 1}). Use the buttons below.",
+                        view=self
+                    )
 
-    # --- Buttons ---
-    class PreviousPageButton(discord.ui.Button):
-        def __init__(self, owner):
+        # Replace page items
+        await self._clear_page_messages(interaction)
+        await self._post_page_messages(interaction)
+
+    # ---------- buttons ----------
+    class PreviousPageButton(Button):
+        def __init__(self, parent: "ResultsControllerView"):
             super().__init__(style=discord.ButtonStyle.secondary, emoji="⬅️")
-            self.owner = owner
-        async def callback(self, interaction):
-            if self.owner.current_page > 0:
-                self.owner.current_page -= 1
-                await self.owner._edit_message_with_current_page(interaction)
+            self._parent = parent
 
-    class NextPageButton(discord.ui.Button):
-        def __init__(self, owner):
+        async def callback(self, interaction: discord.Interaction):
+            if self._parent.author_id and interaction.user.id != self._parent.author_id:
+                await interaction.response.send_message("You can't control this list.", ephemeral=True)
+                return
+            if self._parent.current_page > 0:
+                self._parent.current_page -= 1
+                await self._parent._render(interaction, fresh=False)
+
+    class NextPageButton(Button):
+        def __init__(self, parent: "ResultsControllerView"):
             super().__init__(style=discord.ButtonStyle.secondary, emoji="➡️")
-            self.owner = owner
-        async def callback(self, interaction):
-            if self.owner.current_page < self.owner.max_page:
-                self.owner.current_page += 1
-                await self.owner._edit_message_with_current_page(interaction)
+            self._parent = parent
 
-    class BackToFiltersButton(discord.ui.Button):
-        def __init__(self, owner):
-            super().__init__(style=discord.ButtonStyle.danger, label="Back to Filters", emoji="🔄")
-            self.owner = owner
-        async def callback(self, interaction):
+        async def callback(self, interaction: discord.Interaction):
+            if self._parent.author_id and interaction.user.id != self._parent.author_id:
+                await interaction.response.send_message("You can't control this list.", ephemeral=True)
+                return
+            if self._parent.current_page < self._parent.max_page:
+                self._parent.current_page += 1
+                await self._parent._render(interaction, fresh=False)
+
+    class BackToFiltersButton(Button):
+        def __init__(self, parent: "ResultsControllerView"):
+            super().__init__(style=discord.ButtonStyle.danger, emoji="🔄", label="Back to Filters")
+            self._parent = parent
+
+        async def callback(self, interaction: discord.Interaction):
+            # Clear item messages and restore your single dropdown filter view
+            await self._parent._clear_page_messages(interaction)
+            from your_module_or_bot_file import DatabaseView  # adjust import if needed
             await interaction.response.edit_message(
-                content="Choose a filter again:",
-                embeds=[],
-                view=DatabaseView(self.owner.db_pool, self.owner.guild_id)
+                content="Choose a filter type:",
+                view=DatabaseView(self._parent.db_pool, self._parent.guild_id)
             )
 
-    class SendItemButton(discord.ui.Button):
-        def __init__(self, item):
-            label = item.get("item_name") or "Send 📤"
-            super().__init__(style=discord.ButtonStyle.primary, label=f"📤 {label[:60]}")
-            self.item = item
-        async def callback(self, interaction: discord.Interaction):
-            item = self.item
-            embed = discord.Embed(title=item.get("item_name", "Unknown Item"), color=discord.Color.green())
-            embed.add_field(name="NPC", value=item.get("npc_name") or "Unknown NPC", inline=True)
-            embed.add_field(name="Zone", value=item.get("zone_name") or "Unknown Zone", inline=True)
-            embed.add_field(name="Slot", value=item.get("item_slot") or "", inline=True)
-            if item.get("item_image"):
-                embed.set_image(url=item["item_image"])
-            if item.get("npc_image"):
-                embed.set_thumbnail(url=item["npc_image"])
-            await interaction.response.send_message(embed=embed, ephemeral=True)
+
+async def show_results_controller(interaction: discord.Interaction, *, items: list[dict], db_pool, guild_id: int):
+    """
+    Call this after fetching/ordering results (alpha by item_name).
+    - Sends the controller message and the first page of item messages.
+    """
+    if not items:
+        await interaction.response.edit_message(content="❌ No results found.", view=None)
+        return
+
+    # Instantiate controller
+    controller = ResultsControllerView(
+        items=items,
+        db_pool=db_pool,
+        guild_id=guild_id,
+        per_page=5,
+        author_id=interaction.user.id
+    )
+    await controller._render(interaction, fresh=True)
 
 
     
@@ -1488,11 +1568,14 @@ class DatabaseView(View):
                 r["_db_pool"] = self.db_pool
                 r["_guild_id"] = self.guild_id
 
-            view = PaginatedResultsView(rows, self.db_pool, self.guild_id, per_page=5, author_id=interaction.user.id)
-            embeds = view.build_embeds_for_current_page()
+            
+            await show_results_controller(
+                interaction,
+                items=rows,
+                db_pool=self.db_pool,
+                guild_id=self.guild_id
+            )
 
-            # 🧹 Replace dropdown with embeds (no dropdown remains)
-            await interaction.response.edit_message(content=None, embeds=embeds, view=view)
             return
 
         # 🧭 Otherwise, build second dropdown dynamically
@@ -1574,16 +1657,14 @@ class DatabaseView(View):
             r["_db_pool"] = self.db_pool
             r["_guild_id"] = self.guild_id
 
-        view = PaginatedResultsView(rows, self.db_pool, self.guild_id, per_page=5, author_id=interaction.user.id)
-        embeds = view.build_embeds_for_current_page()
+       
+        await show_results_controller(
+            interaction,
+            items=rows,
+            db_pool=self.db_pool,
+            guild_id=self.guild_id
+        )
 
-        # 🧩 Replace dropdowns with embeds
-        if not interaction.response.is_done():
-            await interaction.response.edit_message(content=None, embeds=embeds, view=view)
-        else:
-            # If already responded, edit the message instead of trying to send a new one
-            msg = await interaction.original_response()
-            await msg.edit(content=None, embeds=embeds, view=view)
 
         await show_results(interaction, rows)
 
