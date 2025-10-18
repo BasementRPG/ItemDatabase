@@ -1752,6 +1752,76 @@ async def view_item_db(interaction: discord.Interaction):
 
 
 
+@bot.tree.command(name="edit_item_image", description="Update the item or NPC image for an existing entry.")
+@app_commands.describe(
+    item_name="The exact name of the item to update.",
+    npc_name="The NPC associated with the item.",
+    new_item_image="New image URL for the item (optional).",
+    new_npc_image="New image URL for the NPC (optional).",
+)
+async def edit_item_image(
+    interaction: discord.Interaction,
+    item_name: str,
+    npc_name: str,
+    new_item_image: str = None,
+    new_npc_image: str = None,
+):
+    guild_id = interaction.guild.id
+
+    # --- Validate input ---
+    if not new_item_image and not new_npc_image:
+        await interaction.response.send_message(
+            "⚠️ You must provide at least one new image URL.",
+            ephemeral=True
+        )
+        return
+
+    async with db_pool.acquire() as conn:
+        # --- Check if record exists ---
+        record = await conn.fetchrow(
+            """
+            SELECT * FROM item_database
+            WHERE guild_id = $1 AND LOWER(item_name) = LOWER($2) AND LOWER(npc_name) = LOWER($3)
+            """,
+            guild_id, item_name, npc_name
+        )
+
+        if not record:
+            await interaction.response.send_message(
+                f"❌ No record found for `{item_name}` (NPC: `{npc_name}`).",
+                ephemeral=True
+            )
+            return
+
+        # --- Prepare update query ---
+        await conn.execute(
+            """
+            UPDATE item_database
+               SET item_image = COALESCE(NULLIF($1, ''), item_image),
+                   npc_image  = COALESCE(NULLIF($2, ''), npc_image),
+                   updated_at = NOW()
+             WHERE guild_id = $3
+               AND LOWER(item_name) = LOWER($4)
+               AND LOWER(npc_name) = LOWER($5)
+            """,
+            new_item_image,
+            new_npc_image,
+            guild_id,
+            item_name,
+            npc_name
+        )
+
+    # --- Confirm update ---
+    msg = []
+    if new_item_image:
+        msg.append("🖼️ **Item image** updated.")
+    if new_npc_image:
+        msg.append("👤 **NPC image** updated.")
+
+    await interaction.response.send_message(
+        f"✅ Update complete for `{item_name}` (NPC: `{npc_name}`).\n" + "\n".join(msg),
+        ephemeral=True
+    )
 
 
 
