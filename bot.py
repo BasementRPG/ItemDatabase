@@ -1319,7 +1319,7 @@ class PaginatedResultsView(discord.ui.View):
     
 class PaginatedResultsView(discord.ui.View):
     def __init__(self, items: list[dict], per_page: int = 5, author_id: int | None = None):
-        super().__init__(timeout=180)
+        super().__init__(timeout=None)
         self.items = items
         self.per_page = per_page
         self.current_page = 0
