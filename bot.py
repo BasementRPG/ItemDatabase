@@ -1008,20 +1008,21 @@ class ItemDatabaseModal(discord.ui.Modal):
         async with self.db_pool.acquire() as conn:
             await conn.execute(
                 """
-                INSERT INTO item_database (guild_id, item_name, zone_name, npc_name, item_slot, item_image, npc_image, added_by, image_message_id, npc_message_id, zone_area, , created_at)
+                INSERT INTO item_database (guild_id, item_name, zone_name, zone_area, npc_name, item_slot, item_image, npc_image, added_by, image_message_id, npc_message_id, created_at)
                 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, NOW())
                 """,
                 self.guild_id,
                 self.item_name.value,
                 self.zone_name.value,
+                self.zone_area.value,
                 self.npc_name.value,
                 self.item_slot_field.value.lower(),
                 self.item_image_url,
                 self.npc_image_url,
                 added_by,
                 self.item_msg_id,
-                self.npc_msg_id,
-                self.zone_area
+                self.npc_msg_id
+                
                 
             )
         await interaction.response.send_message(
