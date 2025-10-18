@@ -1362,15 +1362,7 @@ class PaginatedResultsView(discord.ui.View):
             embed.add_field(name="Zone", value=zone_name, inline=True)
             embed.add_field(name="Slot", value=slot, inline=True)
     
-            # Add “fake” clickable link styled text under item details
-            embed.add_field(
-                name="Actions",
-                value=(
-                    f"[📤 Send this item privately]"
-                    f"(https://discord.com/channels/{interaction.guild.id}/{interaction.channel.id})\n"
-                ),
-                inline=False
-            )
+           
     
             if item_image:
                 embed.set_image(url=item_image)
@@ -1398,9 +1390,6 @@ class PaginatedResultsView(discord.ui.View):
         view.add_item(self.next_button)
         view.add_item(self.back_button)
 
-        # ✅ Add "Send 📤" buttons for each item
-        for item in page_items:
-            view.add_item(self.SendItemButton(item))
 
         # ✅ Safely update message
         try:
@@ -1454,33 +1443,7 @@ class PaginatedResultsView(discord.ui.View):
                 view=DatabaseView(self.owner.items[0]["_db_pool"], self.owner.items[0]["_guild_id"])
             )
 
-    class SendItemButton(discord.ui.Button):
-        def __init__(self, item):
-            super().__init__(style=discord.ButtonStyle.secondary, label="Send 📤")
-            self.item = item
-
-        async def callback(self, interaction: discord.Interaction):
-            item = self.item
-            title = item.get("item_name") or "Unknown Item"
-            npc_name = item.get("npc_name") or "Unknown NPC"
-            zone_name = item.get("zone_name") or "Unknown Zone"
-            slot = item.get("item_slot") or ""
-            item_image = item.get("item_image")
-            npc_image = item.get("npc_image")
-
-            embed = discord.Embed(title=title, color=discord.Color.green())
-            embed.add_field(name="NPC", value=npc_name, inline=True)
-            embed.add_field(name="Zone", value=zone_name, inline=True)
-            embed.add_field(name="Slot", value=slot, inline=True)
-
-            if item_image:
-                embed.set_image(url=item_image)
-            if npc_image:
-                embed.set_thumbnail(url=npc_image)
-
-            await interaction.response.send_message(embed=embed, ephemeral=True)
-
-            
+              
 
     
 
