@@ -1623,8 +1623,8 @@ async def show_results(interaction, items, db_pool=None, guild_id=None):
         i["_guild_id"] = interaction.guild.id
 
     view = PaginatedResultsView(items, db_pool, guild_id, per_page=5, author_id=interaction.user.id)
-    embeds = view.build_embeds_for_current_page(interaction)
-    await interaction.response.send_message(embeds=embeds, view=view)
+    embeds = view._build_embeds()
+    await interaction.response.send_message(content=None, embeds=embeds, view=view)
 
             
 
