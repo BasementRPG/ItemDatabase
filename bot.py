@@ -1286,7 +1286,7 @@ class PaginatedResultsView(discord.ui.View):
             
             
                 # Handle multi-slot entries like "chest, legs"
-            slot = ", ".join([s.strip().capitalize() for s in raw_slot.split(",")])
+            slot = "\n".join([s.strip().capitalize() for s in raw_slot.split(",")])
 
 
             
@@ -1411,7 +1411,7 @@ class PaginatedResultsView(discord.ui.View):
 
             
                 # Handle multi-slot entries like "chest, legs"
-            slot = ", ".join([s.strip().capitalize() for s in raw_slot.split(",")])
+            slot = "\n".join([s.strip().capitalize() for s in raw_slot.split(",")])
             
             embed = discord.Embed(title=title, color=discord.Color.blurple())
             embed.add_field(name="NPC", value=npc_name, inline=True)
