@@ -1496,12 +1496,24 @@ class PaginatedResultsView(discord.ui.View):
 
 @bot.tree.command(name="view_item_db", description="View the guild's item database with filters.")
 async def view_item_db(interaction: discord.Interaction):
-   
+    # Fetch all rows for this guild
+    async with db_pool.acquire() as conn:
+        rows = await conn.fetch(
+            "SELECT * FROM item_database WHERE guild_id=$1 ORDER BY item_name ASC",
+            interaction.guild.id
+        )
 
-    view = PaginatedResultsView(db_pool, interaction.guild.id)
+    if not rows:
+        await interaction.response.send_message("❌ No items found in the database.", ephemeral=True)
+        return
+
+    # ✅ Pass the fetched rows to the pagination view, NOT the db_pool
+    view = PaginatedResultsView(rows)
+
     await interaction.response.send_message(
         "Select a filter type to start:", view=view, ephemeral=True
     )
+
 
 
 
