@@ -1345,7 +1345,8 @@ class PaginatedResultsView(discord.ui.View):
         start = self.current_page * self.per_page
         return self.items[start:start + self.per_page]
 
-    def build_embeds_for_current_page(self) -> list[discord.Embed]:
+    
+    def build_embeds_for_current_page(self, interaction: discord.Interaction) -> list[discord.Embed]:
         """Return embeds for the current page, with fake 'Send 📤' links."""
         embeds = []
         for item in self.get_page_items():
@@ -1384,11 +1385,12 @@ class PaginatedResultsView(discord.ui.View):
         return embeds
 
 
+
     async def _edit_message_with_current_page(self, interaction: discord.Interaction):
         self._update_button_states()
 
         # ✅ Get embeds for current page
-        embeds = self.build_embeds_for_current_page()
+        embeds = self.build_embeds_for_current_page(interaction)
         page_items = self.get_page_items()
 
         # ✅ Rebuild the view
