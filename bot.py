@@ -1,4 +1,5 @@
 import os
+import math
 import discord
 from discord import app_commands, Interaction
 from discord.ext import commands
@@ -8,6 +9,7 @@ import asyncpg
 from discord.ui import View, Button
 from discord.ui import View, Select
 from discord import SelectOption, Interaction
+
 
 
 import aiohttp
