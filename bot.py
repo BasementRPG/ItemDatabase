@@ -1409,46 +1409,47 @@ class PaginatedResultsView(discord.ui.View):
                 pass
 
     # Button classes
+  
     class PreviousPageButton(discord.ui.Button):
-        def __init__(self, parent):
+        def __init__(self, owner_view):
             super().__init__(style=discord.ButtonStyle.secondary, emoji="⬅️")
-            self.parent = parent
-
+            self.owner = owner_view  # <-- do NOT use `.parent`
+    
         async def callback(self, interaction: discord.Interaction):
             # optionally restrict to command author
-            if self.parent.author_id and interaction.user.id != self.parent.author_id:
+            if self.owner.author_id and interaction.user.id != self.owner.author_id:
                 await interaction.response.send_message("You can't control this pagination.", ephemeral=True)
                 return
-
-            if self.parent.current_page > 0:
-                self.parent.current_page -= 1
-                await self.parent._edit_message_with_current_page(interaction)
-
+    
+            if self.owner.current_page > 0:
+                self.owner.current_page -= 1
+                await self.owner._edit_message_with_current_page(interaction)
+    
+    
     class NextPageButton(discord.ui.Button):
-        def __init__(self, parent):
+        def __init__(self, owner_view):
             super().__init__(style=discord.ButtonStyle.secondary, emoji="➡️")
-            self.parent = parent
-
+            self.owner = owner_view
+    
         async def callback(self, interaction: discord.Interaction):
-            if self.parent.author_id and interaction.user.id != self.parent.author_id:
+            if self.owner.author_id and interaction.user.id != self.owner.author_id:
                 await interaction.response.send_message("You can't control this pagination.", ephemeral=True)
                 return
-
-            if self.parent.current_page < self.parent.max_page:
-                self.parent.current_page += 1
-                await self.parent._edit_message_with_current_page(interaction)
-
+    
+            if self.owner.current_page < self.owner.max_page:
+                self.owner.current_page += 1
+                await self.owner._edit_message_with_current_page(interaction)
+    
+    
     class BackToFiltersButton(discord.ui.Button):
-        def __init__(self, parent):
+        def __init__(self, owner_view):
             super().__init__(style=discord.ButtonStyle.danger, label="Back to Filters", emoji="🔄")
-            self.parent = parent
-
+            self.owner = owner_view
+    
         async def callback(self, interaction: discord.Interaction):
-            # Clear embeds and replace with a prompt. Caller can re-send the filter view after this.
             try:
                 await interaction.response.edit_message(content="Choose a filter again:", embeds=[], view=None)
             except Exception:
-                # fallback:
                 await interaction.response.send_message("Choose a filter again:", ephemeral=True)
 
 
