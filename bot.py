@@ -1319,7 +1319,7 @@ class PaginatedResultsView(discord.ui.View):
 
 class PaginatedResultsView(discord.ui.View):
     def __init__(self, items: list[dict], db_pool, guild_id: int, *, per_page: int = 5, author_id: int | None = None):
-        super().__init__(timeout=300)
+        super().__init__(timeout=None)
         self.items = items
         self.db_pool = db_pool
         self.guild_id = guild_id
@@ -1415,7 +1415,7 @@ class PaginatedResultsView(discord.ui.View):
             await self._render(interaction)
 
     async def _back_to_filters(self, interaction: discord.Interaction):
-        from your_module_or_bot_file import DatabaseView  # replace this with correct import if in separate file
+       
         await interaction.response.edit_message(
             content="Choose a filter type:",
             embeds=[],
