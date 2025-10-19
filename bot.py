@@ -1902,13 +1902,14 @@ class WikiView(discord.ui.View):
         # Sort alphabetically
         self.items.sort(key=lambda x: x["item_name"])
 
+
     async def fetch_wiki_items_by_slot(self):
-        """Fetch items for a given slot from the Monsters & Memories wiki."""
+        """Fetch detailed item info from the Monsters & Memories wiki."""
         base_url = "https://monstersandmemories.miraheze.org"
         category_url = f"{base_url}/wiki/Category:{self.slot_name.title()}"
-
+    
         items = []
-
+    
         async with aiohttp.ClientSession() as session:
             async with session.get(category_url) as resp:
                 if resp.status != 200:
@@ -1916,46 +1917,57 @@ class WikiView(discord.ui.View):
                     return []
                 html = await resp.text()
                 soup = BeautifulSoup(html, "html.parser")
-
-                for link in soup.select("div.mw-category-group a"):
-                    item_name = link.text.strip()
-                    item_url = base_url + link["href"]
-                    items.append({"item_name": item_name, "wiki_url": item_url})
-
-        # Fetch item details
-        enriched_items = []
-        async with aiohttp.ClientSession() as session:
-            for item in items[:10]:  # limit to 10 for speed; remove if needed
-                async with session.get(item["wiki_url"]) as resp:
+    
+                # Find all item links in the category
+                item_links = [
+                    (link.text.strip(), base_url + link["href"])
+                    for link in soup.select("div.mw-category-group a")
+                ]
+    
+            # Now visit each item page to get details
+            for name, url in item_links[:10]:  # limit for speed
+                async with session.get(url) as resp:
                     if resp.status != 200:
                         continue
                     page_html = await resp.text()
                     s2 = BeautifulSoup(page_html, "html.parser")
-
+    
+                    # Title
+                    title = s2.find("h1", {"id": "firstHeading"})
+                    item_name = title.text.strip() if title else name
+    
+                    # Image
                     img_tag = s2.select_one("a.image img")
-                    image_url = img_tag["src"] if img_tag else None
-
+                    image_url = f"https:{img_tag['src']}" if img_tag and img_tag['src'].startswith("//") else (img_tag['src'] if img_tag else None)
+    
+                    # NPC and Zone
                     npc_name = "Unknown"
-                    npc_section = s2.find("span", string=lambda text: text and "Dropped by" in text)
-                    if npc_section:
-                        npc_link = npc_section.find_next("a")
+                    zone_name = "Unknown"
+                    dropped_by_section = s2.find("span", string=lambda t: t and "Dropped by" in t)
+                    if dropped_by_section:
+                        npc_link = dropped_by_section.find_next("a")
                         if npc_link:
                             npc_name = npc_link.text.strip()
-
-                    zone_name = "Unknown"
-                    zone_link = s2.find("a", href=lambda h: h and "/wiki/" in h and "Category:" not in h)
-                    if zone_link:
-                        zone_name = zone_link.text.strip()
-
-                    enriched_items.append({
-                        "item_name": item["item_name"].title(),
+                            zone_link = npc_link.find_next("a")
+                            if zone_link and "/wiki/" in zone_link.get("href", ""):
+                                zone_name = zone_link.text.strip()
+    
+                    # Description / stats (first <p> or infobox text)
+                    desc_tag = s2.select_one("div.mw-parser-output > p")
+                    description = desc_tag.text.strip() if desc_tag else "No description available."
+    
+                    items.append({
+                        "item_name": item_name.title(),
                         "item_image": image_url,
                         "npc_name": npc_name.title(),
                         "zone_name": zone_name.title(),
-                        "wiki_url": item["wiki_url"],
+                        "wiki_url": url,
+                        "description": description,
                         "source": "Wiki"
                     })
-        return enriched_items
+    
+        return items
+
 
     def build_embed(self, page: int):
         embed = discord.Embed(
