@@ -1465,7 +1465,7 @@ class PaginatedResultsView(discord.ui.View):
             npc_name = item.get("npc_name").title() or "Unknown NPC"
             npc_level = item.get("npc_level")
             zone_name = item.get("zone_name").title() or "Unknown Zone"
-            zone_area = item.get("zone_area").title()
+            zone_area = item.get("zone_area").title() or ""
             slot = item.get("item_slot") or ""
             item_image = item.get("item_image")
             npc_image = item.get("npc_image")
