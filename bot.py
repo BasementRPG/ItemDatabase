@@ -1038,7 +1038,7 @@ class ItemDatabaseModal(discord.ui.Modal, title="Add Item to Database"):
     
             # Confirmation
             await interaction.response.send_message(
-                f"✅ `{self.item_name.value}` added successfully!",
+                f"✅ `{item_name}` added successfully!",
                 ephemeral=True
             )
     
@@ -1115,7 +1115,7 @@ class ItemDatabaseModal(discord.ui.Modal, title="Add Item to Database"):
         return
 
         
-
+"""
         # Confirmation
         zone_display = f"{zone_name} ({zone_area})" if zone_area else zone_name
         await interaction.response.send_message(
@@ -1124,7 +1124,7 @@ class ItemDatabaseModal(discord.ui.Modal, title="Add Item to Database"):
             f"🧛 NPC: {self.npc_name.value} (Lvl {npc_level_value or '?'})",
             ephemeral=True
         )
-
+"""
 
 # ---------------- Slash Command ----------------
 
