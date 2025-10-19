@@ -1235,106 +1235,6 @@ async def remove_itemdb(interaction: discord.Interaction, item_name: str):
 
 
 
-class PaginatedResultsView(discord.ui.View):
-    def __init__(self, items: list[dict], per_page: int = 5, author_id: int | None = None):
-        super().__init__(timeout=None)
-        self.items = items
-        self.per_page = per_page
-        self.current_page = 0
-        self.max_page = max(0, math.ceil(len(items) / per_page) - 1)
-        self.author_id = author_id  # optional: restrict button use to the command author
-
-        self.previous_button = self.PreviousPageButton(self)
-        self.next_button = self.NextPageButton(self)
-        self.back_button = self.BackToFiltersButton(self)
-
-        # Add buttons in order
-        self.add_item(self.previous_button)
-        self.add_item(self.next_button)
-        self.add_item(self.back_button)
-
-        self._last_message = None  # will store the sent message object
-
-        self._update_button_states()
-
-    def _update_button_states(self):
-        self.previous_button.disabled = self.current_page <= 0
-        self.next_button.disabled = self.current_page >= self.max_page
-
-    def get_page_items(self):
-        start = self.current_page * self.per_page
-        end = start + self.per_page
-        return self.items[start:end]
-
-
-    def build_embeds_for_current_page(self) -> list[discord.Embed]:
-        embeds = []
-        page_items = self.get_page_items()
-    
-        for item in page_items:
-            title = item.get("item_name") or "Unknown Item"
-            npc_name = item.get("npc_name") or "Unknown NPC"
-            npc_level = item.get("npc_level")
-            zone_name = item.get("zone_name") or "Unknown Zone"
-            zone_area = item.get("zone_area")
-            slot = item.get("item_slot") or ""
-            item_image = item.get("item_image")
-            npc_image = item.get("npc_image")
-    
-            # 🧩 NPC + Level combined
-            npc_display = f"{npc_name} (Lvl {npc_level})" if npc_level else npc_name
-    
-            # 🧭 Zone + Area combined
-            zone_display = f"{zone_name} — {zone_area}" if zone_area else zone_name
-    
-            embed = discord.Embed(title=title, color=discord.Color.blue())
-            embed.add_field(name="NPC", value=npc_display, inline=True)
-            embed.add_field(name="Zone", value=zone_display, inline=True)
-            embed.add_field(name="Slot", value=slot.replace(",", "\n").title(), inline=True)
-    
-            # Add images
-            if item_image:
-                embed.set_image(url=item_image)
-            if npc_image:
-                embed.set_thumbnail(url=npc_image)
-    
-            embed.set_footer(
-                text=f"Page {self.current_page + 1} of {self.max_page + 1} — Total results: {len(self.items)}"
-            )
-    
-            embeds.append(embed)
-    
-        return embeds
-
-
-    async def _edit_message_with_current_page(self, interaction: discord.Interaction):
-        self._update_button_states()
-        embeds = self.build_embeds_for_current_page()
-
-        # If interaction hasn't been responded to yet, use response.edit_message/send_message accordingly
-        try:
-            if not interaction.response.is_done():
-                # If the original interaction hasn't been answered, we edit the original deferred response (unlikely for nav buttons)
-                await interaction.response.edit_message(embeds=embeds, view=self)
-            else:
-                # Most common: nav buttons after initial send -> use followup edit on the original message object
-                if self._last_message:
-                    await self._last_message.edit(embeds=embeds, view=self)
-                else:
-                    # fallback: send a followup and store message
-                    msg = await interaction.followup.send(embeds=embeds, view=self)
-                    self._last_message = msg
-        except Exception:
-            # fallback to editing via response if possible
-            try:
-                await interaction.response.edit_message(embeds=embeds, view=self)
-            except Exception:
-                # give up silently; caller should log if needed
-                pass
-
-    # Button classes
-
-
 
 class PaginatedResultsView(discord.ui.View):
     def __init__(self, items: list[dict], db_pool, guild_id: int, *, per_page: int = 5, author_id: int | None = None):
@@ -1412,7 +1312,9 @@ class PaginatedResultsView(discord.ui.View):
             slot = "\n".join([s.strip().capitalize() for s in raw_slot.split(",")])
             
             embed = discord.Embed(title=title, color=discord.Color.blurple())
-  
+            embed.add_field(name="NPC", value=npc_name, inline=True)
+            embed.add_field(name="Zone", value=f"{zone_name} \n{zone_area}", inline=True)
+            embed.add_field(name="Slot", value=slot, inline=True)
 
 
             
@@ -1422,10 +1324,6 @@ class PaginatedResultsView(discord.ui.View):
             # 🧭 Zone + Area combined
             zone_display = f"{zone_name} — {zone_area}" if zone_area else zone_name
     
-            embed = discord.Embed(title=title, color=discord.Color.blue())
-            embed.add_field(name="NPC", value=npc_display, inline=True)
-            embed.add_field(name="Zone", value=zone_display, inline=True)
-            embed.add_field(name="Slot", value=slot.replace(",", "\n").title(), inline=True)
             if item_image:
                 embed.set_image(url=item_image)
             if npc_image:
