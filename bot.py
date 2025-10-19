@@ -1970,22 +1970,28 @@ async def fetch_wiki_items(slot_name: str):
                 image_url = f"https:{src}" if src.startswith("//") else src
 
      
-            # --- Extract NPC and Zone from <table class="mainPageInnerBox2"> ---
+   
+            # --- Extract NPC and Zone (more tolerant of malformed HTML) ---
             npc_name, zone_name = "Unknown", "Unknown"
             
-            drop_section = s2.find("h2", id="Drops_from")
-            if drop_section:
-                # Find the next <p> tag after <h2 id="Drops_from"> for the zone
-                zone_p = drop_section.find_next("p")
-                if zone_p:
-                    zone_name = zone_p.get_text(strip=True)
+            drops_section = s2.find("h2", id="Drops_from")
+            if drops_section:
+                # The next <p> tag should hold the zone name
+                zone_tag = drops_section.find_next("p")
+                if zone_tag:
+                    zone_name = zone_tag.get_text(strip=True)
             
-                # Find the following <table> that lists NPCs
-                drop_table = drop_section.find_next("table", class_="mainPageInnerBox2")
-                if drop_table:
-                    npc_links = drop_table.find_all("a")
+                # Then look for <ul><li> list of NPCs
+                npc_list = drops_section.find_next("ul")
+                if npc_list:
+                    npc_links = npc_list.find_all("a")
                     if npc_links:
-                        npc_name = ", ".join([a.get_text(strip=True) for a in npc_links])
+                        npc_name = ", ".join(a.get_text(strip=True) for a in npc_links)
+                    else:
+                        # Fallback: plain text <li>
+                        npc_items = npc_list.find_all("li")
+                        npc_name = ", ".join(li.get_text(strip=True) for li in npc_items)
+
 
 
 
