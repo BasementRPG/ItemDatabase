@@ -979,21 +979,29 @@ class ItemDatabaseModal(discord.ui.Modal, title="Add Item to Database"):
         self.item_slot_field = discord.ui.TextInput(label="Item Slot (Add another slot spaced with a , )", default=item_slot or "")
 
 
-        self.add_item(self.item_name).title()
+        self.add_item(self.item_name)
         self.add_item(self.zone_field)
-        self.add_item(self.npc_name).title()
+        self.add_item(self.npc_name)
         self.add_item(self.npc_level)
         self.add_item(self.item_slot_field)
         
 
 
     async def on_submit(self, interaction: discord.Interaction):
-        # Split "Zone - Area"
+         # 🧹 Clean and title-case all text inputs
+        item_name = self.item_name.value.strip().title()
         raw_zone_value = self.zone_field.value.strip()
+        npc_name = self.npc_name.value.strip().title()
+        item_slot = self.item_slot_field.value.strip().title()
+    
+        # 🗺️ Split "Zone - Area"
         if "-" in raw_zone_value:
             zone_name, zone_area = map(str.strip, raw_zone_value.split("-", 1))
+            zone_name = zone_name.title()
+            zone_area = zone_area.title()
         else:
-            zone_name, zone_area = raw_zone_value, None
+            zone_name = raw_zone_value.title()
+            zone_area = None
     
         # Parse NPC level
         npc_level_value = None
@@ -1219,9 +1227,9 @@ class EditDatabaseModal(discord.ui.Modal):
             default=item_row['item_slot']
         )
 
-        self.add_item(self.item_name).title()
+        self.add_item(self.item_name)
         self.add_item(self.zone_field)
-        self.add_item(self.npc_name).title()
+        self.add_item(self.npc_name)
         self.add_item(self.npc_level)
         self.add_item(self.item_slot)
 
