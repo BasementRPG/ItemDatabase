@@ -967,16 +967,19 @@ class ItemDatabaseModal(discord.ui.Modal, title="Add Item to Database"):
         # Fields
         self.item_name = discord.ui.TextInput(label="Item Name")
         self.zone_field = discord.ui.TextInput(
-            label="Zone and Area",
-            placeholder="Example: Kithicor Forest - Eastern Grove",
+            label="Zone Name - Zone Area",
+            placeholder="Example: Shaded Dunes - Ashira Camp",
         )
-        self.npc_name = discord.ui.TextInput(label="NPC Name")
-        self.item_slot_field = discord.ui.TextInput(label="Item Slot (auto-filled)", default=item_slot or "")
+        self.npc_name = discord.ui.TextInput(label="NPC Name", placehold="Fippy Darkpaw")
+
         self.npc_level = discord.ui.TextInput(
             label="NPC Level",
-            placeholder="Example: 35",
+            placeholder="Example: 35 (Numbers Only)",
             required=False
         )
+        
+        self.item_slot_field = discord.ui.TextInput(label="Item Slot (Add another spaced with a , ", default=item_slot or "")
+
 
         self.add_item(self.item_name)
         self.add_item(self.zone_field)
@@ -1026,8 +1029,8 @@ class ItemDatabaseModal(discord.ui.Modal, title="Add Item to Database"):
         zone_display = f"{zone_name} ({zone_area})" if zone_area else zone_name
         await interaction.response.send_message(
             f"✅ `{self.item_name.value}` added successfully!\n"
-            f"🌍 Zone: {zone_display}\n"
-            f"🧍 NPC: {self.npc_name.value} (Lvl {npc_level_value or 'N/A'})",
+            f"🏞️ Zone: {zone_display}\n"
+            f"🧛 NPC: {self.npc_name.value} (Lvl {npc_level_value or '?'})",
             ephemeral=True
         )
 
@@ -1409,9 +1412,20 @@ class PaginatedResultsView(discord.ui.View):
             slot = "\n".join([s.strip().capitalize() for s in raw_slot.split(",")])
             
             embed = discord.Embed(title=title, color=discord.Color.blurple())
-            embed.add_field(name="NPC", value=npc_name, inline=True)
-            embed.add_field(name="Zone", value=f"{zone_name} \n{zone_area}", inline=True)
-            embed.add_field(name="Slot", value=slot, inline=True)
+  
+
+
+            
+            # 🧩 NPC + Level combined
+            npc_display = f"{npc_name} (Lvl {npc_level})" if npc_level else npc_name
+    
+            # 🧭 Zone + Area combined
+            zone_display = f"{zone_name} — {zone_area}" if zone_area else zone_name
+    
+            embed = discord.Embed(title=title, color=discord.Color.blue())
+            embed.add_field(name="NPC", value=npc_display, inline=True)
+            embed.add_field(name="Zone", value=zone_display, inline=True)
+            embed.add_field(name="Slot", value=slot.replace(",", "\n").title(), inline=True)
             if item_image:
                 embed.set_image(url=item_image)
             if npc_image:
