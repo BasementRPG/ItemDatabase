@@ -1213,11 +1213,12 @@ class EditDatabaseModal(discord.ui.Modal):
 
 @bot.tree.command(name="edit_item_db", description="Edit an existing item in the database by name.")
 @app_commands.describe(item_name="The name of the item to edit.")
-async def edit_database_item(interaction: discord.Interaction, item_name: str):
+@app_commands.describe(npc_name="The name of the NPC to edit.")
+async def edit_database_item(interaction: discord.Interaction, item_name: str, npc_name: str):
     async with db_pool.acquire() as conn:
         item_row = await conn.fetchrow(
-            "SELECT * FROM item_database WHERE guild_id=$1 AND item_name ILIKE $2",
-            interaction.guild.id, item_name
+            "SELECT * FROM item_database WHERE guild_id=$1 AND item_name=$2 AND npc_name=$3",
+            interaction.guild.id, item_name, npc_name
         )
 
     if not item_row:
@@ -1314,7 +1315,7 @@ async def remove_itemdb(interaction: discord.Interaction, item_name: str, npc_na
 
 class PaginatedResultsView(discord.ui.View):
     def __init__(self, items: list[dict], db_pool, guild_id, *, per_page: int = 5, author_id: int | None = None):
-        super().__init__(timeout=300)
+        super().__init__(timeout=None)
         self.items = items
         self.db_pool = db_pool
         self.guild_id = guild_id
