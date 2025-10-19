@@ -1343,7 +1343,7 @@ class PaginatedResultsView(discord.ui.View):
                 embed.set_thumbnail(url=npc_image)
 
             embed.set_footer(
-                text=f"📜 Page {self.current_page + 1} of {self.max_page + 1} — Total Entries: {len(self.items)}"
+                text=f"Page {self.current_page + 1} of {self.max_page + 1} — Total Entries: {len(self.items)}"
             )
 
             embeds.append(embed)
