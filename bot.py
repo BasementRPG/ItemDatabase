@@ -985,6 +985,7 @@ class ItemDatabaseModal(discord.ui.Modal, title="Add Item to Database"):
         self.add_item(self.item_slot_field)
         
 
+
     async def on_submit(self, interaction: discord.Interaction):
         # Split "Zone - Area"
         raw_zone_value = self.zone_field.value.strip()
@@ -992,7 +993,7 @@ class ItemDatabaseModal(discord.ui.Modal, title="Add Item to Database"):
             zone_name, zone_area = map(str.strip, raw_zone_value.split("-", 1))
         else:
             zone_name, zone_area = raw_zone_value, None
-
+    
         # Parse NPC level
         npc_level_value = None
         if self.npc_level.value.strip():
@@ -1001,7 +1002,7 @@ class ItemDatabaseModal(discord.ui.Modal, title="Add Item to Database"):
             except ValueError:
                 await interaction.response.send_message("⚠️ NPC Level must be a number.", ephemeral=True)
                 return
-
+    
         # Insert into DB
         try:
             async with self.db_pool.acquire() as conn:
@@ -1023,45 +1024,77 @@ class ItemDatabaseModal(discord.ui.Modal, title="Add Item to Database"):
                 self.item_image_url,
                 self.npc_image_url,
                 self.added_by)
+    
+            # Confirmation
+            await interaction.response.send_message(
+                f"✅ `{self.item_name.value}` added successfully!",
+                ephemeral=True
+            )
+    
         except asyncpg.UniqueViolationError:
-                # ⚠️ Already exists — ask if they want to update
-                class ConfirmUpdateView(discord.ui.View):
-                    def __init__(self):
-                        super().__init__(timeout=30)
-                        self.value = None
-        
-                    @discord.ui.button(label="✅ Update Existing", style=discord.ButtonStyle.green)
-                    async def confirm(self, interaction2: discord.Interaction, button: discord.ui.Button):
-                        async with self.db_pool.acquire() as conn:
-                            await conn.execute("""
-                                UPDATE item_database
-                                SET zone_name=$3, zone_area=$4, item_slot=$5,
-                                    npc_level=$6, item_image=$7, npc_image=$8, added_by=$9, updated_at=NOW()
-                                WHERE guild_id=$1 AND item_name=$2 AND npc_name=$10
-                            """,
-                            self.guild_id,
-                            self.item_name.value.strip(),
-                            zone_name,
-                            zone_area,
-                            self.item_slot_field.value.lower(),
-                            npc_level_value,
-                            self.item_image_url,
-                            self.npc_image_url,
-                            self.added_by,
-                            self.npc_name.value.strip())
-                        await interaction2.response.edit_message(content="✅ Item updated successfully!", view=None)
-                        self.value = True
-        
-                    @discord.ui.button(label="❌ Cancel", style=discord.ButtonStyle.red)
-                    async def cancel(self, interaction2: discord.Interaction, button: discord.ui.Button):
-                        await interaction2.response.edit_message(content="❌ Update cancelled.", view=None)
-                        self.value = False
-        
-                view = ConfirmUpdateView()
-                await interaction.response.send_message(
-                    f"⚠️ `{self.item_name.value}` by `{self.npc_name.value}` already exists.\nWould you like to update it?",
-                    view=view, ephemeral=True
-                )
+            # ⚠️ Already exists — ask if they want to update
+            class ConfirmUpdateView(discord.ui.View):
+                def __init__(self, db_pool, guild_id, item_name, npc_name, zone_name, zone_area,
+                             item_slot, npc_level_value, item_image_url, npc_image_url, added_by):
+                    super().__init__(timeout=30)
+                    self.db_pool = db_pool
+                    self.guild_id = guild_id
+                    self.item_name = item_name
+                    self.npc_name = npc_name
+                    self.zone_name = zone_name
+                    self.zone_area = zone_area
+                    self.item_slot = item_slot
+                    self.npc_level_value = npc_level_value
+                    self.item_image_url = item_image_url
+                    self.npc_image_url = npc_image_url
+                    self.added_by = added_by
+    
+                @discord.ui.button(label="✅ Update Existing", style=discord.ButtonStyle.green)
+                async def confirm(self, interaction2: discord.Interaction, button: discord.ui.Button):
+                    async with self.db_pool.acquire() as conn:
+                        await conn.execute("""
+                            UPDATE item_database
+                            SET zone_name=$3, zone_area=$4, item_slot=$5,
+                                npc_level=$6, item_image=$7, npc_image=$8,
+                                added_by=$9, updated_at=NOW()
+                            WHERE guild_id=$1 AND item_name=$2 AND npc_name=$10
+                        """,
+                        self.guild_id,
+                        self.item_name,
+                        self.zone_name,
+                        self.zone_area,
+                        self.item_slot,
+                        self.npc_level_value,
+                        self.item_image_url,
+                        self.npc_image_url,
+                        self.added_by,
+                        self.npc_name)
+                    await interaction2.response.edit_message(content=f"✅ `{self.item_name}` updated successfully!", view=None)
+    
+                @discord.ui.button(label="❌ Cancel", style=discord.ButtonStyle.red)
+                async def cancel(self, interaction2: discord.Interaction, button: discord.ui.Button):
+                    await interaction2.response.edit_message(content="❌ Update cancelled.", view=None)
+    
+            view = ConfirmUpdateView(
+                db_pool=self.db_pool,
+                guild_id=self.guild_id,
+                item_name=self.item_name.value.strip(),
+                npc_name=self.npc_name.value.strip(),
+                zone_name=zone_name,
+                zone_area=zone_area,
+                item_slot=self.item_slot_field.value.lower(),
+                npc_level_value=npc_level_value,
+                item_image_url=self.item_image_url,
+                npc_image_url=self.npc_image_url,
+                added_by=self.added_by
+            )
+    
+            await interaction.response.send_message(
+                f"⚠️ `{self.item_name.value}` from `{self.npc_name.value}` already exists.\nWould you like to update it?",
+                view=view,
+                ephemeral=True
+            )
+
                 return
 
         
