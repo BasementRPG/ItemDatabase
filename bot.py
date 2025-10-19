@@ -1933,40 +1933,43 @@ class WikiView(discord.ui.View):
                         continue
                     page_html = await resp.text()
               
-                        # --- Parse item details from individual page ---
+
+                    # --- Parse item details from individual page ---
                     s2 = BeautifulSoup(page_html, "html.parser")
                     
                     # Item title
-                    title = s2.find("h1", {"id": "firstHeading"})
+                    title = s2.find("h1", id="firstHeading")
                     item_name = title.text.strip() if title else name
                     
                     # Image
-                    img_tag = s2.select_one(".infobox img")
                     image_url = None
+                    img_tag = s2.select_one(".infobox img, .pi-image img")
                     if img_tag:
                         src = img_tag.get("src", "")
                         image_url = f"https:{src}" if src.startswith("//") else src
                     
-                    # Extract NPC, Zone, Slot from infobox
-                    infobox = s2.find("table", class_="infobox")
+                    # --- Try all possible infobox tables ---
                     npc_name, zone_name, slot_name = "Unknown", "Unknown", "Unknown"
+                    infoboxes = s2.select("table.infobox, table.wikitable, div.infobox")
                     
-                    if infobox:
+                    for infobox in infoboxes:
                         for row in infobox.select("tr"):
-                            header = row.find("th")
-                            value = row.find("td")
-                            if not header or not value:
+                            header = row.find(["th", "td"])
+                            if not header:
                                 continue
-                            key = header.text.strip().lower()
-                            val = value.text.strip()
-                            if key == "dropped by":
-                                npc_name = val
-                            elif key == "zone":
-                                zone_name = val
-                            elif key == "slot":
-                                slot_name = val
+                            key = header.get_text(strip=True).lower()
+                            val = row.find_all("td")
+                            if len(val) < 1:
+                                continue
+                            value = val[-1].get_text(strip=True)
+                            if "dropped" in key:
+                                npc_name = value
+                            elif "zone" in key:
+                                zone_name = value
+                            elif "slot" in key:
+                                slot_name = value
                     
-                    # Description (first paragraph)
+                    # --- Description (use first paragraph of main content) ---
                     desc_tag = s2.select_one("div.mw-parser-output > p")
                     description = desc_tag.text.strip() if desc_tag else "No description available."
                     
@@ -1980,6 +1983,7 @@ class WikiView(discord.ui.View):
                         "description": description,
                         "source": "Wiki"
                     })
+
 
     
         return items
