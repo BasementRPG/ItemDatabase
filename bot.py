@@ -1272,16 +1272,16 @@ class EditDatabaseModal(discord.ui.Modal):
                     updated_at=NOW()
                 WHERE id=$7 AND guild_id=$8
             """,
-            self.item_name.value.strip(),
+            item_name,
             zone_name,
             zone_area,
-            self.npc_name.value.strip(),
+            npc_name,
             npc_level_value,
-            self.item_slot.value.lower(),
+            item_slot,
             self.item_row['id'],
             interaction.guild.id)
 
-        await interaction.response.send_message(f"✅ Updated **{self.item_name.value}** successfully!", ephemeral=True)
+        await interaction.response.send_message(f"✅ Updated **{item_name}** successfully!", ephemeral=True)
 
 
 
