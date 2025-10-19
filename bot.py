@@ -1869,22 +1869,46 @@ from bs4 import BeautifulSoup
 import discord
 
 class WikiView(discord.ui.View):
-    def __init__(self, db_pool, slot_name, guild_id=None):
-        super().__init__(timeout=None)
-        self.db_pool = db_pool
+    def __init__(self, slot_name, db_pool):
+        super().__init__(timeout=300)
         self.slot_name = slot_name
-        self.guild_id = guild_id
+        self.db_pool = db_pool
+        self.items = []
         self.current_page = 0
-        self.results = []
-    
+
+    async def load_items(self):
+        """Pull items from wiki + database based on slot."""
+        # 🔹 Load from wiki
+        wiki_items = await self.fetch_wiki_items_by_slot()
+        # 🔹 Load from your database
+        async with self.db_pool.acquire() as conn:
+            db_items = await conn.fetch("""
+                SELECT item_name, item_image, npc_name, zone_name
+                FROM item_database
+                WHERE LOWER(item_slot) LIKE LOWER($1)
+            """, f"%{self.slot_name}%")
+
+        # Convert DB rows to same format
+        db_results = [{
+            "item_name": r["item_name"].title(),
+            "item_image": r["item_image"],
+            "npc_name": (r["npc_name"] or "Unknown").title(),
+            "zone_name": (r["zone_name"] or "Unknown").title(),
+            "wiki_url": None,
+            "source": "Database"
+        } for r in db_items]
+
+        self.items = db_results + wiki_items
+        # Sort alphabetically
+        self.items.sort(key=lambda x: x["item_name"])
 
     async def fetch_wiki_items_by_slot(self):
         """Fetch items for a given slot from the Monsters & Memories wiki."""
         base_url = "https://monstersandmemories.miraheze.org"
         category_url = f"{base_url}/wiki/Category:{self.slot_name.title()}"
-    
+
         items = []
-    
+
         async with aiohttp.ClientSession() as session:
             async with session.get(category_url) as resp:
                 if resp.status != 200:
@@ -1892,59 +1916,37 @@ class WikiView(discord.ui.View):
                     return []
                 html = await resp.text()
                 soup = BeautifulSoup(html, "html.parser")
-    
-                # Grab all links under mw-category-group
+
                 for link in soup.select("div.mw-category-group a"):
                     item_name = link.text.strip()
                     item_url = base_url + link["href"]
-                    items.append({
-                        "item_name": item_name,
-                        "wiki_url": item_url
-                    })
-    
-            # If there’s a “next page” link, grab those too
-            next_link = soup.select_one("a:contains('next page')")
-            if next_link:
-                next_url = base_url + next_link["href"]
-                async with session.get(next_url) as resp2:
-                    if resp2.status == 200:
-                        soup2 = BeautifulSoup(await resp2.text(), "html.parser")
-                        for link in soup2.select("div.mw-category-group a"):
-                            item_name = link.text.strip()
-                            item_url = base_url + link["href"]
-                            items.append({
-                                "item_name": item_name,
-                                "wiki_url": item_url
-                            })
-    
-        # 🖼️ Fetch image + NPC details from each item page
+                    items.append({"item_name": item_name, "wiki_url": item_url})
+
+        # Fetch item details
         enriched_items = []
         async with aiohttp.ClientSession() as session:
-            for item in items:
+            for item in items[:10]:  # limit to 10 for speed; remove if needed
                 async with session.get(item["wiki_url"]) as resp:
                     if resp.status != 200:
                         continue
                     page_html = await resp.text()
                     s2 = BeautifulSoup(page_html, "html.parser")
-    
-                    # Image
+
                     img_tag = s2.select_one("a.image img")
                     image_url = img_tag["src"] if img_tag else None
-    
-                    # NPC info
+
                     npc_name = "Unknown"
                     npc_section = s2.find("span", string=lambda text: text and "Dropped by" in text)
                     if npc_section:
                         npc_link = npc_section.find_next("a")
                         if npc_link:
                             npc_name = npc_link.text.strip()
-    
-                    # Zone info (guess from link)
+
                     zone_name = "Unknown"
                     zone_link = s2.find("a", href=lambda h: h and "/wiki/" in h and "Category:" not in h)
                     if zone_link:
                         zone_name = zone_link.text.strip()
-    
+
                     enriched_items.append({
                         "item_name": item["item_name"].title(),
                         "item_image": image_url,
@@ -1953,79 +1955,43 @@ class WikiView(discord.ui.View):
                         "wiki_url": item["wiki_url"],
                         "source": "Wiki"
                     })
-    
         return enriched_items
 
-    async def load_results(self):
-        wiki_items = await self.fetch_wiki_items_by_slot()
-        db_items = []
-
-        if self.db_pool and self.guild_id:
-            async with self.db_pool.acquire() as conn:
-                db_items = await conn.fetch("""
-                    SELECT item_name, npc_name, zone_name, item_image 
-                    FROM item_database 
-                    WHERE guild_id=$1 AND LOWER(item_slot) LIKE $2
-                """, self.guild_id, f"%{self.slot_name.lower()}%")
-
-        # Merge results
-        seen = set()
-        self.results = []
-
-        # Add DB entries first
-        for r in db_items:
-            key = r["item_name"].lower()
-            if key not in seen:
-                seen.add(key)
-                self.results.append({
-                    "item_name": r["item_name"].title(),
-                    "npc_name": (r["npc_name"] or "Unknown").title(),
-                    "zone_name": (r["zone_name"] or "Unknown").title(),
-                    "item_image": r["item_image"],
-                    "source": "Database"
-                })
-
-        # Add wiki entries
-        for w in wiki_items:
-            key = w["item_name"].lower()
-            if key not in seen:
-                self.results.append({
-                    "item_name": w["item_name"].title(),
-                    "npc_name": "Unknown",
-                    "zone_name": "Unknown",
-                    "item_image": w.get("item_image"),
-                    "source": "Wiki",
-                    "wiki_url": w["wiki_url"]
-                })
-    
-    def build_embed(self, index):
-        item = self.results[index]
+    def build_embed(self, page: int):
         embed = discord.Embed(
-            title=item["item_name"],
-            description=f"🧍 NPC: {item['npc_name']}\n🏞️ Zone: {item['zone_name']}",
-            color=discord.Color.blurple()
+            title=f"🧭 {self.slot_name.title()} Items",
+            color=discord.Color.gold()
         )
-        if item.get("item_image"):
-            embed.set_image(url=item["item_image"])
-        if item.get("source") == "Wiki":
-            embed.set_footer(text="📘 From Monsters & Memories Wiki")
-        else:
-            embed.set_footer(text="💾 From Guild Database")
-        if "wiki_url" in item:
-            embed.add_field(name="Wiki Page", value=f"[Open Wiki Page]({item['wiki_url']})", inline=False)
+
+        start = page * 5
+        end = start + 5
+        page_items = self.items[start:end]
+
+        for item in page_items:
+            name = f"[{item['item_name']}]({item['wiki_url']})" if item['wiki_url'] else item['item_name']
+            embed.add_field(
+                name=f"{name} ({item['source']})",
+                value=f"🧍 **NPC:** {item['npc_name']}\n🏞️ **Zone:** {item['zone_name']}",
+                inline=False
+            )
+            if item["item_image"]:
+                embed.set_thumbnail(url=item["item_image"])
+
+        embed.set_footer(text=f"Page {page+1}/{(len(self.items)-1)//5+1}")
         return embed
 
-    @discord.ui.button(label="⬅️ Previous", style=discord.ButtonStyle.secondary)
-    async def previous(self, interaction: discord.Interaction, button: discord.ui.Button):
+    @discord.ui.button(label="⬅️ Prev", style=discord.ButtonStyle.secondary)
+    async def prev(self, interaction: discord.Interaction, button: discord.ui.Button):
         if self.current_page > 0:
             self.current_page -= 1
         await interaction.response.edit_message(embed=self.build_embed(self.current_page), view=self)
 
     @discord.ui.button(label="➡️ Next", style=discord.ButtonStyle.secondary)
     async def next(self, interaction: discord.Interaction, button: discord.ui.Button):
-        if self.current_page < len(self.results) - 1:
+        if (self.current_page + 1) * 5 < len(self.items):
             self.current_page += 1
         await interaction.response.edit_message(embed=self.build_embed(self.current_page), view=self)
+
 
 
 
@@ -2054,15 +2020,13 @@ class WikiView(discord.ui.View):
 async def view_wiki_items(interaction: discord.Interaction, slot: str):
     await interaction.response.defer(thinking=True)
 
-    # Create the view
     view = WikiView(slot_name=slot, db_pool=db_pool)
-    await view.load_items()  # Scrapes or loads from cache
+    await view.load_items()
 
     if not view.items:
-        await interaction.followup.send(f"❌ No items found for slot **{slot}**.", ephemeral=True)
+        await interaction.followup.send(f"❌ No items found for **{slot.title()}**.", ephemeral=True)
         return
 
-    # Send initial embed + view
     await interaction.followup.send(embed=view.build_embed(0), view=view)
 
 
