@@ -1864,9 +1864,6 @@ async def edit_item_image(
     await interaction.response.send_message(embed=embed, ephemeral=True)
 
 
-import aiohttp
-from bs4 import BeautifulSoup
-import discord
 
 class WikiView(discord.ui.View):
     def __init__(self, slot_name, db_pool):
@@ -1910,7 +1907,12 @@ class WikiView(discord.ui.View):
     
         items = []
     
-        async with aiohttp.ClientSession() as session:
+        async with aiohttp.ClientSession(headers={
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+                          "AppleWebKit/537.36 (KHTML, like Gecko) "
+                          "Chrome/118.0.0.0 Safari/537.36"
+        }) as session:
+
             async with session.get(category_url) as resp:
                 if resp.status != 200:
                     print(f"⚠️ Failed to fetch {category_url} ({resp.status})")
