@@ -2029,8 +2029,8 @@ class WikiView(discord.ui.View):
 
 
 
-@bot.tree.command(name="view_wiki_items", description="View items from the Monsters & Memories wiki for a slot.")
-@app_commands.describe(slot="Select which equipment slot to search for.")
+@bot.tree.command(name="view_wiki_items", description="View items from the Monsters & Memories wiki.")
+@app_commands.describe(slot="Select the item slot to view.")
 @app_commands.choices(slot=[
     app_commands.Choice(name="Ammo", value="Ammo"),
     app_commands.Choice(name="Back", value="Back"),
@@ -2050,15 +2050,20 @@ class WikiView(discord.ui.View):
     app_commands.Choice(name="Waist", value="Waist"),
     app_commands.Choice(name="Wrist", value="Wrist"),
 ])
+
 async def view_wiki_items(interaction: discord.Interaction, slot: str):
-    view = WikiView(db_pool=db_pool, slot_name=slot, guild_id=interaction.guild.id)
-    await view.load_results()
-    if not view.results:
-        await interaction.response.send_message("❌ No results found.", ephemeral=True)
+    await interaction.response.defer(thinking=True)
+
+    # Create the view
+    view = WikiView(slot_name=slot, db_pool=db_pool)
+    await view.load_items()  # Scrapes or loads from cache
+
+    if not view.items:
+        await interaction.followup.send(f"❌ No items found for slot **{slot}**.", ephemeral=True)
         return
 
-    await interaction.response.send_message(embed=view.build_embed(0), view=view)
-
+    # Send initial embed + view
+    await interaction.followup.send(embed=view.build_embed(0), view=view)
 
 
 
