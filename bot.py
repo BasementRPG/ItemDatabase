@@ -1972,7 +1972,7 @@ async def fetch_wiki_items(slot_name: str):
      
    
             # --- Extract NPC and Zone (more tolerant of malformed HTML) ---
-            npc_name, zone_name = "Unknown", "Unknown"
+            npc_name, zone_name = "", ""
             
             drops_section = s2.find("h2", id="Drops_From")
             if drops_section:
