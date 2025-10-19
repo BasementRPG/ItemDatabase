@@ -988,8 +988,8 @@ class ItemDatabaseModal(discord.ui.Modal, title="Add Item to Database"):
         # Fields
         self.item_name = discord.ui.TextInput(label="Item Name")
         self.zone_field = discord.ui.TextInput(
-            label="Zone Name - Area",
-            placeholder="Example: Shaded Dunes - Ashira Camp",
+            label="Zone and Area",
+            placeholder="Example: Kithicor Forest - Eastern Grove",
         )
         self.npc_name = discord.ui.TextInput(label="NPC Name")
         self.item_slot_field = discord.ui.TextInput(label="Item Slot (e.g., Chest, Legs)")
@@ -1003,7 +1003,7 @@ class ItemDatabaseModal(discord.ui.Modal, title="Add Item to Database"):
         self.add_item(self.zone_field)
         self.add_item(self.npc_name)
         self.add_item(self.item_slot_field)
-        self.add_item(self.lvl)
+        self.add_item(self.npc_level)
 
     async def on_submit(self, interaction: discord.Interaction):
         # 🔹 Split "Zone - Area"
@@ -1031,7 +1031,7 @@ class ItemDatabaseModal(discord.ui.Modal, title="Add Item to Database"):
             await conn.execute("""
                 INSERT INTO item_database (
                     guild_id, item_name, zone_name, zone_area,
-                    npc_name, item_slot, lvl,
+                    npc_name, item_slot, npc_level,
                     item_image, npc_image, added_by, created_at
                 )
                 VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,NOW())
@@ -1042,7 +1042,7 @@ class ItemDatabaseModal(discord.ui.Modal, title="Add Item to Database"):
             zone_area,
             self.npc_name.value.strip(),
             self.item_slot_field.value.lower(),
-            lvl_value,
+            npc_level_value,
             self.item_image_url,
             self.npc_image_url,
             self.added_by)
@@ -1055,6 +1055,7 @@ class ItemDatabaseModal(discord.ui.Modal, title="Add Item to Database"):
             f"🧍 NPC: {self.npc_name.value} (Lvl {npc_level_value or 'N/A'})",
             ephemeral=True
         )
+
 
 
 
@@ -1292,6 +1293,7 @@ class PaginatedResultsView(discord.ui.View):
         end = start + self.per_page
         return self.items[start:end]
 
+   
     def build_embeds_for_current_page(self) -> list[discord.Embed]:
         embeds = []
         for item in self.get_page_items():
@@ -1325,6 +1327,7 @@ class PaginatedResultsView(discord.ui.View):
             )
             embeds.append(embed)
         return embeds
+
 
 
     async def _edit_message_with_current_page(self, interaction: discord.Interaction):
