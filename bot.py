@@ -1476,7 +1476,7 @@ class DatabaseView(View):
                 per_page=5,
                 author_id=interaction.user.id
             )
-            embeds = view._build_embeds()
+            embeds = view.__build_embeds_for_current_page()
             await interaction.response.edit_message(content=None, embeds=embeds, view=view)
 
 
