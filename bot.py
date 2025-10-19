@@ -1869,42 +1869,61 @@ async def edit_item_image(
 
 # -------------------- WikiView Class --------------------
 
+import aiohttp
+from bs4 import BeautifulSoup
+import discord
+from discord import app_commands
+
+# -------------------- WikiView Class --------------------
+
 class WikiView(discord.ui.View):
     def __init__(self, items):
         super().__init__(timeout=None)
         self.items = items
         self.current_page = 0
+        self.items_per_page = 5
 
-    def build_embed(self, page_index: int):
-        """Builds an embed for the current item page."""
-        item = self.items[page_index]
-        embed = discord.Embed(
-            title=item["item_name"],
-            description=item["description"],
-            color=discord.Color.gold(),
-            url=item["wiki_url"]
-        )
+    def build_embeds(self, page_index: int):
+        """Builds up to 5 embeds per page."""
+        start = page_index * self.items_per_page
+        end = start + self.items_per_page
+        current_items = self.items[start:end]
 
-        if item["item_image"]:
-            embed.set_thumbnail(url=item["item_image"])
+        embeds = []
+        for i, item in enumerate(current_items, start=1):
+            embed = discord.Embed(
+                title=item["item_name"],
+                description=item["description"],
+                color=discord.Color.gold(),
+                url=item["wiki_url"]
+            )
 
-        embed.add_field(name="🏞️ Zone", value=item["zone_name"], inline=True)
-        embed.add_field(name="🧍 NPC", value=item["npc_name"], inline=True)
-        embed.add_field(name="🎒 Slot", value=item["slot_name"], inline=True)
-        embed.add_field(name="📊 Item Stats", value=item["item_stats"], inline=False)
+            if item["item_image"]:
+                embed.set_thumbnail(url=item["item_image"])
 
-        embed.set_footer(text=f"📚 Source: Monsters & Memories Wiki • Page {page_index + 1}/{len(self.items)}")
-        return embed
+            embed.add_field(name="🏞️ Zone", value=item["zone_name"], inline=True)
+            embed.add_field(name="🧍 NPC", value=item["npc_name"], inline=True)
+            embed.add_field(name="🎒 Slot", value=item["slot_name"], inline=True)
+            embed.add_field(name="📊 Item Stats", value=item["item_stats"], inline=False)
+            embed.set_footer(
+                text=f"📚 Source: Monsters & Memories Wiki • Page {page_index + 1}/{self.total_pages()}"
+            )
+            embeds.append(embed)
+
+        return embeds
+
+    def total_pages(self):
+        return (len(self.items) + self.items_per_page - 1) // self.items_per_page
 
     @discord.ui.button(label="⬅️ Previous", style=discord.ButtonStyle.secondary)
     async def prev_page(self, interaction: discord.Interaction, button: discord.ui.Button):
-        self.current_page = (self.current_page - 1) % len(self.items)
-        await interaction.response.edit_message(embed=self.build_embed(self.current_page), view=self)
+        self.current_page = (self.current_page - 1) % self.total_pages()
+        await interaction.response.edit_message(embeds=self.build_embeds(self.current_page), view=self)
 
     @discord.ui.button(label="➡️ Next", style=discord.ButtonStyle.primary)
     async def next_page(self, interaction: discord.Interaction, button: discord.ui.Button):
-        self.current_page = (self.current_page + 1) % len(self.items)
-        await interaction.response.edit_message(embed=self.build_embed(self.current_page), view=self)
+        self.current_page = (self.current_page + 1) % self.total_pages()
+        await interaction.response.edit_message(embeds=self.build_embeds(self.current_page), view=self)
 
 
 # -------------------- Helper Function --------------------
@@ -1925,9 +1944,9 @@ async def fetch_wiki_items(slot_name: str):
 
         soup = BeautifulSoup(html, "html.parser")
 
-        # Find item page links in the category
+        # Find item page links
         links = soup.select("div.mw-category a")
-        for link in links[:25]:  # limit for testing
+        for link in links[:25]:
             name = link.text.strip()
             href = link["href"]
             item_url = f"{base_url}{href}"
@@ -1950,27 +1969,23 @@ async def fetch_wiki_items(slot_name: str):
                 src = img_tag.get("src", "")
                 image_url = f"https:{src}" if src.startswith("//") else src
 
-            # --- NPC / Zone / Slot ---
-            npc_name, zone_name, slot_name_clean = "Unknown", "Unknown", slot_name
-
-            content = s2.select("div.mw-parser-output > p")
-            for p in content:
+            # --- Extract NPC / Zone ---
+            npc_name, zone_name = "Unknown", "Unknown"
+            for p in s2.select("div.mw-parser-output > p"):
                 b = p.find("b")
                 if not b:
                     continue
                 label = b.get_text(strip=True).lower()
 
+                # Match text like "<b>Dropped by:</b> NPCName"
                 if "dropped by" in label:
-                    npc_link = b.find_next("a")
-                    npc_name = npc_link.get_text(strip=True) if npc_link else "Unknown"
-
+                    next_link = b.find_next("a")
+                    if next_link:
+                        npc_name = next_link.get_text(strip=True)
                 elif "zone" in label:
-                    zone_link = b.find_next("a")
-                    zone_name = zone_link.get_text(strip=True) if zone_link else "Unknown"
-
-                elif "slot" in label:
-                    slot_link = b.find_next("a")
-                    slot_name_clean = slot_link.get_text(strip=True) if slot_link else slot_name_clean
+                    next_link = b.find_next("a")
+                    if next_link:
+                        zone_name = next_link.get_text(strip=True)
 
             # --- Item Stats ---
             item_stats_div = s2.find("div", class_="item-stats")
@@ -1986,9 +2001,6 @@ async def fetch_wiki_items(slot_name: str):
             def clean_case(s):
                 if not s or s == "Unknown":
                     return "Unknown"
-                s = s.lower()
-                if len(s) < 3:
-                    return s.upper()
                 return " ".join(word.capitalize() for word in s.split())
 
             items.append({
@@ -1996,7 +2008,7 @@ async def fetch_wiki_items(slot_name: str):
                 "item_image": image_url,
                 "npc_name": clean_case(npc_name),
                 "zone_name": clean_case(zone_name),
-                "slot_name": clean_case(slot_name_clean),
+                "slot_name": slot_name,
                 "item_stats": item_stats,
                 "wiki_url": item_url,
                 "description": description,
@@ -2027,7 +2039,7 @@ async def view_wiki_items(interaction: discord.Interaction, slot: app_commands.C
         return
 
     view = WikiView(items)
-    await interaction.followup.send(embed=view.build_embed(0), view=view)
+    await interaction.followup.send(embeds=view.build_embeds(0), view=view)
 
 
 
