@@ -970,7 +970,7 @@ class ItemDatabaseModal(discord.ui.Modal, title="Add Item to Database"):
             label="Zone Name - Zone Area",
             placeholder="Example: Shaded Dunes - Ashira Camp",
         )
-        self.npc_name = discord.ui.TextInput(label="NPC Name", placehold="Fippy Darkpaw")
+        self.npc_name = discord.ui.TextInput(label="NPC Name", placeholder="Fippy Darkpaw")
 
         self.npc_level = discord.ui.TextInput(
             label="NPC Level",
@@ -978,7 +978,7 @@ class ItemDatabaseModal(discord.ui.Modal, title="Add Item to Database"):
             required=False
         )
         
-        self.item_slot_field = discord.ui.TextInput(label="Item Slot (Add another spaced with a , ", default=item_slot or "")
+        self.item_slot_field = discord.ui.TextInput(label="Item Slot (Add another slot spaced with a , )", default=item_slot or "")
 
 
         self.add_item(self.item_name)
