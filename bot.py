@@ -1969,40 +1969,42 @@ class WikiView(discord.ui.View):
         return items
 
 
+
     def build_embed(self, page: int):
         embed = discord.Embed(
-            title=f"🧭 {self.slot_name.title()} Items",
-            color=discord.Color.gold()
+            title=f"📜 {self.slot_name.title()} Items",
+            color=discord.Color.blurple()
         )
-
+    
         start = page * 5
         end = start + 5
         page_items = self.items[start:end]
-
+    
         for item in page_items:
-            name = f"[{item['item_name']}]({item['wiki_url']})" if item['wiki_url'] else item['item_name']
-            embed.add_field(
-                name=f"{name} ({item['source']})",
-                value=f"🧍 **NPC:** {item['npc_name']}\n🏞️ **Zone:** {item['zone_name']}",
-                inline=False
+            name = item["item_name"].title()
+            npc = item.get("npc_name") or "Unknown"
+            zone = item.get("zone_name") or "Unknown"
+            desc = item.get("description") or "No description available."
+            source = item.get("source", "Unknown")
+    
+            field_name = f"{'🔹 ' if source == 'Wiki' else '💠 '}{name}"
+            field_value = (
+                f"🧍 **NPC:** {npc.title()}\n"
+                f"🏞️ **Zone:** {zone.title()}\n"
+                f"📖 **Description:** {desc[:250]}{'...' if len(desc) > 250 else ''}\n"
+                f"🌐 **Source:** {source}"
             )
-            if item["item_image"]:
-                embed.set_thumbnail(url=item["item_image"])
-
-        embed.set_footer(text=f"Page {page+1}/{(len(self.items)-1)//5+1}")
+    
+            embed.add_field(name=field_name, value=field_value, inline=False)
+    
+            # Display the last item's image to keep layout clean
+            if item.get("item_image"):
+                embed.set_image(url=item["item_image"])
+    
+        total_pages = max(1, (len(self.items) - 1) // 5 + 1)
+        embed.set_footer(text=f"Page {page + 1} of {total_pages} • Showing {len(page_items)} items")
+    
         return embed
-
-    @discord.ui.button(label="⬅️ Prev", style=discord.ButtonStyle.secondary)
-    async def prev(self, interaction: discord.Interaction, button: discord.ui.Button):
-        if self.current_page > 0:
-            self.current_page -= 1
-        await interaction.response.edit_message(embed=self.build_embed(self.current_page), view=self)
-
-    @discord.ui.button(label="➡️ Next", style=discord.ButtonStyle.secondary)
-    async def next(self, interaction: discord.Interaction, button: discord.ui.Button):
-        if (self.current_page + 1) * 5 < len(self.items):
-            self.current_page += 1
-        await interaction.response.edit_message(embed=self.build_embed(self.current_page), view=self)
 
 
 
