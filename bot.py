@@ -1969,29 +1969,24 @@ async def fetch_wiki_items(slot_name: str):
                 src = img_tag.get("src", "")
                 image_url = f"https:{src}" if src.startswith("//") else src
 
-            # --- Extract NPC / Zone ---
-
+     
+            # --- Extract NPC and Zone from <table class="mainPageInnerBox2"> ---
             npc_name, zone_name = "Unknown", "Unknown"
             
-            for p in s2.select("div.mw-parser-output > p"):
-                text = p.get_text(" ", strip=True).lower()
+            drop_section = s2.find("h2", id="Drops_from")
+            if drop_section:
+                # Find the next <p> tag after <h2 id="Drops_from"> for the zone
+                zone_p = drop_section.find_next("p")
+                if zone_p:
+                    zone_name = zone_p.get_text(strip=True)
             
-                # Try to detect phrases like "Dropped by:" or "Found in:"
-                if "dropped by" in text or "drops from" in text:
-                    a_tag = p.find("a")
-                    if a_tag:
-                        npc_name = a_tag.get_text(strip=True)
-                    else:
-                        # fallback: extract name text after phrase
-                        npc_name = text.split("dropped by")[-1].strip(" :")
-            
-                elif "zone" in text or "found in" in text or "location" in text:
-                    a_tag = p.find("a")
-                    if a_tag:
-                        zone_name = a_tag.get_text(strip=True)
-                    else:
-                        # fallback: extract name text after phrase
-                        zone_name = text.split("zone")[-1].strip(" :")
+                # Find the following <table> that lists NPCs
+                drop_table = drop_section.find_next("table", class_="mainPageInnerBox2")
+                if drop_table:
+                    npc_links = drop_table.find_all("a")
+                    if npc_links:
+                        npc_name = ", ".join([a.get_text(strip=True) for a in npc_links])
+
 
 
             # --- Item Stats ---
