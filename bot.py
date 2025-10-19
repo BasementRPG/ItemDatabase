@@ -1230,7 +1230,7 @@ class EditDatabaseModal(discord.ui.Modal):
         self.add_item(self.npc_level)
 
         self.item_slot = discord.ui.TextInput(
-            label="Item Slot (Add another slot separated by a comma)",
+            label="Item Slot (Add another slot spaced with a , )",
             default=item_row['item_slot'] or ""
         )
         self.add_item(self.item_slot)
