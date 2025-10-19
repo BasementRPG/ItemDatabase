@@ -2014,8 +2014,8 @@ async def fetch_wiki_items(slot_name: str):
             items.append({
                 "item_name": clean_case(item_name),
                 "item_image": image_url,
-                "npc_name": clean_case(npc_name),
-                "zone_name": clean_case(zone_name),
+                "npc_name": npc_name,
+                "zone_name": zone_name,
                 "slot_name": slot_name,
                 "item_stats": item_stats,
                 "wiki_url": item_url,
