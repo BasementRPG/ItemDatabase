@@ -1932,41 +1932,55 @@ class WikiView(discord.ui.View):
                     if resp.status != 200:
                         continue
                     page_html = await resp.text()
+              
+                        # --- Parse item details from individual page ---
                     s2 = BeautifulSoup(page_html, "html.parser")
-    
-                    # Title
+                    
+                    # Item title
                     title = s2.find("h1", {"id": "firstHeading"})
                     item_name = title.text.strip() if title else name
-    
+                    
                     # Image
-                    img_tag = s2.select_one("a.image img")
-                    image_url = f"https:{img_tag['src']}" if img_tag and img_tag['src'].startswith("//") else (img_tag['src'] if img_tag else None)
-    
-                    # NPC and Zone
-                    npc_name = "Unknown"
-                    zone_name = "Unknown"
-                    dropped_by_section = s2.find("span", string=lambda t: t and "Dropped by" in t)
-                    if dropped_by_section:
-                        npc_link = dropped_by_section.find_next("a")
-                        if npc_link:
-                            npc_name = npc_link.text.strip()
-                            zone_link = npc_link.find_next("a")
-                            if zone_link and "/wiki/" in zone_link.get("href", ""):
-                                zone_name = zone_link.text.strip()
-    
-                    # Description / stats (first <p> or infobox text)
+                    img_tag = s2.select_one(".infobox img")
+                    image_url = None
+                    if img_tag:
+                        src = img_tag.get("src", "")
+                        image_url = f"https:{src}" if src.startswith("//") else src
+                    
+                    # Extract NPC, Zone, Slot from infobox
+                    infobox = s2.find("table", class_="infobox")
+                    npc_name, zone_name, slot_name = "Unknown", "Unknown", "Unknown"
+                    
+                    if infobox:
+                        for row in infobox.select("tr"):
+                            header = row.find("th")
+                            value = row.find("td")
+                            if not header or not value:
+                                continue
+                            key = header.text.strip().lower()
+                            val = value.text.strip()
+                            if key == "dropped by":
+                                npc_name = val
+                            elif key == "zone":
+                                zone_name = val
+                            elif key == "slot":
+                                slot_name = val
+                    
+                    # Description (first paragraph)
                     desc_tag = s2.select_one("div.mw-parser-output > p")
                     description = desc_tag.text.strip() if desc_tag else "No description available."
-    
+                    
                     items.append({
                         "item_name": item_name.title(),
                         "item_image": image_url,
                         "npc_name": npc_name.title(),
                         "zone_name": zone_name.title(),
+                        "slot_name": slot_name.title(),
                         "wiki_url": url,
                         "description": description,
                         "source": "Wiki"
                     })
+
     
         return items
 
