@@ -1260,19 +1260,19 @@ class PaginatedResultsView(discord.ui.View):
         """Add navigation and control buttons"""
         self.clear_items()
 
-        # ⏮️ Previous
+        # ⬅️ Previous
         self.add_item(discord.ui.Button(
             style=discord.ButtonStyle.secondary,
-            emoji="⏮️",
+            emoji="⬅️",
             label="Previous",
             disabled=self.current_page <= 0,
             custom_id="prev"
         ))
 
-        # ⏭️ Next
+        # ➡️ Next
         self.add_item(discord.ui.Button(
             style=discord.ButtonStyle.secondary,
-            emoji="⏭️",
+            emoji="➡️",
             label="Next",
             disabled=self.current_page >= self.max_page,
             custom_id="next"
