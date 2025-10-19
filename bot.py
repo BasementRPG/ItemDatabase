@@ -1970,22 +1970,29 @@ async def fetch_wiki_items(slot_name: str):
                 image_url = f"https:{src}" if src.startswith("//") else src
 
             # --- Extract NPC / Zone ---
-            npc_name, zone_name = "Unknown", "Unknown"
-            for p in s2.select("div.mw-parser-output > p"):
-                b = p.find("b")
-                if not b:
-                    continue
-                label = b.get_text(strip=True).lower()
 
-                # Match text like "<b>Dropped by:</b> NPCName"
-                if "dropped by" in label:
-                    next_link = b.find_next("a")
-                    if next_link:
-                        npc_name = next_link.get_text(strip=True)
-                elif "zone" in label:
-                    next_link = b.find_next("a")
-                    if next_link:
-                        zone_name = next_link.get_text(strip=True)
+            npc_name, zone_name = "Unknown", "Unknown"
+            
+            for p in s2.select("div.mw-parser-output > p"):
+                text = p.get_text(" ", strip=True).lower()
+            
+                # Try to detect phrases like "Dropped by:" or "Found in:"
+                if "dropped by" in text or "drops from" in text:
+                    a_tag = p.find("a")
+                    if a_tag:
+                        npc_name = a_tag.get_text(strip=True)
+                    else:
+                        # fallback: extract name text after phrase
+                        npc_name = text.split("dropped by")[-1].strip(" :")
+            
+                elif "zone" in text or "found in" in text or "location" in text:
+                    a_tag = p.find("a")
+                    if a_tag:
+                        zone_name = a_tag.get_text(strip=True)
+                    else:
+                        # fallback: extract name text after phrase
+                        zone_name = text.split("zone")[-1].strip(" :")
+
 
             # --- Item Stats ---
             item_stats_div = s2.find("div", class_="item-stats")
