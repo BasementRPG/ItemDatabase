@@ -1950,7 +1950,15 @@ class WikiView(discord.ui.View):
                     
                     # --- Try all possible infobox tables ---
                     npc_name, zone_name, slot_name = "Unknown", "Unknown", "Unknown"
-                    infoboxes = s2.select("table.infobox, table.wikitable, div.infobox")
+
+                    infobox_like = s2.select_one(".infobox, .portable-infobox, table")
+                    if infobox_like:
+                        print("DEBUG - FOUND INFOBOX:")
+                        print(infobox_like.prettify()[:1500])  # limit output to 1500 chars
+                    else:
+                        print("DEBUG - NO INFOBOX FOUND on", url)
+
+
                     
                     for infobox in infoboxes:
                         for row in infobox.select("tr"):
