@@ -1115,16 +1115,6 @@ class ItemDatabaseModal(discord.ui.Modal, title="Add Item to Database"):
         return
 
         
-"""
-        # Confirmation
-        zone_display = f"{zone_name} ({zone_area})" if zone_area else zone_name
-        await interaction.response.send_message(
-            f"✅ `{self.item_name.value}` added successfully!\n"
-            f"🏞️ Zone: {zone_display}\n"
-            f"🧛 NPC: {self.npc_name.value} (Lvl {npc_level_value or '?'})",
-            ephemeral=True
-        )
-"""
 
 # ---------------- Slash Command ----------------
 
@@ -1234,12 +1224,21 @@ class EditDatabaseModal(discord.ui.Modal):
         self.add_item(self.item_slot)
 
     async def on_submit(self, interaction: discord.Interaction):
-        # Split zone name and area
-        zone_name, zone_area = None, None
-        if "-" in self.zone_field.value:
-            zone_name, zone_area = map(str.strip, self.zone_field.value.split("-", 1))
+       
+        # 🧹 Normalize values
+        item_name = self.item_name.value.strip().title()
+        npc_name = self.npc_name.value.strip().title()
+        item_slot = self.item_slot.value.strip().title()
+
+        # Split "Zone - Area"
+        raw_zone_value = self.zone_field.value.strip()
+        if "-" in raw_zone_value:
+            zone_name, zone_area = map(str.strip, raw_zone_value.split("-", 1))
+            zone_name = zone_name.title()
+            zone_area = zone_area.title()
         else:
-            zone_name = self.zone_field.value.strip()
+            zone_name = raw_zone_value.title()
+            zone_area = None
 
         # Validate NPC level
         npc_level_value = None
