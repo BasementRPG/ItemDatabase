@@ -1011,7 +1011,7 @@ class ItemDatabaseModal(discord.ui.Modal, title="Add Item to Database"):
                     INSERT INTO item_database (
                         guild_id, item_name, zone_name, zone_area,
                         npc_name, item_slot, npc_level,
-                        item_image, npc_image, added_by, item_msg_id, npc_msg_id, created_at
+                        item_image, npc_image, item_msg_id, npc_msg_id, added_by, created_at
                     )
                     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,NOW())
                 """,
