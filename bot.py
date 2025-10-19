@@ -1877,31 +1877,84 @@ class WikiView(discord.ui.View):
         self.current_page = 0
         self.results = []
     
+
     async def fetch_wiki_items_by_slot(self):
-        url = f"https://monstersandmemories.miraheze.org/wiki/Category:{self.slot_name.title()}_Items"
+        """Fetch items for a given slot from the Monsters & Memories wiki."""
+        base_url = "https://monstersandmemories.miraheze.org"
+        category_url = f"{base_url}/wiki/Category:{self.slot_name.title()}"
+    
         items = []
-
+    
         async with aiohttp.ClientSession() as session:
-            async with session.get(url) as resp:
+            async with session.get(category_url) as resp:
                 if resp.status != 200:
+                    print(f"⚠️ Failed to fetch {category_url} ({resp.status})")
                     return []
-                soup = BeautifulSoup(await resp.text(), "html.parser")
-
-                for link in soup.select("div.mw-category a"):
-                    name = link.text.strip()
-                    page_url = f"https://monstersandmemories.miraheze.org{link['href']}"
-                    items.append({"item_name": name, "wiki_url": page_url})
-
-        # Fetch each item’s image
+                html = await resp.text()
+                soup = BeautifulSoup(html, "html.parser")
+    
+                # Grab all links under mw-category-group
+                for link in soup.select("div.mw-category-group a"):
+                    item_name = link.text.strip()
+                    item_url = base_url + link["href"]
+                    items.append({
+                        "item_name": item_name,
+                        "wiki_url": item_url
+                    })
+    
+            # If there’s a “next page” link, grab those too
+            next_link = soup.select_one("a:contains('next page')")
+            if next_link:
+                next_url = base_url + next_link["href"]
+                async with session.get(next_url) as resp2:
+                    if resp2.status == 200:
+                        soup2 = BeautifulSoup(await resp2.text(), "html.parser")
+                        for link in soup2.select("div.mw-category-group a"):
+                            item_name = link.text.strip()
+                            item_url = base_url + link["href"]
+                            items.append({
+                                "item_name": item_name,
+                                "wiki_url": item_url
+                            })
+    
+        # 🖼️ Fetch image + NPC details from each item page
+        enriched_items = []
         async with aiohttp.ClientSession() as session:
             for item in items:
                 async with session.get(item["wiki_url"]) as resp:
-                    if resp.status == 200:
-                        page_soup = BeautifulSoup(await resp.text(), "html.parser")
-                        img_tag = page_soup.select_one("a.image img")
-                        item["item_image"] = img_tag["src"] if img_tag else None
-
-        return items
+                    if resp.status != 200:
+                        continue
+                    page_html = await resp.text()
+                    s2 = BeautifulSoup(page_html, "html.parser")
+    
+                    # Image
+                    img_tag = s2.select_one("a.image img")
+                    image_url = img_tag["src"] if img_tag else None
+    
+                    # NPC info
+                    npc_name = "Unknown"
+                    npc_section = s2.find("span", string=lambda text: text and "Dropped by" in text)
+                    if npc_section:
+                        npc_link = npc_section.find_next("a")
+                        if npc_link:
+                            npc_name = npc_link.text.strip()
+    
+                    # Zone info (guess from link)
+                    zone_name = "Unknown"
+                    zone_link = s2.find("a", href=lambda h: h and "/wiki/" in h and "Category:" not in h)
+                    if zone_link:
+                        zone_name = zone_link.text.strip()
+    
+                    enriched_items.append({
+                        "item_name": item["item_name"].title(),
+                        "item_image": image_url,
+                        "npc_name": npc_name.title(),
+                        "zone_name": zone_name.title(),
+                        "wiki_url": item["wiki_url"],
+                        "source": "Wiki"
+                    })
+    
+        return enriched_items
 
     async def load_results(self):
         wiki_items = await self.fetch_wiki_items_by_slot()
