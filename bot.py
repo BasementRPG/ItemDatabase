@@ -1894,7 +1894,7 @@ class WikiView(discord.ui.View):
                 soup = BeautifulSoup(html, "html.parser")
     
                 # Grab all links under mw-category-group
-                for link in soup.select("div.mw-content-ltr a"):
+                for link in soup.select("div.mw-category-group a"):
                     item_name = link.text.strip()
                     item_url = base_url + link["href"]
                     items.append({
