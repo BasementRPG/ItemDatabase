@@ -1013,7 +1013,7 @@ class ItemDatabaseModal(discord.ui.Modal, title="Add Item to Database"):
                         npc_name, item_slot, npc_level,
                         item_image, npc_image, added_by, item_msg_id, npc_msg_id, created_at
                     )
-                    VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,NOW())
+                    VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,NOW())
                 """,
                 self.guild_id,
                 self.item_name.value.strip(),
@@ -1038,7 +1038,7 @@ class ItemDatabaseModal(discord.ui.Modal, title="Add Item to Database"):
             # ⚠️ Already exists — ask if they want to update
             class ConfirmUpdateView(discord.ui.View):
                 def __init__(self, db_pool, guild_id, item_name, npc_name, zone_name, zone_area,
-                             item_slot, npc_level_value, item_image_url, npc_image_url, added_by):
+                             item_slot, npc_level_value, item_image_url, npc_image_url, item_msg_id, npc_msg_id, added_by):
                     super().__init__(timeout=30)
                     self.db_pool = db_pool
                     self.guild_id = guild_id
@@ -1050,6 +1050,8 @@ class ItemDatabaseModal(discord.ui.Modal, title="Add Item to Database"):
                     self.npc_level_value = npc_level_value
                     self.item_image_url = item_image_url
                     self.npc_image_url = npc_image_url
+                    self.item_msg_id = item_msg_id
+                    self.npc_msg_id = npc_msg_id
                     self.added_by = added_by
     
                 @discord.ui.button(label="✅ Update Existing", style=discord.ButtonStyle.green)
@@ -1058,9 +1060,9 @@ class ItemDatabaseModal(discord.ui.Modal, title="Add Item to Database"):
                         await conn.execute("""
                             UPDATE item_database
                             SET zone_name=$3, zone_area=$4, item_slot=$5,
-                                npc_level=$6, item_image=$7, npc_image=$8,
-                                added_by=$9, updated_at=NOW()
-                            WHERE guild_id=$1 AND item_name=$2 AND npc_name=$10
+                                npc_level=$6, item_image=$7, npc_image=$8, item_msg_id=$9, npc_msg_id=$10,
+                                added_by=$11, updated_at=NOW()
+                            WHERE guild_id=$1 AND item_name=$2 AND npc_name=$12
                         """,
                         self.guild_id,
                         self.item_name,
@@ -1070,6 +1072,8 @@ class ItemDatabaseModal(discord.ui.Modal, title="Add Item to Database"):
                         self.npc_level_value,
                         self.item_image_url,
                         self.npc_image_url,
+                        self.item_msg_id,
+                        self.npc_msg_id,
                         self.added_by,
                         self.npc_name)
                     await interaction2.response.edit_message(content=f"✅ `{self.item_name}` updated successfully!", view=None)
@@ -1089,6 +1093,8 @@ class ItemDatabaseModal(discord.ui.Modal, title="Add Item to Database"):
                 npc_level_value=npc_level_value,
                 item_image_url=self.item_image_url,
                 npc_image_url=self.npc_image_url,
+                item_msg_id=self.item_msg_id,
+                npc_msg_id=self.npc_msg_id,
                 added_by=self.added_by
             )
     
@@ -1189,31 +1195,90 @@ class EditDatabaseModal(discord.ui.Modal):
         self.item_row = item_row
         self.db_pool = db_pool
 
-        self.item_name = discord.ui.TextInput(label="Item Name", default=item_row['item_name'])
+        # Fields
+        self.item_name = discord.ui.TextInput(
+            label="Item Name",
+            default=item_row['item_name'] or ""
+        )
         self.add_item(self.item_name)
 
-        self.zone_name = discord.ui.TextInput(label="Zone Name", default=item_row['zone_name'])
-        self.add_item(self.zone_name)
+        # Combine zone + area for editing
+        zone_combined = (
+            f"{item_row['zone_name']} - {item_row['zone_area']}"
+            if item_row['zone_area'] else
+            (item_row['zone_name'] or "")
+        )
+        self.zone_field = discord.ui.TextInput(
+            label="Zone Name - Zone Area",
+            default=zone_combined,
+            placeholder="Example: Shaded Dunes - Ashira Camp"
+        )
+        self.add_item(self.zone_field)
 
-        self.zone_area = discord.ui.TextInput(label="Zone Area", default=item_row['zone_area'])
-        self.add_item(self.zone_area)
-
-        self.npc_name = discord.ui.TextInput(label="NPC Name", default=item_row['npc_name'])
+        self.npc_name = discord.ui.TextInput(
+            label="NPC Name",
+            default=item_row['npc_name'] or ""
+        )
         self.add_item(self.npc_name)
 
-        self.item_slot = discord.ui.TextInput(label="Item Slot", default=item_row['item_slot'])
+        self.npc_level = discord.ui.TextInput(
+            label="NPC Level",
+            default=str(item_row['npc_level']) if item_row['npc_level'] else "",
+            placeholder="Example: 15 (Numbers Only)",
+            required=False
+        )
+        self.add_item(self.npc_level)
+
+        self.item_slot = discord.ui.TextInput(
+            label="Item Slot (Add another slot separated by a comma)",
+            default=item_row['item_slot'] or ""
+        )
         self.add_item(self.item_slot)
 
     async def on_submit(self, interaction: discord.Interaction):
+        # Split "Zone - Area"
+        raw_zone_value = self.zone_field.value.strip()
+        if "-" in raw_zone_value:
+            zone_name, zone_area = map(str.strip, raw_zone_value.split("-", 1))
+        else:
+            zone_name, zone_area = raw_zone_value, None
+
+        # Parse NPC level
+        npc_level_value = None
+        if self.npc_level.value.strip():
+            try:
+                npc_level_value = int(self.npc_level.value.strip())
+            except ValueError:
+                await interaction.response.send_message("⚠️ NPC Level must be a number.", ephemeral=True)
+                return
+
+        # Update in database
         async with self.db_pool.acquire() as conn:
             await conn.execute("""
                 UPDATE item_database
-                SET item_name=$1, zone_name=$2, zone_area=$3, npc_name=$4, item_slot=$5, updated_at=NOW()
-                WHERE id=$6 AND guild_id=$7
-            """, self.item_name.value, self.zone_name.value, self.zone_area.value, self.npc_name.value, self.item_slot.value.lower(),
-                 self.item_row['id'], interaction.guild.id)
+                SET item_name=$1,
+                    zone_name=$2,
+                    zone_area=$3,
+                    npc_name=$4,
+                    npc_level=$5,
+                    item_slot=$6,
+                    updated_at=NOW()
+                WHERE id=$7 AND guild_id=$8
+            """,
+            self.item_name.value.strip(),
+            zone_name,
+            zone_area,
+            self.npc_name.value.strip(),
+            npc_level_value,
+            self.item_slot.value.lower(),
+            self.item_row['id'],
+            interaction.guild.id)
 
-        await interaction.response.send_message(f"✅ Updated **{self.item_name.value}**!", ephemeral=True)
+        await interaction.response.send_message(
+            f"✅ Updated **{self.item_name.value}** successfully!",
+            ephemeral=True
+        )
+
 
 
 @bot.tree.command(name="edit_item_db", description="Edit an existing item in the database by name.")
