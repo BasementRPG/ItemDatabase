@@ -1865,6 +1865,320 @@ async def edit_item_image(
 
 
 
+import asyncio
+import discord
+from discord.ui import View, Select
+from wiki_scraper import WikiScraper
+
+class WikiDemoView(View):
+    """Demo view showing wiki items with select menu pagination"""
+    
+    def __init__(self, wiki_items):
+        super().__init__(timeout=180)
+        self.wiki_items = wiki_items
+        self.current_page = 0
+        self.items_per_page = 5
+        self.total_pages = (len(wiki_items) + self.items_per_page - 1) // self.items_per_page
+        
+        self.update_buttons()
+        self.update_select_options()
+    
+    def update_buttons(self):
+        """Update button states"""
+        self.prev_page.disabled = self.current_page == 0
+        self.next_page.disabled = self.current_page >= self.total_pages - 1
+        self.update_select_options()
+    
+    def update_select_options(self):
+        """Update select menu options"""
+        start_idx = self.current_page * self.items_per_page
+        end_idx = min(start_idx + self.items_per_page, len(self.wiki_items))
+        current_items = self.wiki_items[start_idx:end_idx]
+        
+        self.item_select.options.clear()
+        
+        for i, item in enumerate(current_items):
+            option_label = f"{i + 1}. {item['name'][:50]}{'...' if len(item['name']) > 50 else ''}"
+            option_description = f"{item.get('slot', 'Unknown')} • 🌐 Wiki"
+            
+            self.item_select.append_option(
+                discord.SelectOption(
+                    label=option_label,
+                    description=option_description,
+                    value=str(start_idx + i)
+                )
+            )
+        
+        self.item_select.placeholder = f"🌐 Select Wiki Item (Page {self.current_page + 1}/{self.total_pages})"
+    
+    def create_embed(self):
+        """Create embed for current page"""
+        start_idx = self.current_page * self.items_per_page
+        end_idx = min(start_idx + self.items_per_page, len(self.wiki_items))
+        current_items = self.wiki_items[start_idx:end_idx]
+        
+        embed = discord.Embed(
+            title=f"🌐 Wiki Items - Page {self.current_page + 1}/{self.total_pages}",
+            description=f"Showing {len(current_items)} of {len(self.wiki_items)} wiki items",
+            color=discord.Color.blue()
+        )
+        
+        for i, item in enumerate(current_items, 1):
+            name = item.get('name', 'Unknown Item')
+            slot = item.get('slot', 'Unknown')
+            ac = item.get('ac', 'N/A')
+            stats = item.get('stats', {})
+            
+            # Create field content
+            field_content = f"**Slot:** {slot}\n"
+            if ac:
+                field_content += f"**AC:** {ac}\n"
+            if stats:
+                stat_text = ", ".join([f"{k}: {v}" for k, v in stats.items()][:3])
+                field_content += f"**Stats:** {stat_text}\n"
+            field_content += f"**Source:** 🌐 Wiki Import"
+            
+            embed.add_field(
+                name=f"{i}. {name}",
+                value=field_content,
+                inline=False
+            )
+        
+        # Set image if available (use first item's image)
+        if current_items and current_items[0].get('image_url'):
+            embed.set_image(url=current_items[0]['image_url'])
+        
+        embed.set_footer(text="🌐 Items imported from Monsters and Memories Wiki")
+        
+        return embed
+    
+    @discord.ui.select(placeholder="Select Wiki Item", min_values=1, max_values=1, row=0)
+    async def item_select(self, interaction: discord.Interaction, select: discord.ui.Select):
+        """Handle wiki item selection"""
+        try:
+            selected_index = int(select.values[0])
+            selected_item = self.wiki_items[selected_index]
+            
+            # Create detailed embed for selected item
+            detail_embed = discord.Embed(
+                title=f"🌐 {selected_item['name']}",
+                description="Imported from Monsters and Memories Wiki",
+                color=discord.Color.green()
+            )
+            
+            # Add all available item details
+            if selected_item.get('slot'):
+                detail_embed.add_field(name="📍 Slot", value=selected_item['slot'], inline=True)
+            
+            if selected_item.get('ac'):
+                detail_embed.add_field(name="🛡️ AC", value=str(selected_item['ac']), inline=True)
+            
+            if selected_item.get('weight'):
+                detail_embed.add_field(name="⚖️ Weight", value=str(selected_item['weight']), inline=True)
+            
+            # Add stats
+            stats = selected_item.get('stats', {})
+            if stats:
+                stat_text = "\n".join([f"**{k}:** {v}" for k, v in stats.items()])
+                detail_embed.add_field(name="📊 Stats", value=stat_text, inline=False)
+            
+            # Add resists
+            resists = selected_item.get('resists', {})
+            if resists:
+                resist_text = "\n".join([f"**{k}:** {v}" for k, v in resists.items()])
+                detail_embed.add_field(name="🔥 Resists", value=resist_text, inline=False)
+            
+            # Add classes
+            classes = selected_item.get('classes', [])
+            if classes:
+                class_text = ", ".join(classes[:10])  # Limit to first 10
+                if len(classes) > 10:
+                    class_text += f" +{len(classes) - 10} more"
+                detail_embed.add_field(name="👥 Classes", value=class_text, inline=True)
+            
+            # Add races
+            races = selected_item.get('races', [])
+            if races:
+                race_text = ", ".join(races) if races != ['ALL'] else "All Races"
+                detail_embed.add_field(name="🧬 Races", value=race_text, inline=True)
+            
+            # Set images
+            if selected_item.get('image_url'):
+                detail_embed.set_image(url=selected_item['image_url'])
+            
+            # Add wiki source link
+            wiki_url = f"https://monstersandmemories.miraheze.org/wiki/{selected_item['name'].replace(' ', '_')}"
+            detail_embed.add_field(name="🌐 Wiki Link", value=f"[View on Wiki]({wiki_url})", inline=False)
+            
+            detail_embed.set_footer(text="Data imported from Monsters and Memories Wiki")
+            
+            await interaction.response.send_message(embed=detail_embed, ephemeral=True)
+            
+        except (ValueError, IndexError, KeyError) as e:
+            await interaction.response.send_message(
+                "❌ Error: Could not retrieve item details. Please try again.",
+                ephemeral=True
+            )
+    
+    @discord.ui.button(label="◀️ Previous", style=discord.ButtonStyle.secondary, row=1)
+    async def prev_page(self, interaction: discord.Interaction, button: discord.ui.Button):
+        """Go to previous page"""
+        if self.current_page > 0:
+            self.current_page -= 1
+            self.update_buttons()
+            await interaction.response.edit_message(embed=self.create_embed(), view=self)
+    
+    @discord.ui.button(label="▶️ Next", style=discord.ButtonStyle.secondary, row=1)
+    async def next_page(self, interaction: discord.Interaction, button: discord.ui.Button):
+        """Go to next page"""
+        if self.current_page < self.total_pages - 1:
+            self.current_page += 1
+            self.update_buttons()
+            await interaction.response.edit_message(embed=self.create_embed(), view=self)
+
+async def demo_wiki_integration():
+    """Demonstrate wiki integration with select menu pagination"""
+    print("🌐 Wiki Integration Demo")
+    print("=" * 50)
+    
+    async with WikiScraper() as scraper:
+        print("📥 Fetching items from wiki...")
+        
+        # Get some armor items for demo
+        wiki_items = await scraper.get_all_armor_items(limit=15)
+        
+        if not wiki_items:
+            print("❌ No items found from wiki")
+            return
+        
+        print(f"✅ Retrieved {len(wiki_items)} items from wiki")
+        
+        # Show sample data
+        print("\n📋 Sample Wiki Items:")
+        for i, item in enumerate(wiki_items[:3], 1):
+            print(f"\n{i}. {item['name']}")
+            print(f"   Slot: {item.get('slot', 'Unknown')}")
+            print(f"   AC: {item.get('ac', 'N/A')}")
+            print(f"   Image: {'✅' if item.get('image_url') else '❌'}")
+            print(f"   Stats: {len(item.get('stats', {}))} stats found")
+        
+        # Format for database
+        print(f"\n💾 Formatting items for database...")
+        formatted_items = [scraper.format_item_for_database(item) for item in wiki_items]
+        
+        print(f"✅ Formatted {len(formatted_items)} items for database")
+        
+        # Show sample formatted item
+        if formatted_items:
+            print(f"\n📝 Sample Formatted Item:")
+            sample = formatted_items[0]
+            for key, value in sample.items():
+                if value:
+                    print(f"   {key}: {value}")
+        
+        # Create demo view (this would be used in Discord)
+        print(f"\n🎮 Creating Discord view demo...")
+        view = WikiDemoView(wiki_items)
+        embed = view.create_embed()
+        
+        print("✅ Discord view created successfully!")
+        print(f"   - Total pages: {view.total_pages}")
+        print(f"   - Items per page: {view.items_per_page}")
+        print(f"   - Select options: {len(view.item_select.options)}")
+        
+        # Show what the Discord embed would look like
+        print(f"\n📱 Discord Embed Preview:")
+        print(f"Title: {embed.title}")
+        print(f"Description: {embed.description}")
+        print(f"Color: Blue")
+        print(f"Footer: {embed.footer.text}")
+        print(f"Image: {'✅' if embed.image else '❌'}")
+        print(f"Fields: {len(embed.fields)}")
+        
+        for i, field in enumerate(embed.fields[:2], 1):
+            print(f"   Field {i}: {field.name} -> {field.value[:50]}...")
+
+async def compare_manual_vs_wiki():
+    """Compare manual entry vs wiki import"""
+    print("\n🔄 Manual vs Wiki Comparison")
+    print("=" * 50)
+    
+    # Manual entry example
+    manual_item = {
+        'item_name': 'Cinder Beetle Boots',
+        'zone_name': 'Ashira Camp',
+        'zone_area': 'Shaded Dunes',
+        'npc_name': 'Cinder Beetle',
+        'npc_level': 15,
+        'item_slot': 'Feet',
+        'item_image': None,  # Would need manual upload
+        'npc_image': None,   # Would need manual upload
+        'source': 'manual'
+    }
+    
+    # Wiki entry example
+    async with WikiScraper() as scraper:
+        wiki_items = await scraper.get_all_armor_items(limit=50)
+        wiki_item = None
+        
+        for item in wiki_items:
+            if 'Cinder Beetle' in item['name'] and 'Boots' in item['name']:
+                wiki_item = scraper.format_item_for_database(item)
+                break
+    
+    print("📝 Manual Entry:")
+    for key, value in manual_item.items():
+        print(f"   {key}: {value}")
+    
+    if wiki_item:
+        print(f"\n🌐 Wiki Import:")
+        for key, value in wiki_item.items():
+            print(f"   {key}: {value}")
+        
+        print(f"\n✨ Advantages of Wiki Import:")
+        print(f"   ✅ Automatic image: {wiki_item.get('item_image', 'None')}")
+        print(f"   ✅ Detailed stats: Included in wiki data")
+        print(f"   ✅ Time saved: ~2 minutes per item")
+        print(f"   ✅ Consistency: Standardized formatting")
+        print(f"   ✅ Completeness: Full item information")
+
+async def main():
+    """Run all demos"""
+    try:
+        await demo_wiki_integration()
+        await compare_manual_vs_wiki()
+        
+        print(f"\n🎉 Demo completed successfully!")
+        print(f"\n📚 Next Steps:")
+        print(f"   1. Run 'python test_wiki_scraper.py' to test functionality")
+        print(f"   2. Integrate 'bot_with_wiki_integration.py' with your bot")
+        print(f"   3. Use '/import_wiki_items' in Discord to populate your database")
+        print(f"   4. Enjoy the enhanced select menu pagination with wiki items!")
+        
+    except Exception as e:
+        print(f"\n❌ Demo failed with error: {e}")
+        import traceback
+        traceback.print_exc()
+
+if __name__ == "__main__":
+    print("🚀 Wiki Integration Demo")
+    print("This demonstrates how wiki scraping enhances your Discord bot!")
+    print()
+    
+    asyncio.run(main())
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 # ---------------- Bot Setup ----------------
 
