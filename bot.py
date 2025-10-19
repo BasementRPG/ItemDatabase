@@ -1233,12 +1233,9 @@ async def remove_itemdb(interaction: discord.Interaction, item_name: str):
         ephemeral=True
     )
 
-
-
-
 class PaginatedResultsView(discord.ui.View):
-    def __init__(self, items: list[dict], db_pool, guild_id: int, *, per_page: int = 5, author_id: int | None = None):
-        super().__init__(timeout=None)
+    def __init__(self, items: list[dict], db_pool, guild_id, *, per_page: int = 5, author_id: int | None = None):
+        super().__init__(timeout=300)
         self.items = items
         self.db_pool = db_pool
         self.guild_id = guild_id
@@ -1248,150 +1245,186 @@ class PaginatedResultsView(discord.ui.View):
         self.author_id = author_id
         self._last_message = None
 
-        # Initialize navigation + item select dropdown
-        self._update_view()
+        # Add navigation + dropdown
+        self._add_nav_buttons()
+        self._add_item_dropdown()
 
-    # -------------------------------
-    # Page helpers
-    # -------------------------------
-    def _page_items(self):
+    # ─────────────────────────────
+    # Core Pagination Logic
+    # ─────────────────────────────
+    def get_page_items(self):
         start = self.current_page * self.per_page
         return self.items[start:start + self.per_page]
 
-    def _update_view(self):
-        """Refresh buttons and dropdown contents."""
+    def _add_nav_buttons(self):
+        """Add navigation and control buttons"""
         self.clear_items()
 
-        # Navigation buttons
-        prev_btn = discord.ui.Button(style=discord.ButtonStyle.secondary, emoji="⬅️")
-        next_btn = discord.ui.Button(style=discord.ButtonStyle.secondary, emoji="➡️")
-        back_btn = discord.ui.Button(style=discord.ButtonStyle.danger, emoji="🔄", label="Back to Filters")
+        # ⏮️ Previous
+        self.add_item(discord.ui.Button(
+            style=discord.ButtonStyle.secondary,
+            emoji="⏮️",
+            label="Previous",
+            disabled=self.current_page <= 0,
+            custom_id="prev"
+        ))
 
-        prev_btn.callback = self._prev_page
-        next_btn.callback = self._next_page
-        back_btn.callback = self._back_to_filters
+        # ⏭️ Next
+        self.add_item(discord.ui.Button(
+            style=discord.ButtonStyle.secondary,
+            emoji="⏭️",
+            label="Next",
+            disabled=self.current_page >= self.max_page,
+            custom_id="next"
+        ))
 
-        prev_btn.disabled = self.current_page <= 0
-        next_btn.disabled = self.current_page >= self.max_page
+        # 🔄 Back to Filters
+        self.add_item(discord.ui.Button(
+            style=discord.ButtonStyle.danger,
+            emoji="🔮",
+            label="Back to Filters",
+            custom_id="back"
+        ))
 
-        # Add buttons
-        self.add_item(prev_btn)
-        self.add_item(next_btn)
-        self.add_item(back_btn)
+    def _add_item_dropdown(self):
+        """Add dropdown menu for sending individual items"""
+        current_page_items = self.get_page_items()
 
-        # Dropdown menu for items on this page
-        page_items = self._page_items()
         options = [
-            discord.SelectOption(label=(i.get("item_name") or "Unknown Item")[:100], value=str(idx))
-            for idx, i in enumerate(page_items)
+            discord.SelectOption(
+                label=f"{(i.get('item_name') or 'Unknown Item')[:80]}",
+                description=f"{i.get('npc_name') or 'Unknown NPC'} • {i.get('zone_name') or 'Unknown Zone'}",
+                value=str(index)
+            )
+            for index, i in enumerate(current_page_items)
         ]
-        select = discord.ui.Select(
-            placeholder="Select an item to send privately",
+
+        dropdown = discord.ui.Select(
+            placeholder="📜 Send an item privately...",
             options=options,
-            min_values=1,
-            max_values=1,
+            custom_id="send_item_select"
         )
-        select.callback = self._send_item_ephemeral
-        self.add_item(select)
+        self.add_item(dropdown)
 
-    def _build_embeds(self):
-        """Builds embeds for current page."""
+    # ─────────────────────────────
+    # Embed Builder
+    # ─────────────────────────────
+    def _build_embeds_for_current_page(self) -> list[discord.Embed]:
         embeds = []
-        page_items = self._page_items()
-        for i in page_items:
-            title = i.get("item_name") or "Unknown Item"
-            npc_name = i.get("npc_name") or "Unknown NPC"
-            zone_name = i.get("zone_name") or "Unknown Zone"
-            zone_area = i.get("zone_area") or ""
-            raw_slot = i.get("item_slot") or ""
-            item_image = i.get("item_image")
-            npc_image = i.get("npc_image")
+        page_items = self.get_page_items()
 
-            
-                # Handle multi-slot entries like "chest, legs"
-            slot = "\n".join([s.strip().capitalize() for s in raw_slot.split(",")])
-            
-            embed = discord.Embed(title=title, color=discord.Color.blurple())
-            embed.add_field(name="NPC", value=npc_name, inline=True)
-            embed.add_field(name="Zone", value=f"{zone_name} \n{zone_area}", inline=True)
-            embed.add_field(name="Slot", value=slot, inline=True)
+        for item in page_items:
+            title = item.get("item_name") or "Unknown Item"
+            npc_name = item.get("npc_name") or "Unknown NPC"
+            npc_level = item.get("npc_level")
+            zone_name = item.get("zone_name") or "Unknown Zone"
+            zone_area = item.get("zone_area")
+            slot = item.get("item_slot") or ""
+            item_image = item.get("item_image")
+            npc_image = item.get("npc_image")
 
+            # 🧙 NPC + Level
+            npc_display = f"🧙 {npc_name} (Lvl {npc_level})" if npc_level else f"🧙 {npc_name}"
 
-            
-            # 🧩 NPC + Level combined
-            npc_display = f"{npc_name} (Lvl {npc_level})" if npc_level else npc_name
-    
-            # 🧭 Zone + Area combined
-            zone_display = f"{zone_name} — {zone_area}" if zone_area else zone_name
-    
+            # 🏰 Zone + Area
+            zone_display = f"🏰 {zone_name} — {zone_area}" if zone_area else f"🏰 {zone_name}"
+
+            # 🪓 Slots stacked vertically
+            slot_display = "\n".join(s.strip().title() for s in slot.split(",")) if "," in slot else slot.title()
+
+            embed = discord.Embed(title=f"💎 {title}", color=discord.Color.blurple())
+            embed.add_field(name="🧝 NPC", value=npc_display, inline=True)
+            embed.add_field(name="🏰 Zone", value=zone_display, inline=True)
+            embed.add_field(name="🪓 Slot", value=slot_display or "Unknown", inline=True)
+
             if item_image:
                 embed.set_image(url=item_image)
             if npc_image:
                 embed.set_thumbnail(url=npc_image)
-            embed.set_footer(text=f"Page {self.current_page + 1} of {self.max_page + 1}")
+
+            embed.set_footer(
+                text=f"📜 Page {self.current_page + 1} of {self.max_page + 1} — Total Entries: {len(self.items)}"
+            )
+
             embeds.append(embed)
+
         return embeds
 
-    # -------------------------------
-    # Button Callbacks
-    # -------------------------------
-    async def _prev_page(self, interaction: discord.Interaction):
-        if self.current_page > 0:
-            self.current_page -= 1
-            self._update_view()
-            await self._render(interaction)
-
-    async def _next_page(self, interaction: discord.Interaction):
-        if self.current_page < self.max_page:
-            self.current_page += 1
-            self._update_view()
-            await self._render(interaction)
-
-    async def _back_to_filters(self, interaction: discord.Interaction):
-       
-        await interaction.response.edit_message(
-            content="Choose a filter type:",
-            embeds=[],
-            view=DatabaseView(self.db_pool, self.guild_id)
-        )
-
-    # -------------------------------
-    # Dropdown callback
-    # -------------------------------
-    async def _send_item_ephemeral(self, interaction: discord.Interaction):
-        """Sends an ephemeral message for the selected item."""
-        try:
-            index = int(interaction.data["values"][0])
-            item = self._page_items()[index]
-        except Exception:
-            await interaction.response.send_message("⚠️ Something went wrong selecting that item.", ephemeral=True)
-            return
-
-        title = item.get("item_name") or "Unknown Item"
-        npc_name = item.get("npc_name") or "Unknown NPC"
-        zone_name = item.get("zone_name") or "Unknown Zone"
-        zone_area = item.get("zone_area") or ""
-        slot = item.get("item_slot") or ""
-        item_image = item.get("item_image")
-        npc_image = item.get("npc_image")
-
-        embed = discord.Embed(title=title, color=discord.Color.green())
-        embed.add_field(name="NPC", value=npc_name, inline=True)
-        embed.add_field(name="Zone", value=f"{zone_name} \n{zone_area}", inline=True)
-        embed.add_field(name="Slot", value=slot, inline=True)
-        if item_image:
-            embed.set_image(url=item_image)
-        if npc_image:
-            embed.set_thumbnail(url=npc_image)
-
-        await interaction.response.send_message(embed=embed, ephemeral=True)
-
-    # -------------------------------
-    # Rendering
-    # -------------------------------
+    # ─────────────────────────────
+    # Message Rendering
+    # ─────────────────────────────
     async def _render(self, interaction: discord.Interaction):
-        embeds = self._build_embeds()
-        await interaction.response.edit_message(embeds=embeds, view=self)
+        """Refreshes embeds and controls for current page"""
+        embeds = self._build_embeds_for_current_page()
+        self._add_nav_buttons()
+        self._add_item_dropdown()
+
+        try:
+            if not interaction.response.is_done():
+                await interaction.response.edit_message(embeds=embeds, view=self)
+            elif self._last_message:
+                await self._last_message.edit(embeds=embeds, view=self)
+            else:
+                msg = await interaction.followup.send(embeds=embeds, view=self, ephemeral=True)
+                self._last_message = msg
+        except Exception as e:
+            print(f"[Paginator Render Error]: {e}")
+
+    # ─────────────────────────────
+    # Interaction Handler
+    # ─────────────────────────────
+    async def interaction_check(self, interaction: discord.Interaction) -> bool:
+        """Main handler for navigation and dropdown interactions"""
+        if self.author_id and interaction.user.id != self.author_id:
+            await interaction.response.send_message("You can’t control this view.", ephemeral=True)
+            return False
+
+        cid = interaction.data.get("custom_id")
+
+        # Pagination
+        if cid == "prev":
+            if self.current_page > 0:
+                self.current_page -= 1
+                await self._render(interaction)
+            return True
+
+        elif cid == "next":
+            if self.current_page < self.max_page:
+                self.current_page += 1
+                await self._render(interaction)
+            return True
+
+        # Back to Filters
+        elif cid == "back":
+            await interaction.response.edit_message(
+                content="🔮 Choose a new filter:",
+                embeds=[],
+                view=DatabaseView(self.db_pool, self.guild_id)
+            )
+            return True
+
+        # Send private item
+        elif cid == "send_item_select":
+            selected_index = int(interaction.data["values"][0])
+            item = self.get_page_items()[selected_index]
+
+            embed = discord.Embed(
+                title=f"💎 {item.get('item_name') or 'Unknown Item'}",
+                color=discord.Color.green()
+            )
+            embed.add_field(name="🧝 NPC", value=item.get("npc_name") or "Unknown NPC", inline=True)
+            embed.add_field(name="🏰 Zone", value=item.get("zone_name") or "Unknown Zone", inline=True)
+            embed.add_field(name="🪓 Slot", value=item.get("item_slot") or "Unknown", inline=True)
+
+            if item.get("item_image"):
+                embed.set_image(url=item["item_image"])
+            if item.get("npc_image"):
+                embed.set_thumbnail(url=item["npc_image"])
+
+            await interaction.response.send_message(embed=embed, ephemeral=True)
+            return True
+
+        return False
 
     
 
