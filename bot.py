@@ -965,16 +965,16 @@ class ItemDatabaseModal(discord.ui.Modal, title="Add Item to Database"):
         self.item_slot = item_slot
 
         # Fields
-        self.item_name = discord.ui.TextInput(label="Item Name")
+        self.item_name = discord.ui.TextInput(label="Item Name", placeholder="Example: Flowing Black Silk Sash")
         self.zone_field = discord.ui.TextInput(
             label="Zone Name - Zone Area",
-            placeholder="Example: Shaded Dunes - Ashira Camp",
+            placeholder="Eamples: Shaded Dunes - Ashira Camp",
         )
-        self.npc_name = discord.ui.TextInput(label="NPC Name", placeholder="Fippy Darkpaw")
+        self.npc_name = discord.ui.TextInput(label="NPC Name", placeholder="Example: Fippy Darkpaw")
 
         self.npc_level = discord.ui.TextInput(
             label="NPC Level",
-            placeholder="Example: 35 (Numbers Only)",
+            placeholder="Example: 15 (Numbers Only)",
             required=False
         )
         
@@ -984,8 +984,9 @@ class ItemDatabaseModal(discord.ui.Modal, title="Add Item to Database"):
         self.add_item(self.item_name)
         self.add_item(self.zone_field)
         self.add_item(self.npc_name)
-        self.add_item(self.item_slot_field)
         self.add_item(self.npc_level)
+        self.add_item(self.item_slot_field)
+        
 
     async def on_submit(self, interaction: discord.Interaction):
         # Split "Zone - Area"
@@ -1005,25 +1006,68 @@ class ItemDatabaseModal(discord.ui.Modal, title="Add Item to Database"):
                 return
 
         # Insert into DB
-        async with self.db_pool.acquire() as conn:
-            await conn.execute("""
-                INSERT INTO item_database (
-                    guild_id, item_name, zone_name, zone_area,
-                    npc_name, item_slot, npc_level,
-                    item_image, npc_image, added_by, created_at
+        try:
+            async with self.db_pool.acquire() as conn:
+                await conn.execute("""
+                    INSERT INTO item_database (
+                        guild_id, item_name, zone_name, zone_area,
+                        npc_name, item_slot, npc_level,
+                        item_image, npc_image, added_by, created_at
+                    )
+                    VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,NOW())
+                """,
+                self.guild_id,
+                self.item_name.value.strip(),
+                zone_name,
+                zone_area,
+                self.npc_name.value.strip(),
+                self.item_slot_field.value.lower(),
+                npc_level_value,
+                self.item_image_url,
+                self.npc_image_url,
+                self.added_by)
+        except asyncpg.UniqueViolationError:
+                # ⚠️ Already exists — ask if they want to update
+                class ConfirmUpdateView(discord.ui.View):
+                    def __init__(self):
+                        super().__init__(timeout=30)
+                        self.value = None
+        
+                    @discord.ui.button(label="✅ Update Existing", style=discord.ButtonStyle.green)
+                    async def confirm(self, interaction2: discord.Interaction, button: discord.ui.Button):
+                        async with self.db_pool.acquire() as conn:
+                            await conn.execute("""
+                                UPDATE item_database
+                                SET zone_name=$3, zone_area=$4, item_slot=$5,
+                                    npc_level=$6, item_image=$7, npc_image=$8, added_by=$9, updated_at=NOW()
+                                WHERE guild_id=$1 AND item_name=$2 AND npc_name=$10
+                            """,
+                            self.guild_id,
+                            self.item_name.value.strip(),
+                            zone_name,
+                            zone_area,
+                            self.item_slot_field.value.lower(),
+                            npc_level_value,
+                            self.item_image_url,
+                            self.npc_image_url,
+                            self.added_by,
+                            self.npc_name.value.strip())
+                        await interaction2.response.edit_message(content="✅ Item updated successfully!", view=None)
+                        self.value = True
+        
+                    @discord.ui.button(label="❌ Cancel", style=discord.ButtonStyle.red)
+                    async def cancel(self, interaction2: discord.Interaction, button: discord.ui.Button):
+                        await interaction2.response.edit_message(content="❌ Update cancelled.", view=None)
+                        self.value = False
+        
+                view = ConfirmUpdateView()
+                await interaction.response.send_message(
+                    f"⚠️ `{self.item_name.value}` by `{self.npc_name.value}` already exists.\nWould you like to update it?",
+                    view=view, ephemeral=True
                 )
-                VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,NOW())
-            """,
-            self.guild_id,
-            self.item_name.value.strip(),
-            zone_name,
-            zone_area,
-            self.npc_name.value.strip(),
-            self.item_slot_field.value.lower(),
-            npc_level_value,
-            self.item_image_url,
-            self.npc_image_url,
-            self.added_by)
+                return
+
+        
 
         # Confirmation
         zone_display = f"{zone_name} ({zone_area})" if zone_area else zone_name
@@ -1159,6 +1203,7 @@ class ConfirmRemoveItemView(View):
     def __init__(self, item_name, db_pool):
         super().__init__(timeout=60)
         self.item_name = item_name
+        self.npc_name = npc_name
         self.db_pool = db_pool
 
     @discord.ui.button(label="✅ Confirm", style=discord.ButtonStyle.danger)
@@ -1169,12 +1214,12 @@ class ConfirmRemoveItemView(View):
                 row = await conn.fetchrow("""
                     SELECT item_msg_id, npc_msg_id 
                     FROM item_database 
-                    WHERE item_name=$1 AND guild_id=$2
-                """, self.item_name, interaction.guild_id)
+                    WHERE item_name=$1 AND npc_name=$2 AND guild_id=$3
+                """, self.item_name, self.npc_name, interaction.guild_id)
 
                 if not row:
                     await interaction.response.edit_message(
-                        content=f"❌ Item **{self.item_name}** not found in the database.",
+                        content=f"❌ Item **{self.item_name} from {self.npc_name}** not found in the database.",
                         view=None
                     )
                     return
@@ -1195,8 +1240,8 @@ class ConfirmRemoveItemView(View):
                 # Remove entry from database
                 await conn.execute("""
                     DELETE FROM item_database 
-                    WHERE item_name=$1 AND guild_id=$2
-                """, self.item_name, interaction.guild_id)
+                    WHERE item_name=$1 AND npc_name=$2 AND guild_id=$3
+                """, self.item_name, self.npc_name, interaction.guild_id)
 
             await interaction.response.edit_message(
                 content=f"🗑️ **{self.item_name}** was successfully removed from the database.",
@@ -1224,9 +1269,10 @@ class ConfirmRemoveItemView(View):
 
 @bot.tree.command(name="remove_item_db", description="Remove an item from the item database by name.")
 @app_commands.describe(item_name="Name of the item to remove.")
-async def remove_itemdb(interaction: discord.Interaction, item_name: str):
+@app_commands.describe(npc_name="Name of the NPC to remove.")
+async def remove_itemdb(interaction: discord.Interaction, item_name: str, npc_name: str, ):
     # Ask for confirmation first
-    view = ConfirmRemoveItemView(item_name=item_name, db_pool=db_pool)
+    view = ConfirmRemoveItemView(item_name=item_name, npc_name=npc_name, db_pool=db_pool)
     await interaction.response.send_message(
         f"⚠️ Are you sure you want to remove **{item_name}** from the item database?",
         view=view,
