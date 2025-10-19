@@ -1934,63 +1934,89 @@ class WikiView(discord.ui.View):
                     page_html = await resp.text()
               
 
-                    # --- Parse item details from individual page ---
+                    
+                   # --- Parse item details from individual page ---
                     s2 = BeautifulSoup(page_html, "html.parser")
                     
                     # Item title
                     title = s2.find("h1", id="firstHeading")
                     item_name = title.text.strip() if title else name
                     
-                    # Image
+                    # Image (works for both infobox and inline)
                     image_url = None
-                    img_tag = s2.select_one(".infobox img, .pi-image img")
+                    img_tag = s2.select_one(".infobox img, .pi-image img, .mainPageInnerBox img")
                     if img_tag:
                         src = img_tag.get("src", "")
                         image_url = f"https:{src}" if src.startswith("//") else src
                     
-                    # --- Try all possible infobox tables ---
-                    npc_name, zone_name, slot_name = "Unknown", "Unknown", "Unknown"
-
-                    infobox_like = s2.select_one(".infobox, .portable-infobox, table")
-                    if infobox_like:
-                        print("DEBUG - FOUND INFOBOX:")
-                        print(infobox_like.prettify()[:1500])  # limit output to 1500 chars
-                    else:
-                        print("DEBUG - NO INFOBOX FOUND on", url)
-
-
+                    # Initialize fields
+                    npc_name = "Unknown"
+                    zone_name = "Unknown"
+                    slot_name = "Unknown"
                     
-                    for infobox in infoboxes:
-                        for row in infobox.select("tr"):
-                            header = row.find(["th", "td"])
-                            if not header:
+                    # --- 1️⃣ Check standard / portable infobox ---
+                    infobox = s2.select_one(".portable-infobox, .infobox, table.infobox")
+                    if infobox:
+                        for row in infobox.select("section, tr"):
+                            label = row.find(["h3", "th"])
+                            value = row.find(["div", "td"])
+                            if not label or not value:
                                 continue
-                            key = header.get_text(strip=True).lower()
-                            val = row.find_all("td")
-                            if len(val) < 1:
-                                continue
-                            value = val[-1].get_text(strip=True)
-                            if "dropped" in key:
-                                npc_name = value
+                    
+                            key = label.get_text(strip=True).lower()
+                            val = value.get_text(strip=True)
+                    
+                            if "dropped" in key or "drop" in key:
+                                npc_name = val
                             elif "zone" in key:
-                                zone_name = value
+                                zone_name = val
                             elif "slot" in key:
-                                slot_name = value
+                                slot_name = val
                     
-                    # --- Description (use first paragraph of main content) ---
+                    # --- 2️⃣ Fallback: check Monsters & Memories layout (mainPageInnerBox) ---
+                    if npc_name == "Unknown" or zone_name == "Unknown":
+                        main_box = s2.find("div", class_="mainPageInnerBox")
+                        if main_box:
+                            # Find paragraphs *after* the box
+                            next_elements = main_box.find_all_next("p", limit=6)
+                            for p in next_elements:
+                                text = p.get_text(strip=True)
+                                if text.lower().startswith("dropped by"):
+                                    npc_name = text.split(":", 1)[1].strip()
+                                elif text.lower().startswith("zone"):
+                                    zone_name = text.split(":", 1)[1].strip()
+                                elif text.lower().startswith("slot"):
+                                    slot_name = text.split(":", 1)[1].strip()
+                    
+                    # --- Description (first paragraph in main content) ---
                     desc_tag = s2.select_one("div.mw-parser-output > p")
                     description = desc_tag.text.strip() if desc_tag else "No description available."
                     
+                    # --- Formatting ---
+                    def clean_case(s):
+                        if not s or s == "Unknown":
+                            return "Unknown"
+                        s = s.lower()
+                        if len(s) < 3:
+                            return s.upper()
+                        return " ".join(word.capitalize() for word in s.split())
+                    
+                    npc_name = clean_case(npc_name)
+                    zone_name = clean_case(zone_name)
+                    slot_name = clean_case(slot_name)
+                    
+                    # --- Store item ---
                     items.append({
-                        "item_name": item_name.title(),
+                        "item_name": clean_case(item_name),
                         "item_image": image_url,
-                        "npc_name": npc_name.title(),
-                        "zone_name": zone_name.title(),
-                        "slot_name": slot_name.title(),
+                        "npc_name": npc_name,
+                        "zone_name": zone_name,
+                        "slot_name": slot_name,
                         "wiki_url": url,
                         "description": description,
                         "source": "Wiki"
                     })
+
 
 
     
