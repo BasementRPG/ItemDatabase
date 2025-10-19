@@ -9,9 +9,6 @@ import asyncpg
 from discord.ui import View, Button
 from discord.ui import View, Select
 from discord import SelectOption, Interaction
-
-
-
 import aiohttp
 import io
 
@@ -1200,7 +1197,7 @@ async def edit_database_item(interaction: discord.Interaction, item_name: str):
 
 
 class ConfirmRemoveItemView(View):
-    def __init__(self, item_name, db_pool):
+    def __init__(self, item_name, npc_name, db_pool):
         super().__init__(timeout=60)
         self.item_name = item_name
         self.npc_name = npc_name
@@ -1225,7 +1222,7 @@ class ConfirmRemoveItemView(View):
                     return
 
                 # Delete the uploaded messages
-                upload_channel = discord.utils.get(interaction.guild.text_channels, name="item-database-upload-log")
+                upload_channel = away ensure_upload_channel1(interaction.guild)
                 if upload_channel:
                     for msg_id in [row["item_msg_id"], row["npc_msg_id"]]:
                         if msg_id:
@@ -1278,6 +1275,9 @@ async def remove_itemdb(interaction: discord.Interaction, item_name: str, npc_na
         view=view,
         ephemeral=True
     )
+
+
+
 
 class PaginatedResultsView(discord.ui.View):
     def __init__(self, items: list[dict], db_pool, guild_id, *, per_page: int = 5, author_id: int | None = None):
@@ -1443,7 +1443,7 @@ class PaginatedResultsView(discord.ui.View):
         # Back to Filters
         elif cid == "back":
             await interaction.response.edit_message(
-                content="🔮 Choose a new filter:",
+                content="Choose a new filter:",
                 embeds=[],
                 view=DatabaseView(self.db_pool, self.guild_id)
             )
