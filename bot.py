@@ -952,14 +952,15 @@ async def view_donations(interaction: discord.Interaction):
 
 
 class ItemDatabaseModal(discord.ui.Modal, title="Add Item to Database"):
-    def __init__(self, db_pool, guild_id, added_by, item_image_url=None, npc_image_url=None, item_slot=None):
+    def __init__(self, db_pool, guild_id, added_by, item_image_url=None, npc_image_url=None, item_slot=None, item_msg_id=None, npc_msg_id=None):
         super().__init__(timeout=None)
         self.db_pool = db_pool
         self.guild_id = guild_id
         self.added_by = added_by
         self.item_image_url = item_image_url
         self.npc_image_url = npc_image_url
-        self.item_slot = item_slot
+        self.item_msg_id = item_msg_id
+        self.npc_msg_id = npc_msg_id
 
         # Fields
         self.item_name = discord.ui.TextInput(label="Item Name", placeholder="Example: Flowing Black Silk Sash")
@@ -1010,7 +1011,7 @@ class ItemDatabaseModal(discord.ui.Modal, title="Add Item to Database"):
                     INSERT INTO item_database (
                         guild_id, item_name, zone_name, zone_area,
                         npc_name, item_slot, npc_level,
-                        item_image, npc_image, added_by, created_at
+                        item_image, npc_image, added_by, item_msg_id, npc_msg_id, created_at
                     )
                     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,NOW())
                 """,
@@ -1023,6 +1024,8 @@ class ItemDatabaseModal(discord.ui.Modal, title="Add Item to Database"):
                 npc_level_value,
                 self.item_image_url,
                 self.npc_image_url,
+                self.item_msg_id,
+                self.npc_msg_id,                  
                 self.added_by)
     
             # Confirmation
@@ -1171,7 +1174,9 @@ async def add_item_db(interaction: discord.Interaction, item_image: discord.Atta
             added_by=added_by,
             item_image_url=item_msg.attachments[0].url,
             npc_image_url=npc_msg.attachments[0].url,
-            item_slot=item_slot
+            item_slot=item_slot,
+            item_msg_id=item_msg.id,
+            npc_msg_id=npc_msg.id 
         )
     )
 
