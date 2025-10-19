@@ -1222,7 +1222,7 @@ class ConfirmRemoveItemView(View):
                     return
 
                 # Delete the uploaded messages
-                upload_channel = away ensure_upload_channel1(interaction.guild)
+                upload_channel = away ensure_upload_channel1(guild)
                 if upload_channel:
                     for msg_id in [row["item_msg_id"], row["npc_msg_id"]]:
                         if msg_id:
