@@ -1865,157 +1865,107 @@ async def edit_item_image(
 
 
 
+
+# ======================================================
+# 🧠 WikiView Class - Fetches and Displays Wiki Items
+# ======================================================
+
 class WikiView(discord.ui.View):
-    def __init__(self, slot_name, db_pool):
-        super().__init__(timeout=300)
-        self.slot_name = slot_name
-        self.db_pool = db_pool
+    def __init__(self, slot_name):
+        super().__init__(timeout=None)
+        self.slot_name = slot_name.capitalize()
         self.items = []
         self.current_page = 0
 
+    # ------------------------------------------------------
+    # 🧩 Load and parse items from the wiki
+    # ------------------------------------------------------
     async def load_items(self):
-        """Pull items from wiki + database based on slot."""
-        # 🔹 Load from wiki
-        wiki_items = await self.fetch_wiki_items_by_slot()
-        # 🔹 Load from your database
-        async with self.db_pool.acquire() as conn:
-            db_items = await conn.fetch("""
-                SELECT item_name, item_image, npc_name, zone_name
-                FROM item_database
-                WHERE LOWER(item_slot) LIKE LOWER($1)
-            """, f"%{self.slot_name}%")
-
-        # Convert DB rows to same format
-        db_results = [{
-            "item_name": r["item_name"].title(),
-            "item_image": r["item_image"],
-            "npc_name": (r["npc_name"] or "Unknown").title(),
-            "zone_name": (r["zone_name"] or "Unknown").title(),
-            "wiki_url": None,
-            "source": "Database"
-        } for r in db_items]
-
-        self.items = db_results + wiki_items
-        # Sort alphabetically
-        self.items.sort(key=lambda x: x["item_name"])
-
-
-    async def fetch_wiki_items_by_slot(self):
-        """Fetch detailed item info from the Monsters & Memories wiki."""
         base_url = "https://monstersandmemories.miraheze.org"
-        category_url = f"{base_url}/wiki/Category:{self.slot_name.title()}"
-    
-        items = []
-    
-        async with aiohttp.ClientSession(headers={
-            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
-                          "AppleWebKit/537.36 (KHTML, like Gecko) "
-                          "Chrome/118.0.0.0 Safari/537.36"
-        }) as session:
+        category_url = f"{base_url}/wiki/Category:{self.slot_name}"
 
-            async with session.get(category_url) as resp:
+        async with aiohttp.ClientSession() as session:
+            async with session.get(category_url, headers={"User-Agent": "Mozilla/5.0"}) as resp:
                 if resp.status != 200:
-                    print(f"⚠️ Failed to fetch {category_url} ({resp.status})")
-                    return []
+                    raise RuntimeError(f"⚠️ Failed to fetch {category_url} ({resp.status})")
                 html = await resp.text()
-                soup = BeautifulSoup(html, "html.parser")
-    
-                # Find all item links in the category
-                item_links = [
-                    (link.text.strip(), base_url + link["href"])
-                    for link in soup.select("div.mw-category-group a")
-                ]
-    
-            # Now visit each item page to get details
-            for name, url in item_links[:10]:  # limit for speed
-                async with session.get(url) as resp:
-                    if resp.status != 200:
-                        continue
-                    page_html = await resp.text()
-              
 
-                    
-                   # --- Parse item details from individual page ---
-                    s2 = BeautifulSoup(page_html, "html.parser")
-                    
-                    # Item title
-                    title = s2.find("h1", id="firstHeading")
-                    item_name = title.text.strip() if title else name
-                    
-                    # Image (works for both infobox and inline)
-                    image_url = None
-                    img_tag = s2.select_one(".infobox img, .pi-image img, .mainPageInnerBox img")
-                    if img_tag:
-                        src = img_tag.get("src", "")
-                        image_url = f"https:{src}" if src.startswith("//") else src
-                    
-                    # Initialize fields
-                    npc_name = "Unknown"
-                    zone_name = "Unknown"
-                    slot_name = "Unknown"
-                    
-                    # --- 1️⃣ Check standard / portable infobox ---
-                    infobox = s2.select_one(".portable-infobox, .infobox, table.infobox")
-                    if infobox:
-                        for row in infobox.select("section, tr"):
-                            label = row.find(["h3", "th"])
-                            value = row.find(["div", "td"])
-                            if not label or not value:
-                                continue
-                    
-                            key = label.get_text(strip=True).lower()
-                            val = value.get_text(strip=True)
-                    
-                            if "dropped" in key or "drop" in key:
-                                npc_name = val
-                            elif "zone" in key:
-                                zone_name = val
-                            elif "slot" in key:
-                                slot_name = val
-                    
-                    # --- 2️⃣ Fallback: check Monsters & Memories layout (mainPageInnerBox) ---
-                    if npc_name == "Unknown" or zone_name == "Unknown":
-                        main_box = s2.find("div", class_="mainPageInnerBox")
-                        if main_box:
-                            # Find paragraphs *after* the box
-                            next_elements = main_box.find_all_next("p", limit=6)
-                            for p in next_elements:
-                                text = p.get_text(strip=True)
-                                if text.lower().startswith("dropped by"):
-                                    npc_name = text.split(":", 1)[1].strip()
-                                elif text.lower().startswith("zone"):
-                                    zone_name = text.split(":", 1)[1].strip()
-                                elif text.lower().startswith("slot"):
-                                    slot_name = text.split(":", 1)[1].strip()
-                    
-                    # --- Description (first paragraph in main content) ---
-                    desc_tag = s2.select_one("div.mw-parser-output > p")
-                    description = desc_tag.text.strip() if desc_tag else "No description available."
-                    
-                    # --- Formatting ---
-                    def clean_case(s):
-                        if not s or s == "Unknown":
-                            return "Unknown"
-                        s = s.lower()
-                        if len(s) < 3:
-                            return s.upper()
-                        return " ".join(word.capitalize() for word in s.split())
-                    
-                    npc_name = clean_case(npc_name)
-                    zone_name = clean_case(zone_name)
-                    slot_name = clean_case(slot_name)
-                    
-                    # --- Store item ---
-                    items.append({
-                        "item_name": clean_case(item_name),
-                        "item_image": image_url,
-                        "npc_name": npc_name,
-                        "zone_name": zone_name,
-                        "slot_name": slot_name,
-                        "wiki_url": url,
-                        "description": description,
-                        "source": "Wiki"
-                    })
+        soup = BeautifulSoup(html, "html.parser")
+        category_div = soup.find("div", class_="mw-category-generated")
+        if not category_div:
+            self.items = [{"item_name": f"No items found for {self.slot_name}", "description": "", "item_image": None}]
+            return
+
+        links = category_div.find_all("a", href=True)
+        for link in links[:20]:  # limit to 20 items per fetch for performance
+            item_url = base_url + link["href"]
+            item_name = link.get_text(strip=True)
+            item_data = await self._fetch_item_details(item_url, item_name)
+            if item_data:
+                self.items.append(item_data)
+
+    # ------------------------------------------------------
+    # 🔎 Fetch individual item page details
+    # ------------------------------------------------------
+    async def _fetch_item_details(self, url, name):
+        async with aiohttp.ClientSession() as session:
+            async with session.get(url, headers={"User-Agent": "Mozilla/5.0"}) as resp:
+                if resp.status != 200:
+                    print(f"⚠️ Failed to fetch {url} ({resp.status})")
+                    return None
+                html = await resp.text()
+
+        soup = BeautifulSoup(html, "html.parser")
+
+        # 🏷️ Item title
+        title = soup.find("h1", id="firstHeading")
+        item_name = title.text.strip() if title else name
+
+        # 🖼️ Image
+        img_tag = soup.select_one(".infobox img, .pi-image img, .mainPageInnerBox img")
+        image_url = None
+        if img_tag:
+            src = img_tag.get("src", "")
+            image_url = f"https:{src}" if src.startswith("//") else src
+
+        # 🧍 NPC / 🏞️ Zone / 🎒 Slot
+        npc_name, zone_name, slot_name = "Unknown", "Unknown", "Unknown"
+        content = soup.select("div.mw-parser-output > p")
+        for p in content:
+            b = p.find("b")
+            if not b:
+                continue
+            label = b.get_text(strip=True).lower()
+
+            if "dropped by" in label:
+                npc_link = b.find_next("a")
+                npc_name = npc_link.get_text(strip=True) if npc_link else "Unknown"
+
+            elif "zone" in label:
+                zone_link = b.find_next("a")
+                zone_name = zone_link.get_text(strip=True) if zone_link else "Unknown"
+
+            elif "slot" in label:
+                slot_link = b.find_next("a")
+                slot_name = slot_link.get_text(strip=True) if slot_link else "Unknown"
+
+        # 📊 Item Stats
+        item_stats_div = soup.find("div", class_="item-stats")
+        item_stats = "None listed"
+        if item_stats_div:
+            lines = [line.strip() for line in item_stats_div.stripped_strings]
+            item_stats = "\n".join(lines)
+
+        # 🧾 Description
+        desc_tag = soup.select_one("div.mw-parser-output > p")
+        description = desc_tag.text.strip() if desc_tag else "No description available."
+
+        # Helper to normalize case
+        def clean_case(s):
+            if not s or s == "Unknown":
+               
+
+
 
 
 
