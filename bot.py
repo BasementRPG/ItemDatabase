@@ -1219,9 +1219,9 @@ class EditDatabaseModal(discord.ui.Modal):
             default=item_row['item_slot']
         )
 
-        self.add_item(self.item_name)
+        self.add_item(self.item_name).title()
         self.add_item(self.zone_field)
-        self.add_item(self.npc_name)
+        self.add_item(self.npc_name).title()
         self.add_item(self.npc_level)
         self.add_item(self.item_slot)
 
