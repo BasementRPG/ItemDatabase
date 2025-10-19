@@ -979,9 +979,9 @@ class ItemDatabaseModal(discord.ui.Modal, title="Add Item to Database"):
         self.item_slot_field = discord.ui.TextInput(label="Item Slot (Add another slot spaced with a , )", default=item_slot or "")
 
 
-        self.add_item(self.item_name)
+        self.add_item(self.item_name).title()
         self.add_item(self.zone_field)
-        self.add_item(self.npc_name)
+        self.add_item(self.npc_name).title()
         self.add_item(self.npc_level)
         self.add_item(self.item_slot_field)
         
