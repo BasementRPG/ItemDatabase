@@ -1866,188 +1866,168 @@ async def edit_item_image(
 
 
 
-# ======================================================
-# 🧠 WikiView Class - Fetches and Displays Wiki Items
-# ======================================================
+
+# -------------------- WikiView Class --------------------
 
 class WikiView(discord.ui.View):
-    def __init__(self, slot_name):
+    def __init__(self, items):
         super().__init__(timeout=None)
-        self.slot_name = slot_name.capitalize()
-        self.items = []
+        self.items = items
         self.current_page = 0
 
-    # ------------------------------------------------------
-    # 🧩 Load and parse items from the wiki
-    # ------------------------------------------------------
-    async def load_items(self):
-        base_url = "https://monstersandmemories.miraheze.org"
-        category_url = f"{base_url}/wiki/Category:{self.slot_name}"
-
-        async with aiohttp.ClientSession() as session:
-            async with session.get(category_url, headers={"User-Agent": "Mozilla/5.0"}) as resp:
-                if resp.status != 200:
-                    raise RuntimeError(f"⚠️ Failed to fetch {category_url} ({resp.status})")
-                html = await resp.text()
-
-        soup = BeautifulSoup(html, "html.parser")
-        category_div = soup.find("div", class_="mw-category-generated")
-        if not category_div:
-            self.items = [{"item_name": f"No items found for {self.slot_name}", "description": "", "item_image": None}]
-            return
-
-        links = category_div.find_all("a", href=True)
-        for link in links[:20]:  # limit to 20 items per fetch for performance
-            item_url = base_url + link["href"]
-            item_name = link.get_text(strip=True)
-            item_data = await self._fetch_item_details(item_url, item_name)
-            if item_data:
-                self.items.append(item_data)
-
-    # ------------------------------------------------------
-    # 🔎 Fetch individual item page details
-    # ------------------------------------------------------
-    async def _fetch_item_details(self, url, name):
-        async with aiohttp.ClientSession() as session:
-            async with session.get(url, headers={"User-Agent": "Mozilla/5.0"}) as resp:
-                if resp.status != 200:
-                    print(f"⚠️ Failed to fetch {url} ({resp.status})")
-                    return None
-                html = await resp.text()
-
-        soup = BeautifulSoup(html, "html.parser")
-
-        # 🏷️ Item title
-        title = soup.find("h1", id="firstHeading")
-        item_name = title.text.strip() if title else name
-
-        # 🖼️ Image
-        img_tag = soup.select_one(".infobox img, .pi-image img, .mainPageInnerBox img")
-        image_url = None
-        if img_tag:
-            src = img_tag.get("src", "")
-            image_url = f"https:{src}" if src.startswith("//") else src
-
-        # 🧍 NPC / 🏞️ Zone / 🎒 Slot
-        npc_name, zone_name, slot_name = "Unknown", "Unknown", "Unknown"
-        content = soup.select("div.mw-parser-output > p")
-        for p in content:
-            b = p.find("b")
-            if not b:
-                continue
-            label = b.get_text(strip=True).lower()
-
-            if "dropped by" in label:
-                npc_link = b.find_next("a")
-                npc_name = npc_link.get_text(strip=True) if npc_link else "Unknown"
-
-            elif "zone" in label:
-                zone_link = b.find_next("a")
-                zone_name = zone_link.get_text(strip=True) if zone_link else "Unknown"
-
-            elif "slot" in label:
-                slot_link = b.find_next("a")
-                slot_name = slot_link.get_text(strip=True) if slot_link else "Unknown"
-
-        # 📊 Item Stats
-        item_stats_div = soup.find("div", class_="item-stats")
-        item_stats = "None listed"
-        if item_stats_div:
-            lines = [line.strip() for line in item_stats_div.stripped_strings]
-            item_stats = "\n".join(lines)
-
-        # 🧾 Description
-        desc_tag = soup.select_one("div.mw-parser-output > p")
-        description = desc_tag.text.strip() if desc_tag else "No description available."
-
-        # Helper to normalize case
-        def clean_case(s):
-            if not s or s == "Unknown":
-               
-
-
-
-
-
-    
-        return items
-
-
-
-    def build_embed(self, page: int):
+    def build_embed(self, page_index: int):
+        """Builds an embed for the current item page."""
+        item = self.items[page_index]
         embed = discord.Embed(
-            title=f"📜 {self.slot_name.title()} Items",
-            color=discord.Color.blurple()
+            title=item["item_name"],
+            description=item["description"],
+            color=discord.Color.gold(),
+            url=item["wiki_url"]
         )
-    
-        start = page * 5
-        end = start + 5
-        page_items = self.items[start:end]
-    
-        for item in page_items:
-            name = item["item_name"].title()
-            npc = item.get("npc_name") or "Unknown"
-            zone = item.get("zone_name") or "Unknown"
-            desc = item.get("description") or "No description available."
-            source = item.get("source", "Unknown")
-    
-            field_name = f"{'🔹 ' if source == 'Wiki' else '💠 '}{name}"
-            field_value = (
-                f"🧍 **NPC:** {npc.title()}\n"
-                f"🏞️ **Zone:** {zone.title()}\n"
-                f"📖 **Description:** {desc[:250]}{'...' if len(desc) > 250 else ''}\n"
-                f"🌐 **Source:** {source}"
-            )
-    
-            embed.add_field(name=field_name, value=field_value, inline=False)
-    
-            # Display the last item's image to keep layout clean
-            if item.get("item_image"):
-                embed.set_image(url=item["item_image"])
-    
-        total_pages = max(1, (len(self.items) - 1) // 5 + 1)
-        embed.set_footer(text=f"Page {page + 1} of {total_pages} • Showing {len(page_items)} items")
-    
+
+        if item["item_image"]:
+            embed.set_thumbnail(url=item["item_image"])
+
+        embed.add_field(name="🏞️ Zone", value=item["zone_name"], inline=True)
+        embed.add_field(name="🧍 NPC", value=item["npc_name"], inline=True)
+        embed.add_field(name="🎒 Slot", value=item["slot_name"], inline=True)
+        embed.add_field(name="📊 Item Stats", value=item["item_stats"], inline=False)
+
+        embed.set_footer(text=f"📚 Source: Monsters & Memories Wiki • Page {page_index + 1}/{len(self.items)}")
         return embed
 
+    @discord.ui.button(label="⬅️ Previous", style=discord.ButtonStyle.secondary)
+    async def prev_page(self, interaction: discord.Interaction, button: discord.ui.Button):
+        self.current_page = (self.current_page - 1) % len(self.items)
+        await interaction.response.edit_message(embed=self.build_embed(self.current_page), view=self)
+
+    @discord.ui.button(label="➡️ Next", style=discord.ButtonStyle.primary)
+    async def next_page(self, interaction: discord.Interaction, button: discord.ui.Button):
+        self.current_page = (self.current_page + 1) % len(self.items)
+        await interaction.response.edit_message(embed=self.build_embed(self.current_page), view=self)
 
 
+# -------------------- Helper Function --------------------
 
-@bot.tree.command(name="view_wiki_items", description="View items from the Monsters & Memories wiki.")
-@app_commands.describe(slot="Select the item slot to view.")
+async def fetch_wiki_items(slot_name: str):
+    """Scrapes the Monsters & Memories wiki category for the given item slot."""
+    base_url = "https://monstersandmemories.miraheze.org"
+    category_url = f"{base_url}/wiki/Category:{slot_name}"
+
+    items = []
+
+    async with aiohttp.ClientSession() as session:
+        async with session.get(category_url, headers={"User-Agent": "Mozilla/5.0"}) as resp:
+            if resp.status != 200:
+                print(f"⚠️ Failed to fetch {category_url} ({resp.status})")
+                return []
+            html = await resp.text()
+
+        soup = BeautifulSoup(html, "html.parser")
+
+        # Find item page links in the category
+        links = soup.select("div.mw-category a")
+        for link in links[:25]:  # limit for testing
+            name = link.text.strip()
+            href = link["href"]
+            item_url = f"{base_url}{href}"
+
+            async with session.get(item_url, headers={"User-Agent": "Mozilla/5.0"}) as resp2:
+                if resp2.status != 200:
+                    continue
+                page_html = await resp2.text()
+
+            s2 = BeautifulSoup(page_html, "html.parser")
+
+            # --- Item Name ---
+            title = s2.find("h1", id="firstHeading")
+            item_name = title.text.strip() if title else name
+
+            # --- Image ---
+            image_url = None
+            img_tag = s2.select_one(".infobox img, .pi-image img, .mainPageInnerBox img")
+            if img_tag:
+                src = img_tag.get("src", "")
+                image_url = f"https:{src}" if src.startswith("//") else src
+
+            # --- NPC / Zone / Slot ---
+            npc_name, zone_name, slot_name_clean = "Unknown", "Unknown", slot_name
+
+            content = s2.select("div.mw-parser-output > p")
+            for p in content:
+                b = p.find("b")
+                if not b:
+                    continue
+                label = b.get_text(strip=True).lower()
+
+                if "dropped by" in label:
+                    npc_link = b.find_next("a")
+                    npc_name = npc_link.get_text(strip=True) if npc_link else "Unknown"
+
+                elif "zone" in label:
+                    zone_link = b.find_next("a")
+                    zone_name = zone_link.get_text(strip=True) if zone_link else "Unknown"
+
+                elif "slot" in label:
+                    slot_link = b.find_next("a")
+                    slot_name_clean = slot_link.get_text(strip=True) if slot_link else slot_name_clean
+
+            # --- Item Stats ---
+            item_stats_div = s2.find("div", class_="item-stats")
+            item_stats = "None listed"
+            if item_stats_div:
+                lines = [line.strip() for line in item_stats_div.stripped_strings]
+                item_stats = "\n".join(lines)
+
+            # --- Description ---
+            desc_tag = s2.select_one("div.mw-parser-output > p")
+            description = desc_tag.text.strip() if desc_tag else "No description available."
+
+            def clean_case(s):
+                if not s or s == "Unknown":
+                    return "Unknown"
+                s = s.lower()
+                if len(s) < 3:
+                    return s.upper()
+                return " ".join(word.capitalize() for word in s.split())
+
+            items.append({
+                "item_name": clean_case(item_name),
+                "item_image": image_url,
+                "npc_name": clean_case(npc_name),
+                "zone_name": clean_case(zone_name),
+                "slot_name": clean_case(slot_name_clean),
+                "item_stats": item_stats,
+                "wiki_url": item_url,
+                "description": description,
+                "source": "Wiki"
+            })
+
+    return items
+
+
+# -------------------- Slash Command --------------------
+
+@bot.tree.command(name="view_wiki_items", description="View items from the Monsters & Memories Wiki by slot.")
+@app_commands.describe(slot="Select which item slot to view from the Wiki.")
 @app_commands.choices(slot=[
-    app_commands.Choice(name="Ammo", value="Ammo"),
-    app_commands.Choice(name="Back", value="Back"),
-    app_commands.Choice(name="Chest", value="Chest"),
-    app_commands.Choice(name="Ear", value="Ear"),
-    app_commands.Choice(name="Feet", value="Feet"),
-    app_commands.Choice(name="Finger", value="Finger"),
-    app_commands.Choice(name="Hands", value="Hands"),
     app_commands.Choice(name="Head", value="Head"),
-    app_commands.Choice(name="Legs", value="Legs"),
-    app_commands.Choice(name="Primary", value="Primary"),
-    app_commands.Choice(name="Primary 2h", value="Primary 2h"),
-    app_commands.Choice(name="Range", value="Range"),
-    app_commands.Choice(name="Secondary", value="Secondary"),
-    app_commands.Choice(name="Shirt", value="Shirt"),
-    app_commands.Choice(name="Shoulders", value="Shoulders"),
-    app_commands.Choice(name="Waist", value="Waist"),
+    app_commands.Choice(name="Chest", value="Chest"),
     app_commands.Choice(name="Wrist", value="Wrist"),
+    app_commands.Choice(name="Back", value="Back"),
+    app_commands.Choice(name="Feet", value="Feet"),
+    app_commands.Choice(name="Primary", value="Primary"),
 ])
-
-async def view_wiki_items(interaction: discord.Interaction, slot: str):
+async def view_wiki_items(interaction: discord.Interaction, slot: app_commands.Choice[str]):
     await interaction.response.defer(thinking=True)
+    items = await fetch_wiki_items(slot.value)
 
-    view = WikiView(slot_name=slot, db_pool=db_pool)
-    await view.load_items()
-
-    if not view.items:
-        await interaction.followup.send(f"❌ No items found for **{slot.title()}**.", ephemeral=True)
+    if not items:
+        await interaction.followup.send(f"❌ No items found for `{slot.value}` on the wiki.")
         return
 
+    view = WikiView(items)
     await interaction.followup.send(embed=view.build_embed(0), view=view)
-
-
 
 
 
