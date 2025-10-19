@@ -1095,7 +1095,7 @@ class ItemDatabaseModal(discord.ui.Modal, title="Add Item to Database"):
                 ephemeral=True
             )
 
-                return
+        return
 
         
 
