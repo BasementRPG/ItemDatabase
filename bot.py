@@ -1471,7 +1471,7 @@ class PaginatedResultsView(discord.ui.View):
             npc_image = item.get("npc_image")
 
             #  NPC + Level
-            npc_display = f"{format_case(row['npc_name'])}\n {format_case(row['npc_level'])}" if npc_level else f"{format_case(row[npc_name])}"
+            npc_display = f"{format_case(row['npc_name'])}\n {format_case(row['npc_level'])}" if npc_level else f"{format_case(row['npc_name'])}"
 
             # Zone + Area
             zone_display = f" {zone_name}\n{zone_area}" if zone_area else f" {zone_name}"
