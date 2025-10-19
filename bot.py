@@ -1471,7 +1471,7 @@ class PaginatedResultsView(discord.ui.View):
             npc_image = item.get("npc_image")
 
             #  NPC + Level
-            npc_display = f"{npc_name}\n ({npc_level})" if npc_level else f"{npc_name}"
+            npc_display = f"{format_case(row['npc_name'])}\n {format_case(row['npc_level'])}" if npc_level else f"{format_case(row[npc_name])}"
 
             # Zone + Area
             zone_display = f" {zone_name}\n{zone_area}" if zone_area else f" {zone_name}"
@@ -1479,9 +1479,9 @@ class PaginatedResultsView(discord.ui.View):
             # Slots stacked vertically
             slot_display = "\n".join(s.strip().title() for s in slot.split(",")) if "," in slot else slot.title()
 
-            embed = discord.Embed(title=f"{title}", color=discord.Color.blurple())
+            embed = discord.Embed(title=f"format_case(row['title'])", color=discord.Color.blurple())
             embed.add_field(name="NPC", value=npc_display, inline=True)
-            embed.add_field(name="Zone", value=zone_display.title(), inline=True)
+            embed.add_field(name="Zone", value=zone_display, inline=True)
             embed.add_field(name="Slot", value=slot_display or "Unknown", inline=True)
 
             if item_image:
