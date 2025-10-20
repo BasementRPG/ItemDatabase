@@ -1962,7 +1962,7 @@ class WikiView(discord.ui.View):
         for i, item in enumerate(current_items, start=1):
             
             zone_link = f"{linkback}{item['zone_name'].replace(' ', '_')}"
-            npc_link = f"{linkback}{item['quest_name'].replace(' ', '_')}"
+            npc_link = f"{linkback}{item['npc_name'].replace(' ', '_')}"
             quest_link = f"{linkback}{item['quest_name'].replace(' ', '_')}"
             
             crafted_name = item["crafted_name"]
