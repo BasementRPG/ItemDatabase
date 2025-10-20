@@ -1937,135 +1937,94 @@ async def edit_item_image(
 
 # -------------------- WikiView Class --------------------
 
-class WikiView(View):
-    def __init__(self, items, category):
-        super().__init__(timeout=180)
+import aiohttp
+from bs4 import BeautifulSoup
+import discord
+from discord import app_commands
+
+# -------------------- WikiView Class --------------------
+
+class WikiView(discord.ui.View):
+    def __init__(self, items):
+        super().__init__(timeout=None)
         self.items = items
-        self.category = category
-        self.page = 0
-        self.per_page = 5
+        self.current_page = 0
+        self.items_per_page = 5
 
-        # Add navigation buttons
-        self.add_item(Button(label="⬅️ Previous", style=discord.ButtonStyle.secondary))
-        self.add_item(Button(label="➡️ Next", style=discord.ButtonStyle.secondary))
 
-    async def interaction_check(self, interaction: discord.Interaction) -> bool:
-        return True
-
-    def build_embeds(self):
-        """Build embeds for the current page of wiki results."""
-        start = self.page * self.per_page
-        end = start + self.per_page
+    def build_embeds(self, page_index: int):
+        """Builds up to 5 embeds per page."""
+        start = page_index * self.items_per_page
+        end = start + self.items_per_page
         current_items = self.items[start:end]
         embeds = []
+        for i, item in enumerate(current_items, start=1):
 
-        for item in current_items:
             embed = discord.Embed(
-                title=item["name"].title(),
-                url=item["url"],
-                color=discord.Color.dark_teal()
+                title=item["item_name"],
+                description=item["description"],
+                color=discord.Color.gold(),
+                url=item["wiki_url"]
             )
 
-            # Item image
-            if item["image"]:
-                embed.set_thumbnail(url=item["image"])
-
-            # Zone(s)
-            zone_display = "\n".join(item["zone"]) if isinstance(item["zone"], list) else item["zone"]
-            embed.add_field(
-                name="🏞️ Zone",
-                value=zone_display or "Unknown",
-                inline=False
-            )
-
-            # NPC(s)
-            npc_display = "\n".join(item["npcs"]) if item["npcs"] else "Unknown"
-            embed.add_field(
-                name="👹 NPC(s)",
-                value=npc_display,
-                inline=False
-            )
-
-            # Stats
-            stats_value = item["stats"] or "Unknown"
-            embed.add_field(
-                name="📜 Item Stats",
-                value=stats_value,
-                inline=False
-            )
-
-            # Related Quests
-            if item["related_quests"]:
-                quest_text = "\n".join(item["related_quests"])
-                embed.add_field(
-                    name="🧩 Related Quests",
-                    value=quest_text,
-                    inline=False
-                )
-
-            # Player Crafters
-            if item["player_crafters"]:
-                crafter_text = "\n".join(item["player_crafters"])
-                embed.add_field(
-                    name="⚒️ Player Crafters",
-                    value=crafter_text,
-                    inline=False
-                )
-
+            if item["item_image"]:
+                embed.set_thumbnail(url=item["item_image"])
+            if item["zone_name"] != "":
+                embed.add_field(name="Zone", value=item["zone_name"], inline=True)
+            if item["npc_name"] != "":
+                embed.add_field(name="Npc", value=item["npc_name"], inline=True)
+            embed.add_field(name="Item Stats", value=item["item_stats"], inline=False)
+            if item["quest_name"] != "":
+                embed.add_field(name="Related Quest", value=f"[{item['quest_name']}]({item['quest_links']})", inline=False)
+                embed.add_field(name="Link", value=item["quest_links"], inline=False)
             embed.set_footer(
-                text="📘 Data sourced from Monsters & Memories Wiki",
-                icon_url="https://monstersandmemories.miraheze.org/w/resources/assets/wiki.png"
+                text=f"📚 Source: Monsters & Memories Wiki • Page {page_index + 1}/{self.total_pages()}"
+
             )
             embeds.append(embed)
 
         return embeds
 
-    async def update_message(self, interaction: discord.Interaction):
-        """Refresh embeds when switching pages."""
-        embeds = self.build_embeds()
-        await interaction.response.edit_message(embeds=embeds, view=self)
+    def total_pages(self):
+        return (len(self.items) + self.items_per_page - 1) // self.items_per_page
+
+
 
     @discord.ui.button(label="⬅️ Previous", style=discord.ButtonStyle.secondary)
-    async def previous_button(self, interaction: discord.Interaction, button: Button):
-        if self.page > 0:
-            self.page -= 1
-            await self.update_message(interaction)
-        else:
-            await interaction.response.defer()
+    async def prev_page(self, interaction: discord.Interaction, button: discord.ui.Button):
+        self.current_page = (self.current_page - 1) % self.total_pages()
+        await interaction.response.edit_message(embeds=self.build_embeds(self.current_page), view=self)
 
-    @discord.ui.button(label="➡️ Next", style=discord.ButtonStyle.secondary)
-    async def next_button(self, interaction: discord.Interaction, button: Button):
-        if (self.page + 1) * self.per_page < len(self.items):
-            self.page += 1
-            await self.update_message(interaction)
-        else:
-            await interaction.response.defer()
+
+
+
+    @discord.ui.button(label="➡️ Next", style=discord.ButtonStyle.primary)
+    async def next_page(self, interaction: discord.Interaction, button: discord.ui.Button):
+        self.current_page = (self.current_page + 1) % self.total_pages()
+        await interaction.response.edit_message(embeds=self.build_embeds(self.current_page), view=self)
+
+
+
 
 
 # -------------------- Helper Function --------------------
 
+async def fetch_wiki_items(slot_name: str):
+    """Scrapes the Monsters & Memories wiki category for the given item slot."""
+    base_url = "https://monstersandmemories.miraheze.org"
+    category_url = f"{base_url}/wiki/Category:{slot_name}"
 
-BASE_URL = "https://monstersandmemories.miraheze.org"
-
-async def fetch_wiki_items(category: str):
-    """Fetch item details from the Monsters & Memories wiki for a given slot (category)."""
-    category_url = f"{BASE_URL}/wiki/Category:{category.capitalize()}"
+    items = []
     headers = {
         "User-Agent": (
             "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
-            "AppleWebKit/537.36 (KHTML, like Gecko) "
-            "Chrome/120.0.0.0 Safari/537.36"
-        ),
-        "Accept-Language": "en-US,en;q=0.9",
-        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+@@ -2016,118 +2061,104 @@ async def fetch_wiki_items(slot_name: str):
         "Referer": "https://monstersandmemories.miraheze.org/",
         "Connection": "keep-alive"
     }
 
-    results = []
-
     async with aiohttp.ClientSession(connector=aiohttp.TCPConnector(ssl=False)) as session:
-        # 🔹 Step 1: Fetch the category page (list of items)
+
         async with session.get(category_url, headers=headers) as resp:
             if resp.status != 200:
                 print(f"⚠️ Failed to fetch {category_url} ({resp.status})")
@@ -2073,91 +2032,110 @@ async def fetch_wiki_items(category: str):
             html = await resp.text()
 
         soup = BeautifulSoup(html, "html.parser")
-        item_links = soup.select("#mw-pages a")
 
-        for link in item_links[:20]:  # limit to first 20 items for speed
-            item_name = link.text.strip()
-            item_url = BASE_URL + link["href"]
 
-            # 🔹 Step 2: Fetch the individual item page
-            async with session.get(item_url, headers=headers) as item_resp:
-                if item_resp.status != 200:
-                    print(f"⚠️ Failed to fetch item page {item_url} ({item_resp.status})")
+        # Find item page links
+        links = soup.select("div.mw-category a")
+        for link in links[:25]:
+            name = link.text.strip()
+            href = link["href"]
+            item_url = f"{base_url}{href}"
+
+            async with session.get(item_url, headers={"User-Agent": "Mozilla/5.0"}) as resp2:
+                if resp2.status != 200:
+
+
                     continue
-                item_html = await item_resp.text()
+                page_html = await resp2.text()
 
-            item_soup = BeautifulSoup(item_html, "html.parser")
+            s2 = BeautifulSoup(page_html, "html.parser")
 
-            # 🔸 Item Image
-            img_tag = item_soup.select_one(".infobox img")
-            image_url = BASE_URL + img_tag["src"] if img_tag and img_tag.get("src") else None
+            # --- Item Name ---
+            title = s2.find("h1", id="firstHeading")
+            item_name = title.text.strip() if title else name
 
-            # 🔸 Item Stats
-            stats_div = item_soup.select_one(".item-stats")
-            stats_text = "\n".join(
-                [li.get_text(strip=True) for li in stats_div.find_all("li")]
-            ) if stats_div else "Unknown"
+            # --- Image ---
+            image_url = None
+            img_tag = s2.select_one(".infobox img, .pi-image img, .mainPageInnerBox img")
+            if img_tag:
+                src = img_tag.get("src", "")
+                image_url = f"https:{src}" if src.startswith("//") else src
 
-            # 🔸 Zone & NPCs (inside <table class="mainPageInnerBox2">)
-            zone_name = "Unknown"
-            npc_names = []
+     
+   
+            # --- Extract NPC and Zone (more tolerant of malformed HTML) ---
+            npc_name, zone_name = "", ""
+            
+            drops_section = s2.find("h2", id="Drops_From")
+            if drops_section:
+                # The next <p> tag should hold the zone name
+                zone_tag = drops_section.find_next("p")
+                if zone_tag:
+                    zone_name = zone_tag.get_text(strip=True)
+            
+                # Then look for <ul><li> list of NPCs
+                npc_list = drops_section.find_next("ul")
+                if npc_list:
+                    npc_links = npc_list.find_all("a")
+                    if npc_links:
+                        npc_name = "\n ".join(a.get_text(strip=True) for a in npc_links)
+                    else:
+                        # Fallback: plain text <li>
+                        npc_items = npc_list.find_all("li")
+                        npc_name = "\n ".join(li.get_text(strip=True) for li in npc_items)
 
-            zone_table = item_soup.find("table", {"class": "mainPageInnerBox2"})
-            if zone_table:
-                zone_heading = zone_table.find("h2", id="Drops_From")
-                if zone_heading:
-                    p_tag = zone_heading.find_next("p")
-                    if p_tag:
-                        zone_name = p_tag.get_text(strip=True)
 
-                    npc_rows = zone_table.find_all("tr")
-                    for row in npc_rows:
-                        npc_link = row.find("a")
-                        if npc_link:
-                            npc_names.append(npc_link.text.strip())
 
-            # 🔸 Related Quests
-            related_quests = []
-            quest_heading = item_soup.find("h2", id="Related_quests")
-            if quest_heading:
-                quest_ul = quest_heading.find_next("ul")
-                if quest_ul:
-                    for li in quest_ul.find_all("li"):
-                        link_tag = li.find("a")
-                        if link_tag and link_tag.get("href"):
-                            quest_name = link_tag.text.strip()
-                            quest_url = BASE_URL + link_tag["href"]
-                            related_quests.append(f"[{quest_name}]({quest_url})")
-                        else:
-                            related_quests.append(li.get_text(strip=True))
+            # --- Extract Quest (more tolerant of malformed HTML) ---
+            quest_name, quest_links = "", ""
+            
+            drops_section = s2.find("h2", id="Related_quests")
+            if drops_section:        
+                # Then look for <ul><li> list of Quest
+                quest_list = drops_section.find_next("ul")
+                if quest_list:
+                    quest_links = quest_list.find_all("a")
+                    if quest_links:
+                        quest_name = "\n ".join(a.get_text(strip=True) for a in quest_links)
+                    else:
+                        # Fallback: plain text <li>
+                        quest_items = npc_list.find_all("li")
+                        quest_name = "\n ".join(li.get_text(strip=True) for li in quest_items)            
 
-            # 🔸 Player Crafters
-            player_crafters = []
-            crafter_heading = item_soup.find("h2", id="Player_crafter")
-            if crafter_heading:
-                crafter_ul = crafter_heading.find_next("ul")
-                if crafter_ul:
-                    for li in crafter_ul.find_all("li"):
-                        link_tag = li.find("a")
-                        if link_tag and link_tag.get("href"):
-                            crafter_name = link_tag.text.strip()
-                            crafter_url = BASE_URL + link_tag["href"]
-                            player_crafters.append(f"[{crafter_name}]({crafter_url})")
-                        else:
-                            player_crafters.append(li.get_text(strip=True))
 
-            results.append({
-                "name": item_name,
-                "url": item_url,
-                "image": image_url or "https://via.placeholder.com/150?text=No+Image",
-                "stats": stats_text,
-                "zone": zone_name,
-                "npcs": npc_names,
-                "related_quests": related_quests,
-                "player_crafters": player_crafters
+
+
+            # --- Item Stats ---
+            item_stats_div = s2.find("div", class_="item-stats")
+            item_stats = "None listed"
+            if item_stats_div:
+                lines = [line.strip() for line in item_stats_div.stripped_strings]
+                item_stats = "\n".join(lines)
+
+            # --- Description ---
+            desc_tag = s2.select_one("div.mw-parser-output > p")
+            description = desc_tag.text.strip() if desc_tag else "No description available."
+
+            def clean_case(s):
+                if not s or s == "Unknown":
+                    return "Unknown"
+                return " ".join(word.capitalize() for word in s.split())
+
+            items.append({
+                "item_name": clean_case(item_name),
+                "item_image": image_url,
+                "npc_name": npc_name,
+                "zone_name": zone_name,
+                "slot_name": slot_name,
+                "item_stats": item_stats,
+                "wiki_url": item_url,
+                "description": description,
+                "quest_name": quest_name,
+                "quest_links": quest_links,
+                "source": "Wiki"
             })
 
-    return results
+    return items
 
 
 
@@ -2173,22 +2151,18 @@ async def fetch_wiki_items(category: str):
     app_commands.Choice(name="Feet", value="Feet"),
     app_commands.Choice(name="Primary", value="Primary"),
 ])
-async def view_wiki_items(interaction: discord.Interaction, slot: str):
-    await interaction.response.defer(thinking=True, ephemeral=False)
+async def view_wiki_items(interaction: discord.Interaction, slot: app_commands.Choice[str]):
+    await interaction.response.defer(thinking=True)
+    items = await fetch_wiki_items(slot.value)
 
-    # Fetch items from the wiki
-    items = await fetch_wiki_items(slot)
+
 
     if not items:
-        await interaction.followup.send(f"⚠️ No items found for `{slot}` on the wiki.", ephemeral=True)
+        await interaction.followup.send(f"❌ No items found for `{slot.value}` on the wiki.")
         return
 
-    # ✅ Pass both required arguments
-    view = WikiView(items, category=slot)
-
-    # Send the first 5 embeds (page 1)
-    await interaction.followup.send(embeds=view.build_embeds(), view=view)
-
+    view = WikiView(items)
+    await interaction.followup.send(embeds=view.build_embeds(0), view=view)
 
 # ---------------- Bot Setup ----------------
 
