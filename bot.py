@@ -1978,7 +1978,7 @@ class WikiView(discord.ui.View):
             embed.add_field(name="Item Stats", value=item["item_stats"], inline=False)
             if item["quest_name"] != "":
                 embed.add_field(name="Related Quest", value=f"{item['quest_name']}", inline=False)
-                embed.add_field(name="Link", value=f"{linkback}", inline=False)
+                embed.add_field(name="Link", value=f"{linkback}{item['quest_name']}", inline=False)
             embed.set_footer(
                 text=f"📚 Source: Monsters & Memories Wiki • Page {page_index + 1}/{self.total_pages()}"
 
