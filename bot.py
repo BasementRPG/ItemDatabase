@@ -1984,8 +1984,8 @@ class WikiView(discord.ui.View):
             embed.add_field(name="Item Stats", value=item["item_stats"], inline=False)
             if item["quest_name"] != "":
                 embed.add_field(name="Related Quest", value=f"[{item['quest_name']}]({quest_link})", inline=False)
-            if item["quest_name"] != "":
-                embed.add_field(name="Crafted Item", value=f"[{item['crafted_name']}]({quest_link})", inline=False)    
+            if item["crafted_name"] != "":
+                embed.add_field(name="Crafted Item", value=f"[{item['crafted_name']}]({crafted_link})", inline=False)    
             embed.set_footer(
                 text=f"📚 Source: Monsters & Memories Wiki • Page {page_index + 1}/{self.total_pages()}"
 
