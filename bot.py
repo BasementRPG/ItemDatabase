@@ -1998,7 +1998,7 @@ class WikiView(discord.ui.View):
 
 # -------------------- Helper Function --------------------
 
-async def fetch_wiki_items(slot_name: str, self, session, url):
+async def fetch_wiki_items(slot_name: str):
     """Scrapes the Monsters & Memories wiki category for the given item slot."""
     base_url = "https://monstersandmemories.miraheze.org"
     category_url = f"{base_url}/wiki/Category:{slot_name}"
