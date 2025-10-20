@@ -1744,7 +1744,7 @@ async def show_results(interaction, items, db_pool=None, guild_id=None):
         author_id=interaction.user.id
     )
 
-    embeds = view._build_embeds()
+    embeds = view._build_embeds_for_current_page()
 
     # ✅ Check whether we already responded to this interaction
     if not interaction.response.is_done():
@@ -1783,6 +1783,9 @@ async def view_item_db(interaction: discord.Interaction):
 
 
 from discord import app_commands, Attachment
+
+
+
 
 @bot.tree.command(
     name="edit_item_image",
@@ -1865,7 +1868,7 @@ async def edit_item_image(
                     content=f"🧾 Updated item image for **{item_name}** by {interaction.user.mention}"
                 )
                 new_item_image_url = msg.attachments[0].url
-                new_item_msg_id = str(msg.id)
+                new_item_msg_id = msg.id
 
             if new_npc_image:
                 msg = await upload_channel.send(
@@ -1873,7 +1876,7 @@ async def edit_item_image(
                     content=f"👹 Updated NPC image for **{npc_name}** by {interaction.user.mention}"
                 )
                 new_npc_image_url = msg.attachments[0].url
-                new_npc_msg_id = str(msg.id)
+                new_npc_msg_id = msg.id
 
         except discord.Forbidden:
             await interaction.response.send_message("❌ I don’t have permission to upload images.", ephemeral=True)
