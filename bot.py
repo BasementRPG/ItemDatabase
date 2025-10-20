@@ -1960,8 +1960,7 @@ class WikiView(discord.ui.View):
         linkback= "https://monstersandmemories.miraheze.org/wiki/"
   
         for i, item in enumerate(current_items, start=1):
-
-
+            
             zone_link = f"{linkback}{item['zone_name'].replace(' ', '_')}"
             npc_link = f"{linkback}{item['quest_name'].replace(' ', '_')}"
             quest_link = f"{linkback}{item['quest_name'].replace(' ', '_')}"
@@ -1987,7 +1986,7 @@ class WikiView(discord.ui.View):
             if item["item_image"]:
                 embed.set_thumbnail(url=item["item_image"])
             if item["zone_name"] != "":
-                embed.add_field(name="🗺️ Zone ", value=f"{zone_link}", inline=True)
+                embed.add_field(name="🗺️ Zone ", value=f"[{item['zone_name']}]({zone_link})", inline=True)
             if item["npc_name"] != "":
                 embed.add_field(name="👹 Npc", value=f"{npc_link}", inline=True)
             embed.add_field(name="⚔️ Item Stats", value=item["item_stats"], inline=False)
@@ -2101,11 +2100,11 @@ async def fetch_wiki_items(slot_name: str):
                 if npc_list:
                     npc_links = npc_list.find_all("a")
                     if npc_links:
-                        npc_name = "\n ".join(a.get_text(strip=True) for a in npc_links)
+                        npc_name = ", ".join(a.get_text(strip=True) for a in npc_links)
                     else:
                         # Fallback: plain text <li>
                         npc_items = npc_list.find_all("li")
-                        npc_name = "\n ".join(li.get_text(strip=True) for li in npc_items)
+                        npc_name = ", ".join(li.get_text(strip=True) for li in npc_items)
 
 
 
@@ -2119,11 +2118,11 @@ async def fetch_wiki_items(slot_name: str):
                 if quest_list:
                     quest_links = quest_list.find_all("a")
                     if quest_links:
-                        quest_name = "\n ".join(a.get_text(strip=True) for a in quest_links)
+                        quest_name = ", ".join(a.get_text(strip=True) for a in quest_links)
                     else:
                         # Fallback: plain text <li>
                         quest_items = quest_list.find_all("li")
-                        quest_name = "\n ".join(li.get_text(strip=True) for li in quest_items)            
+                        quest_name = ", ".join(li.get_text(strip=True) for li in quest_items)            
 
             # --- Extract Crafted  ---
 
