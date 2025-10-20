@@ -2030,7 +2030,7 @@ async def fetch_wiki_items(slot_name: str):
     items = []
 
     async with async_playwright() as p:
-        browser = await p.chromium.launch(headless=True)
+        browser = await p.firefox.launch(headless=True)
         context = await browser.new_context(
             user_agent=(
                 "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:122.0) "
