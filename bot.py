@@ -1784,35 +1784,44 @@ async def view_item_db(interaction: discord.Interaction):
 
 from discord import app_commands, Attachment
 
-@bot.tree.command(name="edit_item_image", description="Upload a new item or NPC image for an existing database entry.")
+@bot.tree.command(
+    name="edit_item_image",
+    description="Upload a new item and/or NPC image for an existing database entry."
+)
 @app_commands.describe(
     item_name="The exact item name to update",
     npc_name="The NPC associated with this item",
-    new_item_image="Upload new image for the item (optional)",
-    new_npc_image="Upload new image for the NPC (optional)",
+    new_item_image="Upload a new image for the item (optional)",
+    new_npc_image="Upload a new image for the NPC (optional)",
 )
 async def edit_item_image(
     interaction: discord.Interaction,
     item_name: str,
     npc_name: str,
-    new_item_image: Attachment = None,
-    new_npc_image: Attachment = None,
+    new_item_image: discord.Attachment = None,
+    new_npc_image: discord.Attachment = None,
 ):
-    guild_id = interaction.guild.id
+    guild = interaction.guild
+    guild_id = guild.id
+    updated_by = str(interaction.user)
 
     # --- Validate ---
     if not new_item_image and not new_npc_image:
         await interaction.response.send_message(
-            "⚠️ You must upload at least one new image.", ephemeral=True
+            "⚠️ You must upload at least one new image.",
+            ephemeral=True
         )
         return
 
     async with db_pool.acquire() as conn:
-        # --- Check if item exists ---
+        # --- Fetch existing entry ---
         existing = await conn.fetchrow(
             """
-            SELECT item_image, npc_image FROM item_database
-             WHERE guild_id = $1 AND LOWER(item_name) = LOWER($2) AND LOWER(npc_name) = LOWER($3)
+            SELECT item_msg_id, npc_msg_id, item_image, npc_image
+            FROM item_database
+            WHERE guild_id = $1
+              AND LOWER(item_name) = LOWER($2)
+              AND LOWER(npc_name) = LOWER($3)
             """,
             guild_id, item_name, npc_name
         )
@@ -1824,44 +1833,98 @@ async def edit_item_image(
             )
             return
 
-        # --- Get uploaded image URLs ---
-        new_item_image_url = new_item_image.url if new_item_image else None
-        new_npc_image_url = new_npc_image.url if new_npc_image else None
+        upload_channel = await ensure_upload_channel1(guild)
 
-        # --- Update the database ---
+        # --- Delete old messages if new replacements exist ---
+        if new_item_image and existing["item_msg_id"]:
+            try:
+                msg = await upload_channel.fetch_message(int(existing["item_msg_id"]))
+                await msg.delete()
+            except discord.NotFound:
+                pass
+            except Exception as e:
+                print(f"⚠️ Could not delete old item message: {e}")
+
+        if new_npc_image and existing["npc_msg_id"]:
+            try:
+                msg = await upload_channel.fetch_message(int(existing["npc_msg_id"]))
+                await msg.delete()
+            except discord.NotFound:
+                pass
+            except Exception as e:
+                print(f"⚠️ Could not delete old NPC message: {e}")
+
+        # --- Upload new images ---
+        new_item_image_url, new_npc_image_url = None, None
+        new_item_msg_id, new_npc_msg_id = None, None
+
+        try:
+            if new_item_image:
+                msg = await upload_channel.send(
+                    file=await new_item_image.to_file(),
+                    content=f"🧾 Updated item image for **{item_name}** by {interaction.user.mention}"
+                )
+                new_item_image_url = msg.attachments[0].url
+                new_item_msg_id = str(msg.id)
+
+            if new_npc_image:
+                msg = await upload_channel.send(
+                    file=await new_npc_image.to_file(),
+                    content=f"👹 Updated NPC image for **{npc_name}** by {interaction.user.mention}"
+                )
+                new_npc_image_url = msg.attachments[0].url
+                new_npc_msg_id = str(msg.id)
+
+        except discord.Forbidden:
+            await interaction.response.send_message("❌ I don’t have permission to upload images.", ephemeral=True)
+            return
+        except Exception as e:
+            await interaction.response.send_message(f"❌ Upload failed: {e}", ephemeral=True)
+            return
+
+        # --- Update database record ---
         await conn.execute(
             """
             UPDATE item_database
-               SET item_image = COALESCE($1, item_image),
-                   npc_image  = COALESCE($2, npc_image),
-                   updated_at = NOW()
-             WHERE guild_id = $3
-               AND LOWER(item_name) = LOWER($4)
-               AND LOWER(npc_name) = LOWER($5)
+            SET
+                item_image = COALESCE($1, item_image),
+                npc_image = COALESCE($2, npc_image),
+                item_msg_id = COALESCE($3, item_msg_id),
+                npc_msg_id = COALESCE($4, npc_msg_id),
+                updated_by = $5,
+                updated_at = NOW()
+            WHERE guild_id = $6
+              AND LOWER(item_name) = LOWER($7)
+              AND LOWER(npc_name) = LOWER($8)
             """,
             new_item_image_url,
             new_npc_image_url,
+            new_item_msg_id,
+            new_npc_msg_id,
+            updated_by,
             guild_id,
             item_name,
             npc_name
         )
 
-    # --- Build confirmation embed ---
+    # --- Confirmation embed ---
     embed = discord.Embed(
-        title=f"✅ Updated Images for {item_name}",
-        description=f"NPC: **{npc_name}**",
+        title=f"🖼️ Updated Images for {item_name}",
+        description=f"NPC: **{npc_name}**\n👤 Updated by: {interaction.user.mention}",
         color=discord.Color.green()
     )
 
     if new_item_image_url:
-        embed.add_field(name="🖼️ New Item Image", value="Updated successfully", inline=False)
+        embed.add_field(name="📦 Item Image", value=f"[View Updated Item]({new_item_image_url})", inline=False)
         embed.set_image(url=new_item_image_url)
+
     if new_npc_image_url:
-        embed.add_field(name="👤 New NPC Image", value="Updated successfully", inline=False)
+        embed.add_field(name="👹 NPC Image", value=f"[View Updated NPC]({new_npc_image_url})", inline=False)
         if not new_item_image_url:
             embed.set_image(url=new_npc_image_url)
 
     await interaction.response.send_message(embed=embed, ephemeral=True)
+
 
 
 
