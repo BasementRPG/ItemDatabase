@@ -2079,7 +2079,7 @@ async def fetch_wiki_items(slot_name: str):
 
 
             # --- Extract Quest (more tolerant of malformed HTML) ---
-            quest_name = ""
+            quest_name, quest_link = "", ""
             
             drops_section = s2.find("h2", id="Related_quests")
             if drops_section:        
