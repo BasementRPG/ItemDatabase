@@ -2059,17 +2059,17 @@ async def fetch_wiki_items(slot_name: str):
 
         # Find item page links
         links = soup.select("div.mw-category a")
+
         for link in links[:25]:
             name = link.text.strip()
             href = link["href"]
             item_url = f"{base_url}{href}"
 
-            # 💤 small delay helps avoid Miraheze rate-limit
-            await asyncio.sleep(1)
+            await asyncio.sleep(1.5)  # <---- add this line here (important)
 
-            async with session.get(item_url, headers=headers) as resp2:
+            async with session.get(item_url, headers=headers, ssl=False) as resp2:
                 if resp2.status != 200:
-                    print(f"⚠️ Failed to fetch {item_url} ({resp2.status})")
+                    print(f"⚠️ Skipping {item_url} ({resp2.status})")
                     continue
                 page_html = await resp2.text()
 
@@ -2173,10 +2173,7 @@ async def fetch_wiki_items(slot_name: str):
                             crafted_name = li.get_text(" ", strip=True) or ""
 
 
-          
-
-
-
+            
             # --- Item Stats ---
             item_stats_div = s2.find("div", class_="item-stats")
             item_stats = "None listed"
