@@ -12,6 +12,7 @@ from discord import SelectOption, Interaction
 import aiohttp
 import asyncio
 from bs4 import BeautifulSoup
+from bs4 import NavigableString
 import io
 
 active_views = {}
@@ -2120,31 +2121,47 @@ async def fetch_wiki_items(slot_name: str):
                         quest_name = "\n ".join(li.get_text(strip=True) for li in quest_items)            
 
             # --- Extract Crafted  ---
-            
-           
+
+
             crafted_name = ""
             
-            # Find the <h2 id="Player_crafted">
-            crafted_section = s2.find("h2", id="Player_crafted")
+            # Handle either id="Player_crafted" or id="Player_crafter"
+            crafted_section = None
+            for pid in ("Player_crafted", "Player_crafter"):
+                crafted_section = s2.find("h2", id=pid)
+                if crafted_section:
+                    break
+            
             if crafted_section:
-                # Find the first <ul> after the <h2>
-                ul_tag = crafted_section.find_next("ul")
+                # First <ul> after the heading
+                ul = crafted_section.find_next("ul")
+                if ul:
+                    # First <li> inside that <ul>
+                    li = ul.find("li")
+                    if li:
+                        # 1) Prefer the direct text nodes (ignore nested <ul>)
+                        #    This grabs only the text that is DIRECTLY inside the <li>
+                        direct_bits = []
+                        for node in li.contents:
+                            if isinstance(node, NavigableString):
+                                text = str(node).strip()
+                                if text:
+                                    direct_bits.append(text)
+                            elif node.name != "ul":
+                                # keep inline tags like <a>, <b>, etc. but not the nested <ul>
+                                text = node.get_text(" ", strip=True)
+                                if text:
+                                    direct_bits.append(text)
             
-                # If this <ul> exists and its next sibling is *another* <ul>,
-                # that next <ul> is the recipe section — so ignore it.
-                if ul_tag:
-                    # Look for the next <ul> sibling (recipes)
-                    next_ul = ul_tag.find_next_sibling("ul")
-            
-                    # If there's another <ul>, only read <li> from the first one
-                    if next_ul:
-                        first_ul_lis = ul_tag.find_all("li")
-                    else:
-                        first_ul_lis = ul_tag.find_all("li")
-            
-                    if first_ul_lis:
-                        # Get only the first <li> — the crafting skill
-                        crafted_name = first_ul_lis[0].get_text(strip=True)
+                        if direct_bits:
+                            crafted_name = " ".join(direct_bits)
+                        else:
+                            # 2) Fallback: remove nested <ul>, then read the remaining text
+                            nested_ul = li.find("ul")
+                            if nested_ul:
+                                nested_ul.extract()
+                            crafted_name = li.get_text(" ", strip=True) or ""
+
 
           
 
