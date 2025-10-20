@@ -1,11 +1,9 @@
 #!/bin/bash
 set -e
 
-# Install system deps for Chromium
-npx playwright install-deps chromium
-
-# Install Chromium browser
-npx playwright install --with-deps chromium
+# Install Chromium dependencies and browser
+python3 -m playwright install-deps chromium
+python3 -m playwright install chromium
 
 # Start your Discord bot
 python3 bot.py
