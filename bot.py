@@ -1959,7 +1959,15 @@ class WikiView(discord.ui.View):
         for i, item in enumerate(current_items, start=1):
 
             quest_link = f"{linkback}{item['quest_name'].replace(' ', '_')}"
+            crafted_name = item["crafted_name"]
 
+            
+            crafted_index = crafted_name.find('(')
+            if space_index != -1:
+                crafted_name = crafted_name[:crafted_index]
+            else:
+                # If no space is found, the original string is returned
+                crafted_name = crafted_name
            
             
             embed = discord.Embed(
