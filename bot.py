@@ -2015,7 +2015,7 @@ async def fetch_wiki_items(slot_name: str):
     category_url = f"{base_url}/wiki/Category:{slot_name}"
 
     items = []
-     headers = {
+    headers = {
         "User-Agent": (
             "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
             "AppleWebKit/537.36 (KHTML, like Gecko) "
