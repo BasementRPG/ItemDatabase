@@ -2015,10 +2015,14 @@ async def fetch_wiki_items(slot_name: str):
     category_url = f"{base_url}/wiki/Category:{slot_name}"
 
     items = []
-    headers = {
+     headers = {
         "User-Agent": (
             "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
-@@ -2016,118 +2061,104 @@ async def fetch_wiki_items(slot_name: str):
+            "AppleWebKit/537.36 (KHTML, like Gecko) "
+            "Chrome/120.0.0.0 Safari/537.36"
+        ),
+        "Accept-Language": "en-US,en;q=0.9",
+        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
         "Referer": "https://monstersandmemories.miraheze.org/",
         "Connection": "keep-alive"
     }
