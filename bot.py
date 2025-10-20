@@ -2022,43 +2022,31 @@ async def fetch_wiki_items(slot_name: str):
     category_url = f"{base_url}/wiki/Category:{slot_name}"
 
     items = []
-    headers = {
-        "User-Agent": (
-            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
-            "AppleWebKit/537.36 (KHTML, like Gecko) "
-            "Chrome/120.0.0.0 Safari/537.36"
-        ),
-        "Accept-Language": "en-US,en;q=0.9",
-        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
-        "Referer": "https://monstersandmemories.miraheze.org/",
-        "Connection": "keep-alive"
-    }
+
 
     
     async with aiohttp.ClientSession(
-        headers={
+       
+        headers = {
             "User-Agent": (
-                "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
-                "AppleWebKit/537.36 (KHTML, like Gecko) "
-                "Chrome/124.0.0.0 Safari/537.36"
+                "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:122.0) "
+                "Gecko/20100101 Firefox/122.0"
             ),
             "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
             "Accept-Language": "en-US,en;q=0.9",
-            "Accept-Encoding": "gzip, deflate, br",
-            "Connection": "keep-alive",
-            "Upgrade-Insecure-Requests": "1",
+            "Accept-Encoding": "gzip, deflate",  # ❌ No 'br' (Brotli)
             "Referer": "https://monstersandmemories.miraheze.org/wiki/Main_Page",
+            "Connection": "keep-alive",
             "DNT": "1",
-            "Sec-Fetch-Dest": "document",
-            "Sec-Fetch-Mode": "navigate",
-            "Sec-Fetch-Site": "same-origin",
-            "Sec-Fetch-User": "?1"
-        },
+            "Upgrade-Insecure-Requests": "1",
+            "Cache-Control": "max-age=0"
+        }
+
         connector=aiohttp.TCPConnector(ssl=False),
         cookie_jar=aiohttp.CookieJar(unsafe=True)
     ) as session:
 
-        async with session.get(category_url, headers=headers) as resp:
+        async with session.get(category_url, headers=headers, ssl=False) as resp:
             if resp.status != 200:
                 print(f"⚠️ Failed to fetch {category_url} ({resp.status})")
                 return []
@@ -2136,16 +2124,24 @@ async def fetch_wiki_items(slot_name: str):
                         quest_name = "\n ".join(li.get_text(strip=True) for li in quest_items)            
 
             # --- Extract Crafted  ---
+            
             crafted_name = ""
             
             drops_section = s2.find("h2", id="Player_crafted")
-            if drops_section:        
-                # Then look for <ul><li> list of Crafted
-                crafted_list = drops_section.find_next("ul")
-                if crafted_list:
-                    crafted_links = crafted_list.find_all("li")
-                    if crafted_links:
-                        crafted_name = "\n ".join(a.get_text(strip=True) for a in crafted_links)
+            if drops_section:
+                # Find the first <li> immediately after the Player_crafted <h2>
+                first_li = drops_section.find_next("li")
+                if first_li:
+                    # Get the text content of that <li> only (the skill name)
+                    crafted_name = first_li.get_text(strip=True)
+            
+                    # Ensure we don't accidentally grab the next recipe list
+                    # If the next element is another <ul> (recipes), ignore it
+                    next_ul = first_li.find_next_sibling("ul")
+                    if next_ul:
+                        # Stop before recipe section
+                        pass
+
           
 
 
