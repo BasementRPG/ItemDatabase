@@ -1935,12 +1935,6 @@ async def edit_item_image(
 
 
 
-# -------------------- WikiView Class --------------------
-
-import aiohttp
-from bs4 import BeautifulSoup
-import discord
-from discord import app_commands
 
 # -------------------- WikiView Class --------------------
 
