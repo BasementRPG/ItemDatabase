@@ -10,6 +10,7 @@ from discord.ui import View, Button
 from discord.ui import View, Select
 from discord import SelectOption, Interaction
 import aiohttp
+import asyncio
 from bs4 import BeautifulSoup
 import io
 
