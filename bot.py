@@ -2212,17 +2212,26 @@ async def fetch_wiki_items(slot_name: str):
     app_commands.Choice(name="Primary", value="Primary"),
 ])
 async def view_wiki_items(interaction: discord.Interaction, slot: app_commands.Choice[str]):
+    # Step 1: Defer immediately
     await interaction.response.defer(thinking=True)
-    items = await fetch_wiki_items(slot.value)
 
+    # Step 2: Run the long task
+    try:
+        items = await fetch_wiki_items(slot.value)
+    except Exception as e:
+        await interaction.followup.send(f"❌ Error fetching wiki items: {e}")
+        return
 
-
+    # Step 3: Handle empty or success cases
     if not items:
         await interaction.followup.send(f"❌ No items found for `{slot.value}` on the wiki.")
         return
 
+    # Step 4: Send paginated view with embeds
     view = WikiView(items)
     await interaction.followup.send(embeds=view.build_embeds(0), view=view)
+
+
 
 # ---------------- Bot Setup ----------------
 
