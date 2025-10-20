@@ -2023,37 +2023,33 @@ async def fetch_wiki_items(slot_name: str):
 
     items = []
 
+    headers = {
+        "User-Agent": (
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:122.0) "
+            "Gecko/20100101 Firefox/122.0"
+        ),
+        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+        "Accept-Language": "en-US,en;q=0.9",
+        "Accept-Encoding": "gzip, deflate",  # ❌ No 'br' (Brotli)
+        "Referer": "https://monstersandmemories.miraheze.org/wiki/Main_Page",
+        "Connection": "keep-alive",
+        "DNT": "1",
+        "Upgrade-Insecure-Requests": "1",
+        "Cache-Control": "max-age=0",
+    }
 
-    
     async with aiohttp.ClientSession(
-       
-        headers = {
-            "User-Agent": (
-                "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:122.0) "
-                "Gecko/20100101 Firefox/122.0"
-            ),
-            "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
-            "Accept-Language": "en-US,en;q=0.9",
-            "Accept-Encoding": "gzip, deflate",  # ❌ No 'br' (Brotli)
-            "Referer": "https://monstersandmemories.miraheze.org/wiki/Main_Page",
-            "Connection": "keep-alive",
-            "DNT": "1",
-            "Upgrade-Insecure-Requests": "1",
-            "Cache-Control": "max-age=0"
-        }
-
         connector=aiohttp.TCPConnector(ssl=False),
         cookie_jar=aiohttp.CookieJar(unsafe=True)
     ) as session:
 
-        async with session.get(category_url, headers=headers, ssl=False) as resp:
+        async with session.get(category_url, headers=headers) as resp:
             if resp.status != 200:
                 print(f"⚠️ Failed to fetch {category_url} ({resp.status})")
                 return []
             html = await resp.text()
 
         soup = BeautifulSoup(html, "html.parser")
-
 
         # Find item page links
         links = soup.select("div.mw-category a")
@@ -2062,14 +2058,19 @@ async def fetch_wiki_items(slot_name: str):
             href = link["href"]
             item_url = f"{base_url}{href}"
 
-            async with session.get(item_url, headers={"User-Agent": "Mozilla/5.0"}) as resp2:
+            # 💤 small delay helps avoid Miraheze rate-limit
+            await asyncio.sleep(1)
+
+            async with session.get(item_url, headers=headers) as resp2:
                 if resp2.status != 200:
-
-
+                    print(f"⚠️ Failed to fetch {item_url} ({resp2.status})")
                     continue
                 page_html = await resp2.text()
 
             s2 = BeautifulSoup(page_html, "html.parser")
+
+            # (You can continue parsing NPC, zone, crafted info, etc. below)
+
 
             # --- Item Name ---
             title = s2.find("h1", id="firstHeading")
