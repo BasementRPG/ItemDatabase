@@ -2073,137 +2073,142 @@ async def fetch_wiki_items(slot_name: str):
                 item_html = await page.content()
                 s2 = BeautifulSoup(item_html, "html.parser")
 
-            # (You can continue parsing NPC, zone, crafted info, etc. below)
-
-
-            # --- Item Name ---
-            title = s2.find("h1", id="firstHeading")
-            item_name = title.text.strip() if title else name
-
-            # --- Image ---
-            image_url = None
-            img_tag = s2.select_one(".infobox img, .pi-image img, .mainPageInnerBox img")
-            if img_tag:
-                src = img_tag.get("src", "")
-                image_url = f"https:{src}" if src.startswith("//") else src
-
-     
-   
-            # --- Extract NPC and Zone (more tolerant of malformed HTML) ---
-            npc_name, zone_name = "", ""
-            
-            drops_section = s2.find("h2", id="Drops_From")
-            if drops_section:
-                # The next <p> tag should hold the zone name
-                zone_tag = drops_section.find_next("p")
-                if zone_tag:
-                    zone_name = zone_tag.get_text(strip=True)
-            
-                # Then look for <ul><li> list of NPCs
-                npc_list = drops_section.find_next("ul")
-                if npc_list:
-                    npc_links = npc_list.find_all("a")
-                    if npc_links:
-                        npc_name = ", ".join(a.get_text(strip=True) for a in npc_links)
-                    else:
-                        # Fallback: plain text <li>
-                        npc_items = npc_list.find_all("li")
-                        npc_name = ", ".join(li.get_text(strip=True) for li in npc_items)
-
-
-
-            # --- Extract Quest (more tolerant of malformed HTML) ---
-            quest_name = ""
-            
-            drops_section = s2.find("h2", id="Related_quests")
-            if drops_section:        
-                # Then look for <ul><li> list of Quest
-                quest_list = drops_section.find_next("ul")
-                if quest_list:
-                    quest_links = quest_list.find_all("a")
-                    if quest_links:
-                        quest_name = ", ".join(a.get_text(strip=True) for a in quest_links)
-                    else:
-                        # Fallback: plain text <li>
-                        quest_items = quest_list.find_all("li")
-                        quest_name = ", ".join(li.get_text(strip=True) for li in quest_items)            
-
-            # --- Extract Crafted  ---
-
-
-            crafted_name = ""
-            
-            # Handle either id="Player_crafted" or id="Player_crafter"
-            crafted_section = None
-            for pid in ("Player_crafted", "Player_crafter"):
-                crafted_section = s2.find("h2", id=pid)
-                if crafted_section:
-                    break
-            
-            if crafted_section:
-                # First <ul> after the heading
-                ul = crafted_section.find_next("ul")
-                if ul:
-                    # First <li> inside that <ul>
-                    li = ul.find("li")
-                    if li:
-                        # 1) Prefer the direct text nodes (ignore nested <ul>)
-                        #    This grabs only the text that is DIRECTLY inside the <li>
-                        direct_bits = []
-                        for node in li.contents:
-                            if isinstance(node, NavigableString):
-                                text = str(node).strip()
-                                if text:
-                                    direct_bits.append(text)
-                            elif node.name != "ul":
-                                # keep inline tags like <a>, <b>, etc. but not the nested <ul>
-                                text = node.get_text(" ", strip=True)
-                                if text:
-                                    direct_bits.append(text)
-            
-                        if direct_bits:
-                            crafted_name = " ".join(direct_bits)
+                # (You can continue parsing NPC, zone, crafted info, etc. below)
+    
+    
+                # --- Item Name ---
+                title = s2.find("h1", id="firstHeading")
+                item_name = title.text.strip() if title else name
+    
+                # --- Image ---
+                image_url = None
+                img_tag = s2.select_one(".infobox img, .pi-image img, .mainPageInnerBox img")
+                if img_tag:
+                    src = img_tag.get("src", "")
+                    image_url = f"https:{src}" if src.startswith("//") else src
+    
+         
+       
+                # --- Extract NPC and Zone (more tolerant of malformed HTML) ---
+                npc_name, zone_name = "", ""
+                
+                drops_section = s2.find("h2", id="Drops_From")
+                if drops_section:
+                    # The next <p> tag should hold the zone name
+                    zone_tag = drops_section.find_next("p")
+                    if zone_tag:
+                        zone_name = zone_tag.get_text(strip=True)
+                
+                    # Then look for <ul><li> list of NPCs
+                    npc_list = drops_section.find_next("ul")
+                    if npc_list:
+                        npc_links = npc_list.find_all("a")
+                        if npc_links:
+                            npc_name = ", ".join(a.get_text(strip=True) for a in npc_links)
                         else:
-                            # 2) Fallback: remove nested <ul>, then read the remaining text
-                            nested_ul = li.find("ul")
-                            if nested_ul:
-                                nested_ul.extract()
-                            crafted_name = li.get_text(" ", strip=True) or ""
+                            # Fallback: plain text <li>
+                            npc_items = npc_list.find_all("li")
+                            npc_name = ", ".join(li.get_text(strip=True) for li in npc_items)
+    
+    
+    
+                # --- Extract Quest (more tolerant of malformed HTML) ---
+                quest_name = ""
+                
+                drops_section = s2.find("h2", id="Related_quests")
+                if drops_section:        
+                    # Then look for <ul><li> list of Quest
+                    quest_list = drops_section.find_next("ul")
+                    if quest_list:
+                        quest_links = quest_list.find_all("a")
+                        if quest_links:
+                            quest_name = ", ".join(a.get_text(strip=True) for a in quest_links)
+                        else:
+                            # Fallback: plain text <li>
+                            quest_items = quest_list.find_all("li")
+                            quest_name = ", ".join(li.get_text(strip=True) for li in quest_items)            
+    
+                # --- Extract Crafted  ---
+    
+    
+                crafted_name = ""
+                
+                # Handle either id="Player_crafted" or id="Player_crafter"
+                crafted_section = None
+                for pid in ("Player_crafted", "Player_crafter"):
+                    crafted_section = s2.find("h2", id=pid)
+                    if crafted_section:
+                        break
+                
+                if crafted_section:
+                    # First <ul> after the heading
+                    ul = crafted_section.find_next("ul")
+                    if ul:
+                        # First <li> inside that <ul>
+                        li = ul.find("li")
+                        if li:
+                            # 1) Prefer the direct text nodes (ignore nested <ul>)
+                            #    This grabs only the text that is DIRECTLY inside the <li>
+                            direct_bits = []
+                            for node in li.contents:
+                                if isinstance(node, NavigableString):
+                                    text = str(node).strip()
+                                    if text:
+                                        direct_bits.append(text)
+                                elif node.name != "ul":
+                                    # keep inline tags like <a>, <b>, etc. but not the nested <ul>
+                                    text = node.get_text(" ", strip=True)
+                                    if text:
+                                        direct_bits.append(text)
+                
+                            if direct_bits:
+                                crafted_name = " ".join(direct_bits)
+                            else:
+                                # 2) Fallback: remove nested <ul>, then read the remaining text
+                                nested_ul = li.find("ul")
+                                if nested_ul:
+                                    nested_ul.extract()
+                                crafted_name = li.get_text(" ", strip=True) or ""
+    
+    
+                
+                # --- Item Stats ---
+                item_stats_div = s2.find("div", class_="item-stats")
+                item_stats = "None listed"
+                if item_stats_div:
+                    lines = [line.strip() for line in item_stats_div.stripped_strings]
+                    item_stats = "\n".join(lines)
+    
+                # --- Description ---
+                desc_tag = s2.select_one("div.mw-parser-output > p")
+                description = desc_tag.text.strip() if desc_tag else "No description available."
+    
+                def clean_case(s):
+                    if not s or s == "Unknown":
+                        return "Unknown"
+                    return " ".join(word.capitalize() for word in s.split())
+    
+                items.append({
+                    "item_name": clean_case(item_name),
+                    "item_image": image_url,
+                    "npc_name": npc_name,
+                    "zone_name": zone_name,
+                    "slot_name": slot_name,
+                    "item_stats": item_stats,
+                    "wiki_url": item_url,
+                    "description": description,
+                    "quest_name": quest_name,
+                    "crafted_name": crafted_name,
+                    "source": "Wiki"
+                })
 
+            except Exception as e:
+                print(f"⚠️ Error fetching {item_name}: {e}")
+                continue
 
-            
-            # --- Item Stats ---
-            item_stats_div = s2.find("div", class_="item-stats")
-            item_stats = "None listed"
-            if item_stats_div:
-                lines = [line.strip() for line in item_stats_div.stripped_strings]
-                item_stats = "\n".join(lines)
-
-            # --- Description ---
-            desc_tag = s2.select_one("div.mw-parser-output > p")
-            description = desc_tag.text.strip() if desc_tag else "No description available."
-
-            def clean_case(s):
-                if not s or s == "Unknown":
-                    return "Unknown"
-                return " ".join(word.capitalize() for word in s.split())
-
-            items.append({
-                "item_name": clean_case(item_name),
-                "item_image": image_url,
-                "npc_name": npc_name,
-                "zone_name": zone_name,
-                "slot_name": slot_name,
-                "item_stats": item_stats,
-                "wiki_url": item_url,
-                "description": description,
-                "quest_name": quest_name,
-                "crafted_name": crafted_name,
-                "source": "Wiki"
-            })
+        await browser.close()
 
     return items
-
 
 
 # -------------------- Slash Command --------------------
