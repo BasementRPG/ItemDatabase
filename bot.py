@@ -1961,7 +1961,11 @@ class WikiView(discord.ui.View):
   
         for i, item in enumerate(current_items, start=1):
 
+
+            zone_link = f"{linkback}{item['zone_name'].replace(' ', '_')}"
+            npc_link = f"{linkback}{item['quest_name'].replace(' ', '_')}"
             quest_link = f"{linkback}{item['quest_name'].replace(' ', '_')}"
+            
             crafted_name = item["crafted_name"]
 
             
@@ -1983,9 +1987,9 @@ class WikiView(discord.ui.View):
             if item["item_image"]:
                 embed.set_thumbnail(url=item["item_image"])
             if item["zone_name"] != "":
-                embed.add_field(name="🗺️ Zone ", value=item["zone_name"], inline=True)
+                embed.add_field(name="🗺️ Zone ", value=f"{zone_link}", inline=True)
             if item["npc_name"] != "":
-                embed.add_field(name="👹 Npc", value=item["npc_name"], inline=True)
+                embed.add_field(name="👹 Npc", value=f"{npc_link}", inline=True)
             embed.add_field(name="⚔️ Item Stats", value=item["item_stats"], inline=False)
             if item["quest_name"] != "":
                 embed.add_field(name="🧩 Related Quest", value=f"[{item['quest_name']}]({quest_link})", inline=False)
