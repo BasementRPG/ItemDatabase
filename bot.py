@@ -2123,7 +2123,7 @@ async def fetch_wiki_items(slot_name: str):
                 "wiki_url": item_url,
                 "description": description,
                 "quest_name": quest_name,
-                "quest_links": quest_link,
+                "quest_links": quest_links,
                 "source": "Wiki"
             })
 
