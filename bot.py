@@ -1971,7 +1971,7 @@ class WikiView(discord.ui.View):
             else:
                 # If no space is found, the original string is returned
                 crafted_name = crafted_name
-           
+           crafted_link = f"{linkback}{item['crafted_name'].replace(' ', '_')}"
             
             embed = discord.Embed(
                 title=item["item_name"],
@@ -1983,14 +1983,14 @@ class WikiView(discord.ui.View):
             if item["item_image"]:
                 embed.set_thumbnail(url=item["item_image"])
             if item["zone_name"] != "":
-                embed.add_field(name="Zone", value=item["zone_name"], inline=True)
+                embed.add_field(name="🗺️ Zone ", value=item["zone_name"], inline=True)
             if item["npc_name"] != "":
-                embed.add_field(name="Npc", value=item["npc_name"], inline=True)
-            embed.add_field(name="Item Stats", value=item["item_stats"], inline=False)
+                embed.add_field(name="👹 Npc", value=item["npc_name"], inline=True)
+            embed.add_field(name="⚔️ Item Stats", value=item["item_stats"], inline=False)
             if item["quest_name"] != "":
-                embed.add_field(name="Related Quest", value=f"[{item['quest_name']}]({quest_link})", inline=False)
+                embed.add_field(name="🧩 Related Quest", value=f"[{item['quest_name']}]({quest_link})", inline=False)
             if item["crafted_name"] != "":
-                embed.add_field(name="Crafted Item", value=f"{crafted_name}", inline=False)    
+                embed.add_field(name="⚒️ Crafted Item", value=f"[{item['crafted_name']}]({crafted_link})", inline=False)    
             embed.set_footer(
                 text=f"📚 Source: Monsters & Memories Wiki • Page {page_index + 1}/{self.total_pages()}"
 
