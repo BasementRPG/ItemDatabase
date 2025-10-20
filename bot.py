@@ -2121,22 +2121,30 @@ async def fetch_wiki_items(slot_name: str):
 
             # --- Extract Crafted  ---
             
+           
             crafted_name = ""
             
-            drops_section = s2.find("h2", id="Player_crafted")
-            if drops_section:
-                # Find the first <li> immediately after the Player_crafted <h2>
-                first_li = drops_section.find_next("li")
-                if first_li:
-                    # Get the text content of that <li> only (the skill name)
-                    crafted_name = first_li.get_text(strip=True)
+            # Find the <h2 id="Player_crafted">
+            crafted_section = s2.find("h2", id="Player_crafted")
+            if crafted_section:
+                # Find the first <ul> after the <h2>
+                ul_tag = crafted_section.find_next("ul")
             
-                    # Ensure we don't accidentally grab the next recipe list
-                    # If the next element is another <ul> (recipes), ignore it
-                    next_ul = first_li.find_next_sibling("ul")
+                # If this <ul> exists and its next sibling is *another* <ul>,
+                # that next <ul> is the recipe section — so ignore it.
+                if ul_tag:
+                    # Look for the next <ul> sibling (recipes)
+                    next_ul = ul_tag.find_next_sibling("ul")
+            
+                    # If there's another <ul>, only read <li> from the first one
                     if next_ul:
-                        # Stop before recipe section
-                        pass
+                        first_ul_lis = ul_tag.find_all("li")
+                    else:
+                        first_ul_lis = ul_tag.find_all("li")
+            
+                    if first_ul_lis:
+                        # Get only the first <li> — the crafting skill
+                        crafted_name = first_ul_lis[0].get_text(strip=True)
 
           
 
