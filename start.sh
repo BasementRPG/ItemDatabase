@@ -1,3 +1,6 @@
+pip install --no-cache-dir playwright==1.48.0
+
+
 #!/bin/bash
 set -e
 
