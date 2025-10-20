@@ -1961,11 +1961,12 @@ class WikiView(discord.ui.View):
         linkback= "https://monstersandmemories.miraheze.org/wiki/"
   
         for i, item in enumerate(current_items, start=1):
+            zone_link = f"{linkback}{item['zone_name'].replace(' ', '_')}"
+            npc_link = f"{linkback}{item['npc_name'].replace(' ', '_')}"
             quest_link = f"{linkback}{item['quest_name'].replace(' ', '_')}"
-
+            crafted_link = f"{linkback}{item['crafted_name'].replace(' ', '_')}"
             
-
-            
+           
             
             embed = discord.Embed(
                 title=item["item_name"],
@@ -1983,7 +1984,8 @@ class WikiView(discord.ui.View):
             embed.add_field(name="Item Stats", value=item["item_stats"], inline=False)
             if item["quest_name"] != "":
                 embed.add_field(name="Related Quest", value=f"[{item['quest_name']}]({quest_link})", inline=False)
-
+            if item["quest_name"] != "":
+                embed.add_field(name="Crafted Item", value=f"[{item['crafted_name']}]({quest_link})", inline=False)    
             embed.set_footer(
                 text=f"📚 Source: Monsters & Memories Wiki • Page {page_index + 1}/{self.total_pages()}"
 
@@ -2135,6 +2137,21 @@ async def fetch_wiki_items(slot_name: str):
                         quest_items = quest_list.find_all("li")
                         quest_name = "\n ".join(li.get_text(strip=True) for li in quest_items)            
 
+            # --- Extract Crafted  ---
+            crafted_name = ""
+            
+            drops_section = s2.find("h2", id="Player_crafted")
+            if drops_section:        
+                # Then look for <ul><li> list of Crafted
+                crafted_list = drops_section.find_next("ul")
+                if crafted_list:
+                    crafted_links = crafted_list.find_all("a")
+                    if crafted_links:
+                        crafted_name = "\n ".join(a.get_text(strip=True) for a in crafted_links)
+                    else:
+                        # Fallback: plain text <li>
+                        crafted_items = crafted_list.find_all("li")
+                        crafted_name = "\n ".join(li.get_text(strip=True) for li in crafted_items)            
 
 
 
