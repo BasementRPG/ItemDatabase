@@ -1966,11 +1966,13 @@ class WikiView(discord.ui.View):
 
             if item["item_image"]:
                 embed.set_thumbnail(url=item["item_image"])
-
-            embed.add_field(name="", value=item["zone_name"], inline=True)
-            embed.add_field(name="", value=item["npc_name"], inline=True)
+            if item["zone_name"] != "":
+                embed.add_field(name="Zone", value=item["zone_name"], inline=True)
+            if item["npc_name"] != "":
+                embed.add_field(name="Npc", value=item["npc_name"], inline=True)
             embed.add_field(name="Item Stats", value=item["item_stats"], inline=False)
-            embed.add_field(name="", value=item["quest_name"], inline=True)
+            if item["quest_name"] != "":
+                embed.add_field(name="", value=item["quest_name"], inline=True)
            
             embed.set_footer(
                 text=f"📚 Source: Monsters & Memories Wiki • Page {page_index + 1}/{self.total_pages()}"
