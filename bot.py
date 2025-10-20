@@ -2104,7 +2104,7 @@ async def fetch_wiki_items(category: str):
 
             zone_table = item_soup.find("table", {"class": "mainPageInnerBox2"})
             if zone_table:
-                zone_heading = zone_table.find("h2", id="Drops_from")
+                zone_heading = zone_table.find("h2", id="Drops_From")
                 if zone_heading:
                     p_tag = zone_heading.find_next("p")
                     if p_tag:
