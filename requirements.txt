@@ -4,5 +4,5 @@ Pillow==10.0.0
 aiohttp
 playwright==1.48.0
 beautifulsoup4==4.12.3
-
+lmxl==5.3.0
 PyVirtualDisplay==3.0
