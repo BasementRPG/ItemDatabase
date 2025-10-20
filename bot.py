@@ -15,6 +15,10 @@ from bs4 import BeautifulSoup
 from bs4 import NavigableString
 import io
 
+for link in links[:25]:
+    # ... your code ...
+    await asyncio.sleep(1)  # wait 1 second between page requests
+
 active_views = {}
 
 print("discord.py version:", discord.__version__)
