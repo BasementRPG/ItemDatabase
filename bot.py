@@ -1970,6 +1970,7 @@ class WikiView(discord.ui.View):
             embed.add_field(name="", value=item["zone_name"], inline=True)
             embed.add_field(name="", value=item["npc_name"], inline=True)
             embed.add_field(name="Item Stats", value=item["item_stats"], inline=False)
+            embed.add_field(name="", value=item["quest_name"], inline=True)
            
             embed.set_footer(
                 text=f"📚 Source: Monsters & Memories Wiki • Page {page_index + 1}/{self.total_pages()}"
@@ -2052,11 +2053,29 @@ async def fetch_wiki_items(slot_name: str):
                 if npc_list:
                     npc_links = npc_list.find_all("a")
                     if npc_links:
-                        npc_name = ", ".join(a.get_text(strip=True) for a in npc_links)
+                        npc_name = "\n ".join(a.get_text(strip=True) for a in npc_links)
                     else:
                         # Fallback: plain text <li>
                         npc_items = npc_list.find_all("li")
-                        npc_name = ", ".join(li.get_text(strip=True) for li in npc_items)
+                        npc_name = "\n ".join(li.get_text(strip=True) for li in npc_items)
+
+
+
+            # --- Extract Crafting (more tolerant of malformed HTML) ---
+            quest_name = ""
+            
+            drops_section = s2.find("h2", id="Related_quests")
+            if drops_section:        
+                # Then look for <ul><li> list of Quest
+                quest_list = drops_section.find_next("ul")
+                if quest_list:
+                    quest_links = quest_list.find_all("a")
+                    if quest_links:
+                        quest_name = "\n ".join(a.get_text(strip=True) for a in quest_links)
+                    else:
+                        # Fallback: plain text <li>
+                        quest_items = npc_list.find_all("li")
+                        quest_name = "\n ".join(li.get_text(strip=True) for li in quest_items)            
 
 
 
@@ -2086,6 +2105,7 @@ async def fetch_wiki_items(slot_name: str):
                 "item_stats": item_stats,
                 "wiki_url": item_url,
                 "description": description,
+                "quest_name": quest_name,
                 "source": "Wiki"
             })
 
