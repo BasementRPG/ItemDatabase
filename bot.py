@@ -1961,7 +1961,7 @@ class WikiView(discord.ui.View):
         linkback= "https://monstersandmemories.miraheze.org/wiki/"
   
         for i, item in enumerate(current_items, start=1):
-        quest_link = f"{linkback}{item['quest_name'].replace(' ', '_')}"
+            quest_link = f"{linkback}{item['quest_name'].replace(' ', '_')}"
 
             
 
