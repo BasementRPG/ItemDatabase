@@ -2030,8 +2030,51 @@ async def fetch_wiki_items(slot_name: str):
     """Scrapes the Monsters & Memories wiki category using Playwright for full browser rendering."""
     base_url = "https://monstersandmemories.miraheze.org"
     category_url = f"{base_url}/wiki/Category:{slot_name}"
+   
+
+    os.environ["PLAYWRIGHT_BROWSERS_PATH"] = "/app/ms-playwright"  # ✅ Ensure consistent path
+    
+    try:
+        from playwright.__main__ import main as playwright_cli
+        browser_dir = "/app/ms-playwright/chromium-1140/chrome-linux/chrome"
+        if not os.path.exists(browser_dir):
+            print("⚙️ Playwright browsers missing — installing Chromium...")
+            os.system("playwright install chromium --with-deps")
+    except Exception as e:
+        print(f"⚠️ Browser check failed: {e}")
+
     items = []
 
+    async with async_playwright() as p:
+        # ✅ Launch browser headless
+        browser = await p.chromium.launch(headless=True)
+        page = await browser.new_page()
+
+        print(f"🌐 Fetching {category_url} ...")
+        try:
+            await page.goto(category_url, timeout=60000)
+            await asyncio.sleep(1.5)  # polite delay
+            html = await page.content()
+        except Exception as e:
+            print(f"❌ Error loading page: {e}")
+            await browser.close()
+            return []
+
+        soup = BeautifulSoup(html, "html.parser")
+        links = soup.select("div.mw-category a")
+
+        for link in links[:25]:
+            item_url = f"{base_url}{link['href']}"
+            item_name = link.text.strip()
+
+            try:
+                await page.goto(item_url, timeout=60000)
+                await asyncio.sleep(1)
+                item_html = await page.content()
+                s2 = BeautifulSoup(item_html, "html.parser")
+
+
+    
     async with async_playwright() as p:
         browser = await p.chromium.launch(headless=True)
         context = await browser.new_context(
