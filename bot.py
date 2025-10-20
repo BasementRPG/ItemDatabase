@@ -1971,7 +1971,7 @@ class WikiView(discord.ui.View):
             else:
                 # If no space is found, the original string is returned
                 crafted_name = crafted_name
-           crafted_link = f"{linkback}{item['crafted_name'].replace(' ', '_')}"
+            crafted_link = f"{linkback}{crafted_name}.replace(' ', '_')}"
             
             embed = discord.Embed(
                 title=item["item_name"],
