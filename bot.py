@@ -2145,7 +2145,7 @@ async def fetch_wiki_items(slot_name: str):
                 # Then look for <ul><li> list of Crafted
                 crafted_list = drops_section.find_next("ul")
                 if crafted_list:
-                    crafted_links = crafted_list.find_all("a")
+                    crafted_links = crafted_list.find_all("li")
                     if crafted_links:
                         crafted_name = "\n ".join(a.get_text(strip=True) for a in crafted_links)
                     else:
