@@ -2173,17 +2173,21 @@ async def fetch_wiki_items(category: str):
     app_commands.Choice(name="Feet", value="Feet"),
     app_commands.Choice(name="Primary", value="Primary"),
 ])
-async def view_wiki_items(interaction: discord.Interaction, slot: app_commands.Choice[str]):
-    await interaction.response.defer(thinking=True)
-    items = await fetch_wiki_items(slot.value)
+async def view_wiki_items(interaction: discord.Interaction, slot: str):
+    await interaction.response.defer(thinking=True, ephemeral=False)
+
+    # Fetch items from the wiki
+    items = await fetch_wiki_items(slot)
 
     if not items:
-        await interaction.followup.send(f"❌ No items found for `{slot.value}` on the wiki.")
+        await interaction.followup.send(f"⚠️ No items found for `{slot}` on the wiki.", ephemeral=True)
         return
 
-    view = WikiView(items)
-    await interaction.followup.send(embeds=view.build_embeds(0), view=view)
+    # ✅ Pass both required arguments
+    view = WikiView(items, category=slot)
 
+    # Send the first 5 embeds (page 1)
+    await interaction.followup.send(embeds=view.build_embeds(), view=view)
 
 
 # ---------------- Bot Setup ----------------
