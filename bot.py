@@ -13,6 +13,7 @@ import aiohttp
 import asyncio
 from bs4 import BeautifulSoup
 from bs4 import NavigableString
+from playwright.async_api import async_playwright
 import io
 
 
@@ -2023,57 +2024,47 @@ class WikiView(discord.ui.View):
 # -------------------- Helper Function --------------------
 
 async def fetch_wiki_items(slot_name: str):
-    """Scrapes the Monsters & Memories wiki category for the given item slot."""
+    """Scrapes the Monsters & Memories wiki category using Playwright for full browser rendering."""
     base_url = "https://monstersandmemories.miraheze.org"
     category_url = f"{base_url}/wiki/Category:{slot_name}"
-
     items = []
 
-    headers = {
-        "User-Agent": (
-            "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:122.0) "
-            "Gecko/20100101 Firefox/122.0"
-        ),
-        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
-        "Accept-Language": "en-US,en;q=0.9",
-        "Accept-Encoding": "gzip, deflate",  # ❌ No 'br' (Brotli)
-        "Referer": "https://monstersandmemories.miraheze.org/wiki/Main_Page",
-        "Connection": "keep-alive",
-        "DNT": "1",
-        "Upgrade-Insecure-Requests": "1",
-        "Cache-Control": "max-age=0",
-    }
+    async with async_playwright() as p:
+        browser = await p.chromium.launch(headless=True)
+        context = await browser.new_context(
+            user_agent=(
+                "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:122.0) "
+                "Gecko/20100101 Firefox/122.0"
+            )
+        )
+        page = await context.new_page()
 
-    async with aiohttp.ClientSession(
-        connector=aiohttp.TCPConnector(ssl=False),
-        cookie_jar=aiohttp.CookieJar(unsafe=True)
-    ) as session:
-
-        async with session.get(category_url, headers=headers) as resp:
-            if resp.status != 200:
-                print(f"⚠️ Failed to fetch {category_url} ({resp.status})")
-                return []
-            html = await resp.text()
-
+        # --- Load category page ---
+        await page.goto(category_url, wait_until="domcontentloaded")
+        html = await page.content()
         soup = BeautifulSoup(html, "html.parser")
 
-        # Find item page links
         links = soup.select("div.mw-category a")
+        print(f"Found {len(links)} items in category {slot_name}")
 
+        # --- Visit up to 25 item pages ---
         for link in links[:25]:
             name = link.text.strip()
             href = link["href"]
             item_url = f"{base_url}{href}"
 
-            await asyncio.sleep(1.5)  # <---- add this line here (important)
+            # polite delay
+            await asyncio.sleep(1.5)
 
-            async with session.get(item_url, headers=headers, ssl=False) as resp2:
-                if resp2.status != 200:
-                    print(f"⚠️ Skipping {item_url} ({resp2.status})")
-                    continue
-                page_html = await resp2.text()
+            try:
+                await page.goto(item_url, wait_until="domcontentloaded")
+                page_html = await page.content()
+            except Exception as e:
+                print(f"⚠️ Error fetching {item_url}: {e}")
+                continue
 
             s2 = BeautifulSoup(page_html, "html.parser")
+
 
             # (You can continue parsing NPC, zone, crafted info, etc. below)
 
