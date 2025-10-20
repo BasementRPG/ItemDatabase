@@ -2146,10 +2146,7 @@ async def fetch_wiki_items(slot_name: str):
                     crafted_links = crafted_list.find_all("li")
                     if crafted_links:
                         crafted_name = "\n ".join(a.get_text(strip=True) for a in crafted_links)
-                    else:
-                        # Fallback: plain text <li>
-                        crafted_items = crafted_list.find_all("li")
-                        crafted_name = "\n ".join(li.get_text(strip=True) for li in crafted_items)            
+          
 
 
 
