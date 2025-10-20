@@ -2028,7 +2028,29 @@ async def fetch_wiki_items(slot_name: str):
         "Connection": "keep-alive"
     }
 
-    async with aiohttp.ClientSession(connector=aiohttp.TCPConnector(ssl=False)) as session:
+    
+    async with aiohttp.ClientSession(
+        headers={
+            "User-Agent": (
+                "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+                "AppleWebKit/537.36 (KHTML, like Gecko) "
+                "Chrome/124.0.0.0 Safari/537.36"
+            ),
+            "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+            "Accept-Language": "en-US,en;q=0.9",
+            "Accept-Encoding": "gzip, deflate, br",
+            "Connection": "keep-alive",
+            "Upgrade-Insecure-Requests": "1",
+            "Referer": "https://monstersandmemories.miraheze.org/wiki/Main_Page",
+            "DNT": "1",
+            "Sec-Fetch-Dest": "document",
+            "Sec-Fetch-Mode": "navigate",
+            "Sec-Fetch-Site": "same-origin",
+            "Sec-Fetch-User": "?1"
+        },
+        connector=aiohttp.TCPConnector(ssl=False),
+        cookie_jar=aiohttp.CookieJar(unsafe=True)
+    ) as session:
 
         async with session.get(category_url, headers=headers) as resp:
             if resp.status != 200:
