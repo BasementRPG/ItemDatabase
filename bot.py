@@ -2073,45 +2073,6 @@ async def fetch_wiki_items(slot_name: str):
                 item_html = await page.content()
                 s2 = BeautifulSoup(item_html, "html.parser")
 
-
-    
-    async with async_playwright() as p:
-        browser = await p.chromium.launch(headless=True)
-        context = await browser.new_context(
-            user_agent=(
-                "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:122.0) "
-                "Gecko/20100101 Firefox/122.0"
-            )
-        )
-        page = await context.new_page()
-
-        # --- Load category page ---
-        await page.goto(category_url, wait_until="domcontentloaded")
-        html = await page.content()
-        soup = BeautifulSoup(html, "html.parser")
-
-        links = soup.select("div.mw-category a")
-        print(f"Found {len(links)} items in category {slot_name}")
-
-        # --- Visit up to 25 item pages ---
-        for link in links[:25]:
-            name = link.text.strip()
-            href = link["href"]
-            item_url = f"{base_url}{href}"
-
-            # polite delay
-            await asyncio.sleep(1.5)
-
-            try:
-                await page.goto(item_url, wait_until="domcontentloaded")
-                page_html = await page.content()
-            except Exception as e:
-                print(f"⚠️ Error fetching {item_url}: {e}")
-                continue
-
-            s2 = BeautifulSoup(page_html, "html.parser")
-
-
             # (You can continue parsing NPC, zone, crafted info, etc. below)
 
 
