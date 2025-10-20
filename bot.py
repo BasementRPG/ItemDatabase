@@ -1972,7 +1972,8 @@ class WikiView(discord.ui.View):
                 embed.add_field(name="Npc", value=item["npc_name"], inline=True)
             embed.add_field(name="Item Stats", value=item["item_stats"], inline=False)
             if item["quest_name"] != "":
-                embed.add_field(name="", value=item["quest_name"], inline=True)
+                embed.add_field(name="Related Quest", value=item["quest_name"], inline=False)
+                embed.add_field(name="Link", value=item["quest_link"], inline=False)
            
             embed.set_footer(
                 text=f"📚 Source: Monsters & Memories Wiki • Page {page_index + 1}/{self.total_pages()}"
@@ -2063,7 +2064,7 @@ async def fetch_wiki_items(slot_name: str):
 
 
 
-            # --- Extract Crafting (more tolerant of malformed HTML) ---
+            # --- Extract Quest (more tolerant of malformed HTML) ---
             quest_name = ""
             
             drops_section = s2.find("h2", id="Related_quests")
@@ -2108,6 +2109,7 @@ async def fetch_wiki_items(slot_name: str):
                 "wiki_url": item_url,
                 "description": description,
                 "quest_name": quest_name,
+                "quest_link": quest_link,
                 "source": "Wiki"
             })
 
