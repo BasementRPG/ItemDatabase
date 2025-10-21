@@ -17,7 +17,6 @@ from playwright.async_api import async_playwright
 import io
 
 
-
 active_views = {}
 
 print("discord.py version:", discord.__version__)
