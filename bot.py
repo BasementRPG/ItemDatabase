@@ -2001,10 +2001,12 @@ class WikiView(discord.ui.View):
                 url=item["wiki_url"]
             )
 
+            if crafted_name == npc_name:
+                npc_name = ""
 
             if item["zone_name"] != "":
                 embed.add_field(name="🗺️ Zone ", value=f"[{item['zone_name']}]({zone_link})", inline=True)
-            if item["npc_name"] != "":
+            if npc_name != "":
                 embed.add_field(name="👹 Npc", value=f"{npc_name}", inline=True)
             embed.add_field(name="⚔️ Item Stats", value=item["item_stats"], inline=False)
             if item["item_image"] != "":
@@ -2142,40 +2144,7 @@ async def fetch_wiki_items(slot_name: str):
           
                 # --- Extract NPC and Zone (more tolerant of malformed HTML) ---
              
-   
-                npc_name, zone_name = "", ""
-                
-                # Find the "Drops_From" header
-                drops_section = s2.find("h2", id="Drops_From")
-                if drops_section:
-                    # Collect all elements until the next <h2> with an id
-                    next_h2 = drops_section.find_next(lambda tag: tag.name == "h2" and tag.has_attr("id"))
-                    content_tags = []
-                    tag = drops_section.next_sibling
-                    while tag and tag != next_h2:
-                        # Skip newline and comment nodes
-                        if getattr(tag, "name", None):
-                            content_tags.append(tag)
-                        tag = tag.next_sibling
-                
-                    # Now scan that segment for <p> (zone) and <ul> (npc list)
-                    for tag in content_tags:
-                        # Zone name (first <p>)
-                        if tag.name == "p" and not zone_name:
-                            zone_name = tag.get_text(strip=True)
-                        # NPC list (<ul>)
-                        if tag.name == "ul" and not npc_name:
-                            npc_links = tag.find_all("a")
-                            if npc_links:
-                                npc_name = ", ".join(a.get_text(strip=True) for a in npc_links)
-                            else:
-                                npc_items = tag.find_all("li")
-                                npc_name = ", ".join(li.get_text(strip=True) for li in npc_items)
-
-
-
-
-                """
+              
                 npc_name, zone_name = "", ""
                 
                 drops_section = s2.find("h2", id="Drops_From")
@@ -2196,8 +2165,7 @@ async def fetch_wiki_items(slot_name: str):
                             npc_items = npc_list.find_all("li")
                             npc_name = ", ".join(li.get_text(strip=True) for li in npc_items)
 
-    """
-    
+
                 # --- Extract Quest (more tolerant of malformed HTML) ---
                 quest_name = ""
                 
