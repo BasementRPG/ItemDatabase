@@ -2265,9 +2265,9 @@ async def fetch_wiki_items(slot_name: str):
                         crafted_name,
                         self.added_by)
 
-                await asyncio.sleep(1.0)  # polite delay
+            await asyncio.sleep(1.0)  # polite delay
 
-            except Exception as e:
+        except Exception as e:
                 print(f"⚠️ Failed to parse {item_url}: {e}")
                 continue
 
