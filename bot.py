@@ -2279,7 +2279,7 @@ async def view_wiki_items(interaction: discord.Interaction, slot: app_commands.C
     # --- Step 1: Pull all DB items for this slot ---
     async with db_pool.acquire() as conn:
         db_rows = await conn.fetch("""
-            SELECT item_name, item_image, item_slot, npc_name, zone_name, item_stats, description
+            SELECT item_name, item_image, item_slot, npc_name, zone_name, item_stats, description, quest_name, crafted_name
             FROM item_database
             WHERE guild_id = $1 AND LOWER(item_slot) = LOWER($2)
         """, guild_id, slot.value)
@@ -2308,7 +2308,7 @@ async def view_wiki_items(interaction: discord.Interaction, slot: app_commands.C
             "wiki_url": None,
             "description": row["description"] or "",
             "quest_name": row["quest_name"] or "",
-            "crafted_name":row["crafted_name"] or""
+            "crafted_name":row["crafted_name"] or "",
             "source": "Database",
             "in_database": True
         })
