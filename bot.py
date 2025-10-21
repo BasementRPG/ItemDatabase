@@ -2244,15 +2244,23 @@ async def fetch_wiki_items(slot_name: str):
                 })
 
 
-            await asyncio.sleep(1.0)  # polite delay
+                await asyncio.sleep(1.0)  # polite delay
 
-        except Exception as e:
+            except Exception as e:
                 print(f"⚠️ Failed to parse {item_url}: {e}")
                 continue
 
     wiki_cache[slot_name] = items
     return items
 
+
+
+
+
+
+
+
+"""
 # -------------------- Slash Command --------------------
 
 @bot.tree.command(name="view_wiki_items", description="View items from the Monsters & Memories Wiki by slot.")
@@ -2284,7 +2292,7 @@ async def view_wiki_items(interaction: discord.Interaction, slot: app_commands.C
     # Step 4: Send paginated view with embeds
     view = WikiView(items)
     await interaction.followup.send(embeds=view.build_embeds(0), view=view)
-
+"""
 
 
 # ---------------- Bot Setup ----------------
