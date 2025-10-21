@@ -2339,7 +2339,7 @@ async def view_wiki_items(interaction: discord.Interaction, slot: app_commands.C
             db_items_formatted.append({
                 "item_name": row["item_name"],
                 "item_image": row["item_image"] or "",
-                "npc_image" : row["npc_image"] or "",
+                
                 "npc_name": row["npc_name"] or "",
                 "zone_name": row["zone_name"] or "",
                 "slot_name": row["item_slot"],
