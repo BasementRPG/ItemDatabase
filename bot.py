@@ -2353,15 +2353,16 @@ async def view_wiki_items(interaction: discord.Interaction, slot: app_commands.C
                 for item in new_wiki_items:
                     await conn.execute("""
                         INSERT INTO item_database (
-                            item_name, item_slot, item_image, npc_name, zone_name,
+                            item_name, item_slot, item_image, npc_image, npc_name, zone_name,
                             item_stats, description, crafted_name, quest_name,
                             added_by, source
-                        ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,'Wiki')
+                        ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,'Wiki')
                         ON CONFLICT (item_name) DO NOTHING
                     """,
                     item["item_name"],
                     slot.value,
                     item.get("item_image") or "",
+                    item.get("npc_image") or "",                   
                     item.get("npc_name") or "",
                     item.get("zone_name") or "",
                     item.get("item_stats") or "",
