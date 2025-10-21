@@ -1960,7 +1960,9 @@ class WikiView(discord.ui.View):
         linkback= "https://monstersandmemories.miraheze.org/wiki/"
   
         for i, item in enumerate(current_items, start=1):
-
+            
+            
+            npc_string= item["npc_name"]
             # Split by comma and strip spaces
             npc_name = [name.strip() for name in npc_string.split(",") if name.strip()]
             # Build full wiki links
