@@ -2046,21 +2046,29 @@ class WikiView(discord.ui.View):
 wiki_cache = {}
 
 async def fetch_wiki_items(slot_name: str):
-    """Scrapes the Monsters & Memories wiki category, using Playwright with aiohttp fallback."""
+    """Scrape the Monsters & Memories Wiki for a specific item slot.
+       Uses Playwright first (for JS-rendered pages), falls back to aiohttp if that fails.
+    """
     base_url = "https://monstersandmemories.miraheze.org"
     category_url = f"{base_url}/wiki/Category:{slot_name}"
+    items = []
 
-    # ✅ Cached results (prevents repeated scraping)
+    # ✅ Cache check
     if slot_name in wiki_cache:
         print(f"📦 Using cached results for {slot_name}")
         return wiki_cache[slot_name]
 
-    items = []
     print(f"🌐 Fetching {category_url} ...")
 
-    # ---------------------------
-    # ✅ Attempt with Playwright
-    # ---------------------------
+    # ✅ Ensure Chromium exists
+    chromium_path = "/root/.cache/ms-playwright/chromium-1140/chrome-linux/chrome"
+    if not os.path.exists(chromium_path):
+        print("⚙️ Playwright Chromium not found — installing it...")
+        os.system("python -m playwright install-deps && python -m playwright install chromium")
+
+    # -----------------------------
+    # 🧠 Try Playwright first
+    # -----------------------------
     try:
         async with async_playwright() as p:
             browser = await p.chromium.launch(headless=True, args=["--no-sandbox"])
@@ -2071,16 +2079,12 @@ async def fetch_wiki_items(slot_name: str):
             html = await page.content()
             await browser.close()
 
-        # Continue parsing if successful
         soup = BeautifulSoup(html, "html.parser")
 
     except Exception as e:
         print(f"⚠️ Playwright failed: {e}")
         print("🔁 Retrying with aiohttp fallback...")
 
-        # ---------------------------
-        # 🔁 Fallback with aiohttp
-        # ---------------------------
         headers = {
             "User-Agent": (
                 "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
@@ -2099,10 +2103,11 @@ async def fetch_wiki_items(slot_name: str):
 
         soup = BeautifulSoup(html, "html.parser")
 
-    # ---------------------------
-    # ✅ Parse wiki item links
-    # ---------------------------
+    # -----------------------------
+    # 🔎 Parse item links
+    # -----------------------------
     links = soup.select("div.mw-category a")
+
     async with aiohttp.ClientSession() as session:
         for link in links[:25]:
             item_url = f"{base_url}{link['href']}"
@@ -2116,9 +2121,6 @@ async def fetch_wiki_items(slot_name: str):
 
                 s2 = BeautifulSoup(page_html, "html.parser")
 
-                # (You can continue parsing NPC, zone, crafted info, etc. below)
-    
-    
                 # --- Item Name ---
                 title = s2.find("h1", id="firstHeading")
                 item_name = title.text.strip() if title else name
@@ -2245,7 +2247,11 @@ async def fetch_wiki_items(slot_name: str):
                     "source": "Wiki"
                 })
 
-                await asyncio.sleep(1.0)  # polite delay between item fetches
+                await asyncio.sleep(1.0)  # polite delay
+
+            except Exception as e:
+                print(f"⚠️ Failed to parse {item_url}: {e}")
+                continue
 
     wiki_cache[slot_name] = items
     return items
