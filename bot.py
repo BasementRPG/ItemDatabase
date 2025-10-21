@@ -2358,9 +2358,7 @@ async def view_wiki_items(interaction: discord.Interaction, slot: app_commands.C
     view = WikiView(combined_items)
     await interaction.followup.send(embeds=view.build_embeds(0), view=view)
 
-    except Exception as e:
-        print(f"❌ Critical error in view_wiki_items: {e}")
-        await interaction.followup.send(f"❌ Error running command: {e}")
+
 
 # ---------------- Bot Setup ----------------
 
