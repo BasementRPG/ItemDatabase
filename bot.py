@@ -2308,9 +2308,11 @@ async def view_wiki_items(interaction: discord.Interaction, slot: app_commands.C
                         description,
                         crafted_name,
                         quest_name,
-                        added_by
+                        added_by,
+                        source
                         
-                    ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, 'Wiki')
+                        
+                    ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10,'Wiki')
                     ON CONFLICT (item_name) DO NOTHING
                     """,
                     item["item_name"],
@@ -2321,8 +2323,8 @@ async def view_wiki_items(interaction: discord.Interaction, slot: app_commands.C
                     item.get("item_stats") or "",
                     item.get("description") or "",
                     item.get("crafted_name") or "", 
-                    item.get("quest_name") or ""                 
-                    
+                    item.get("quest_name") or "",                 
+                    interaction.user.name
                     )
             print(f"✅ Inserted {len(new_wiki_items)} new wiki items into the database.")           
 
