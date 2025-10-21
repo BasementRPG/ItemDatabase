@@ -2281,8 +2281,8 @@ async def view_wiki_items(interaction: discord.Interaction, slot: app_commands.C
         db_rows = await conn.fetch("""
             SELECT item_name, item_image, item_slot, npc_name, zone_name, item_stats, description, quest_name, crafted_name
             FROM item_database
-            WHERE guild_id = $1 AND LOWER(item_slot) = LOWER($2)
-        """, guild_id, slot.value)
+            WHERE LOWER(item_slot) = LOWER($2)
+        """, slot.value)
 
     def normalize_name(name):
         return name.strip().lower().replace("’", "'").replace("‘", "'").replace("`", "'")
@@ -2358,7 +2358,9 @@ async def view_wiki_items(interaction: discord.Interaction, slot: app_commands.C
     view = WikiView(combined_items)
     await interaction.followup.send(embeds=view.build_embeds(0), view=view)
 
-
+    except Exception as e:
+        print(f"❌ Critical error in view_wiki_items: {e}")
+        await interaction.followup.send(f"❌ Error running command: {e}")
 
 # ---------------- Bot Setup ----------------
 
