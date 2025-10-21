@@ -2007,9 +2007,9 @@ class WikiView(discord.ui.View):
             if item["npc_name"] != "":
                 embed.add_field(name="👹 Npc", value=f"{npc_name}", inline=True)
             embed.add_field(name="⚔️ Item Stats", value=item["item_stats"], inline=False)
-            if item_image:
+            if item["item_image"] != "":
                 embed.set_image(url=item["item_image"])
-            if npc_image:
+          
                 embed.set_thumbnail(url=item["item_image"])            
             if item["quest_name"] != "":
                 embed.add_field(name="🧩 Related Quest", value=f"[{item['quest_name']}]({quest_link})", inline=False)
@@ -2322,7 +2322,7 @@ async def view_wiki_items(interaction: discord.Interaction, slot: app_commands.C
                     """,
                     item["item_name"],
                     slot.value,
-                    item.get("item_image"),
+                    item.get("item_image") or "",
                     item.get("npc_name") or "",
                     item.get("zone_name") or "",
                     item.get("item_stats") or "",
