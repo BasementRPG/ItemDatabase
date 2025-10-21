@@ -2321,8 +2321,8 @@ async def view_wiki_items(interaction: discord.Interaction, slot: app_commands.C
                     item.get("item_stats") or "",
                     item.get("description") or "",
                     item.get("crafted_name") or "", 
-                    item.get("quest_name") or "",                  
-                    interaction.user.name
+                    item.get("quest_name") or ""                 
+                    
                     )
             print(f"✅ Inserted {len(new_wiki_items)} new wiki items into the database.")           
 
