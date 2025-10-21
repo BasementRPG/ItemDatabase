@@ -2259,10 +2259,10 @@ async def fetch_wiki_items(slot_name: str):
                         zone_name,
                         npc_name,
                         slot_name,
-                        item_stats
-                        description
-                        quest_name
-                        crafted_name
+                        item_stats,
+                        description,
+                        quest_name,
+                        crafted_name,
                         self.added_by)
 
                 await asyncio.sleep(1.0)  # polite delay
