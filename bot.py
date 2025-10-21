@@ -2306,8 +2306,9 @@ async def view_wiki_items(interaction: discord.Interaction, slot: app_commands.C
             "slot_name": row["item_slot"],
             "item_stats": row["item_stats"] or "None listed",
             "wiki_url": None,
-            "description": row["description"] or "No description available.",
-            "quest_name": "",
+            "description": row["description"] or "",
+            "quest_name": row["quest_name"] or "",
+            "crafted_name":row["crafted_name"] or""
             "source": "Database",
             "in_database": True
         })
