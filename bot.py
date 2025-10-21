@@ -2306,8 +2306,8 @@ async def view_wiki_items(interaction: discord.Interaction, slot: app_commands.C
                                 zone_name,
                                 item_stats,
                                 description,
-                                crafted_name
-                                quest_name
+                                crafted_name,
+                                quest_name,
                                 added_by,
                                 source
                             ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, 'Wiki')
