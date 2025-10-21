@@ -2145,7 +2145,7 @@ async def fetch_wiki_items(slot_name: str):
                 npc_name, zone_name = "", ""
                 
                 # Find the Drops_From section (case-insensitive)
-                drops_section = s2.find("h2", id=lambda x: x and x.lower() == "drops_from")
+                drops_section = s2.find("h2", id="Drops_From")
                 if drops_section:
                     # Start from the tag immediately after </h2>
                     current = drops_section.find_next_sibling()
