@@ -2248,7 +2248,22 @@ async def fetch_wiki_items(slot_name: str):
                     "crafted_name": crafted_name,
                     "source": "Wiki"
                 })
-
+                 async with self.db_pool.acquire() as conn:
+                    await conn.execute("""
+                        INSERT INTO item_database (
+                                    item_name, zone_name, npc_name, item_slot, item_stats, description, quest, tradeskill, added_by, created_at
+                                )
+                                VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,NOW())
+                            """,
+                    item_name,
+                    zone_name,
+                    npc_name,
+                    slot_name,
+                    item_stats,
+                    description,
+                    quest_name,
+                    crafted_name,
+                    self.added_by)
 
                 await asyncio.sleep(1.0)  # polite delay
 
@@ -2298,6 +2313,7 @@ async def view_wiki_items(interaction: discord.Interaction, slot: app_commands.C
         else:
             # New item — not in DB
             item["in_database"] = False
+            
         filtered_items.append(item)
 
     if not filtered_items:
@@ -2307,43 +2323,6 @@ async def view_wiki_items(interaction: discord.Interaction, slot: app_commands.C
     # --- Step 4: Send to WikiView for embed building ---
     view = WikiView(filtered_items)
     await interaction.followup.send(embeds=view.build_embeds(0), view=view)
-
-
-
-
-"""
-# -------------------- Slash Command --------------------
-
-@bot.tree.command(name="view_wiki_items", description="View items from the Monsters & Memories Wiki by slot.")
-@app_commands.describe(slot="Select which item slot to view from the Wiki.")
-@app_commands.choices(slot=[
-    app_commands.Choice(name="Head", value="Head"),
-    app_commands.Choice(name="Chest", value="Chest"),
-    app_commands.Choice(name="Wrist", value="Wrist"),
-    app_commands.Choice(name="Back", value="Back"),
-    app_commands.Choice(name="Feet", value="Feet"),
-    app_commands.Choice(name="Primary", value="Primary"),
-])
-async def view_wiki_items(interaction: discord.Interaction, slot: app_commands.Choice[str]):
-    # Step 1: Defer immediately
-    await interaction.response.defer(thinking=True)
-
-    # Step 2: Run the long task
-    try:
-        items = await fetch_wiki_items(slot.value)
-    except Exception as e:
-        await interaction.followup.send(f"❌ Error fetching wiki items: {e}")
-        return
-
-    # Step 3: Handle empty or success cases
-    if not items:
-        await interaction.followup.send(f"❌ No items found for `{slot.value}` on the wiki.")
-        return
-
-    # Step 4: Send paginated view with embeds
-    view = WikiView(items)
-    await interaction.followup.send(embeds=view.build_embeds(0), view=view)
-"""
 
 
 # ---------------- Bot Setup ----------------
