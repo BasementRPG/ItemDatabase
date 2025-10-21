@@ -1936,10 +1936,6 @@ async def edit_item_image(
 
 
 
-
-
-
-
 # -------------------- WikiView Class --------------------
 
 class WikiView(discord.ui.View):
@@ -2246,24 +2242,7 @@ async def fetch_wiki_items(slot_name: str):
                     "crafted_name": crafted_name,
                     "source": "Wiki"
                 })
-                 # Insert into DB
-                try:
-                    async with self.db_pool.acquire() as conn:
-                        await conn.execute("""
-                            INSERT INTO item_database (
-                                item_name, zone_name, npc_name, item_slot, item_stats, description, quest, tradeskill, added_by, created_at
-                            )
-                            VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,NOW())
-                        """,
-                        item_name,
-                        zone_name,
-                        npc_name,
-                        slot_name,
-                        item_stats,
-                        description,
-                        quest_name,
-                        crafted_name,
-                        self.added_by)
+
 
             await asyncio.sleep(1.0)  # polite delay
 
