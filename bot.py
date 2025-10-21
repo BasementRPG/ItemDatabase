@@ -2008,9 +2008,9 @@ class WikiView(discord.ui.View):
                 embed.add_field(name="👹 Npc", value=f"{npc_name}", inline=True)
             embed.add_field(name="⚔️ Item Stats", value=item["item_stats"], inline=False)
             if item_image:
-                embed.set_image(url=item_image)
+                embed.set_image(url=item["item_image"])
             if npc_image:
-                embed.set_thumbnail(url=npc_image)            
+                embed.set_thumbnail(url=item["item_image"])            
             if item["quest_name"] != "":
                 embed.add_field(name="🧩 Related Quest", value=f"[{item['quest_name']}]({quest_link})", inline=False)
             if item["crafted_name"] != "":
@@ -2291,7 +2291,7 @@ async def view_wiki_items(interaction: discord.Interaction, slot: app_commands.C
         async with db_pool.acquire() as conn:
             db_rows = await conn.fetch("""
                 SELECT item_name, item_image, item_slot, npc_name, zone_name, item_stats,
-                       description, quest_name, crafted_name
+                       description, quest_name, crafted_name, npc_image,
                 FROM item_database
                 WHERE LOWER(item_slot) = LOWER($1)
             """, slot.value)
@@ -2338,7 +2338,8 @@ async def view_wiki_items(interaction: discord.Interaction, slot: app_commands.C
         for row in db_rows:
             db_items_formatted.append({
                 "item_name": row["item_name"],
-                "item_image": row["item_image"],
+                "item_image": row["item_image"] or "",
+                "npc_image" : row["npc_image"] or "",
                 "npc_name": row["npc_name"] or "",
                 "zone_name": row["zone_name"] or "",
                 "slot_name": row["item_slot"],
