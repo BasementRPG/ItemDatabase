@@ -2043,48 +2043,47 @@ class WikiView(discord.ui.View):
 
 # -------------------- Helper Function --------------------
 
+
+    wiki_cache = {}
+
 async def fetch_wiki_items(slot_name: str):
     """Scrapes the Monsters & Memories wiki category using Playwright for full browser rendering."""
     base_url = "https://monstersandmemories.miraheze.org"
     category_url = f"{base_url}/wiki/Category:{slot_name}"
-   
 
-    try:
-        from playwright.__main__ import main as playwright_cli
-        browser_dir = "/app/ms-playwright/chromium-1140/chrome-linux/chrome"
-        if not os.path.exists(browser_dir):
-            print("⚙️ Playwright browsers missing — installing Chromium...")
-            os.system("playwright install chromium --with-deps")
-    except Exception as e:
-        print(f"⚠️ Browser check failed: {e}")
+    # ✅ Cached results (no redundant re-scraping)
+    if slot_name in wiki_cache:
+        print(f"📦 Using cached results for {slot_name}")
+        return wiki_cache[slot_name]
 
     items = []
+    print(f"🌐 Fetching {category_url} ...")
 
-    async with async_playwright() as p:
-        # ✅ Launch browser headless
-        browser = await p.chromium.launch(headless=True)
-        page = await browser.new_page()
+    try:
+        async with async_playwright() as p:
+            # ✅ Launch Chromium headless (browser already installed at build)
+            browser = await p.chromium.launch(headless=True, args=["--no-sandbox"])
+            page = await browser.new_page()
 
-        print(f"🌐 Fetching {category_url} ...")
-        try:
             await page.goto(category_url, timeout=60000)
-            await asyncio.sleep(1.5)  # polite delay
+            await asyncio.sleep(1.5)  # polite delay between requests
             html = await page.content()
-        except Exception as e:
-            print(f"❌ Error loading page: {e}")
-            await browser.close()
-            return []
 
-        soup = BeautifulSoup(html, "html.parser")
-        links = soup.select("div.mw-category a")
+            soup = BeautifulSoup(html, "html.parser")
+            links = soup.select("div.mw-category a")
 
-        for link in links[:25]:
-            item_url = f"{base_url}{link['href']}"
-            item_name = link.text.strip()
+            # --- Loop through items ---
+            for link in links[:25]:
+                item_url = f"{base_url}{link['href']}"
+                item_name = link.text.strip()
 
-            try:
                 await page.goto(item_url, timeout=60000)
-                await asyncio.sleep(1)
+                await asyncio.sleep(1.2)
+                item_html = await page.content()
+                s2 = BeautifulSoup(item_html, "html.parser")
+
+
+                
                 item_html = await page.content()
                 s2 = BeautifulSoup(item_html, "html.parser")
 
