@@ -2009,8 +2009,8 @@ class WikiView(discord.ui.View):
             embed.add_field(name="⚔️ Item Stats", value=item["item_stats"], inline=False)
             if item["item_image"] != "":
                 embed.set_image(url=item["item_image"])
-          
-                embed.set_thumbnail(url=item["item_image"])            
+            if item["npc_image"] != "":
+                embed.set_thumbnail(url=item["npc_image"])            
             if item["quest_name"] != "":
                 embed.add_field(name="🧩 Related Quest", value=f"[{item['quest_name']}]({quest_link})", inline=False)
             if item["crafted_name"] != "":
@@ -2139,7 +2139,41 @@ async def fetch_wiki_items(slot_name: str):
     
          
        
+             
                 # --- Extract NPC and Zone (more tolerant of malformed HTML) ---
+                npc_name, zone_name = "", ""
+                
+                drops_section = s2.find("h2", id="Drops_From")
+                if drops_section:
+                    # Limit search scope to elements before the next <div>
+                    zone_tag, npc_list = None, None
+                    current = drops_section
+                    while current:
+                        current = current.find_next_sibling()
+                        if not current or current.name == "div":
+                            break  # stop scanning at the next <div>
+                
+                        if current.name == "p" and not zone_tag:
+                            zone_tag = current
+                        elif current.name == "ul" and not npc_list:
+                            npc_list = current
+                
+                    # Extract Zone name
+                    if zone_tag:
+                        zone_name = zone_tag.get_text(strip=True)
+                
+                    # Extract NPC names
+                    if npc_list:
+                        npc_links = npc_list.find_all("a")
+                        if npc_links:
+                            npc_name = ", ".join(a.get_text(strip=True) for a in npc_links)
+                        else:
+                            npc_items = npc_list.find_all("li")
+                            npc_name = ", ".join(li.get_text(strip=True) for li in npc_items)
+
+                
+                
+                """
                 npc_name, zone_name = "", ""
                 
                 drops_section = s2.find("h2", id="Drops_From")
@@ -2159,7 +2193,7 @@ async def fetch_wiki_items(slot_name: str):
                             # Fallback: plain text <li>
                             npc_items = npc_list.find_all("li")
                             npc_name = ", ".join(li.get_text(strip=True) for li in npc_items)
-    
+    """
     
     
                 # --- Extract Quest (more tolerant of malformed HTML) ---
@@ -2339,7 +2373,7 @@ async def view_wiki_items(interaction: discord.Interaction, slot: app_commands.C
             db_items_formatted.append({
                 "item_name": row["item_name"],
                 "item_image": row["item_image"] or "",
-                
+                "npc_image": row["npc_image"] or "",
                 "npc_name": row["npc_name"] or "",
                 "zone_name": row["zone_name"] or "",
                 "slot_name": row["item_slot"],
