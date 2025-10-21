@@ -2046,11 +2046,11 @@ class WikiView(discord.ui.View):
 wiki_cache = {}
 
 async def fetch_wiki_items(slot_name: str):
-    """Scrapes the Monsters & Memories wiki category using Playwright for full browser rendering."""
+    """Scrapes the Monsters & Memories wiki category, using Playwright with aiohttp fallback."""
     base_url = "https://monstersandmemories.miraheze.org"
     category_url = f"{base_url}/wiki/Category:{slot_name}"
 
-    # ✅ Cached results (no redundant re-scraping)
+    # ✅ Cached results (prevents repeated scraping)
     if slot_name in wiki_cache:
         print(f"📦 Using cached results for {slot_name}")
         return wiki_cache[slot_name]
@@ -2058,33 +2058,63 @@ async def fetch_wiki_items(slot_name: str):
     items = []
     print(f"🌐 Fetching {category_url} ...")
 
+    # ---------------------------
+    # ✅ Attempt with Playwright
+    # ---------------------------
     try:
         async with async_playwright() as p:
-            # ✅ Launch Chromium headless (browser already installed at build)
             browser = await p.chromium.launch(headless=True, args=["--no-sandbox"])
             page = await browser.new_page()
 
             await page.goto(category_url, timeout=60000)
-            await asyncio.sleep(1.5)  # polite delay between requests
+            await asyncio.sleep(1.5)
             html = await page.content()
+            await browser.close()
 
-            soup = BeautifulSoup(html, "html.parser")
-            links = soup.select("div.mw-category a")
+        # Continue parsing if successful
+        soup = BeautifulSoup(html, "html.parser")
 
-            # --- Loop through items ---
-            for link in links[:25]:
-                item_url = f"{base_url}{link['href']}"
-                item_name = link.text.strip()
+    except Exception as e:
+        print(f"⚠️ Playwright failed: {e}")
+        print("🔁 Retrying with aiohttp fallback...")
 
-                await page.goto(item_url, timeout=60000)
-                await asyncio.sleep(1.2)
-                item_html = await page.content()
-                s2 = BeautifulSoup(item_html, "html.parser")
+        # ---------------------------
+        # 🔁 Fallback with aiohttp
+        # ---------------------------
+        headers = {
+            "User-Agent": (
+                "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+                "AppleWebKit/537.36 (KHTML, like Gecko) "
+                "Chrome/120.0.0.0 Safari/537.36"
+            ),
+            "Accept-Language": "en-US,en;q=0.9",
+        }
 
+        async with aiohttp.ClientSession() as session:
+            async with session.get(category_url, headers=headers, ssl=False) as resp:
+                if resp.status != 200:
+                    print(f"❌ Fallback request failed ({resp.status})")
+                    return []
+                html = await resp.text()
 
-                
-                item_html = await page.content()
-                s2 = BeautifulSoup(item_html, "html.parser")
+        soup = BeautifulSoup(html, "html.parser")
+
+    # ---------------------------
+    # ✅ Parse wiki item links
+    # ---------------------------
+    links = soup.select("div.mw-category a")
+    async with aiohttp.ClientSession() as session:
+        for link in links[:25]:
+            item_url = f"{base_url}{link['href']}"
+            item_name = link.text.strip()
+
+            try:
+                async with session.get(item_url, ssl=False) as resp:
+                    if resp.status != 200:
+                        continue
+                    page_html = await resp.text()
+
+                s2 = BeautifulSoup(page_html, "html.parser")
 
                 # (You can continue parsing NPC, zone, crafted info, etc. below)
     
@@ -2215,15 +2245,10 @@ async def fetch_wiki_items(slot_name: str):
                     "source": "Wiki"
                 })
 
-            await browser.close()
+                await asyncio.sleep(1.0)  # polite delay between item fetches
 
-        wiki_cache[slot_name] = items
-        return items
-
-    except Exception as e:
-        print(f"❌ Error fetching wiki items: {e}")
-        return []
-
+    wiki_cache[slot_name] = items
+    return items
 
 # -------------------- Slash Command --------------------
 
