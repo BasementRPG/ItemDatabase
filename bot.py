@@ -2308,9 +2308,9 @@ async def view_wiki_items(interaction: discord.Interaction, slot: app_commands.C
                         description,
                         crafted_name,
                         quest_name,
-                        added_by,
-                        source
-                    ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, 'Wiki')
+                        added_by
+                        
+                    ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, 'Wiki')
                     ON CONFLICT (item_name) DO NOTHING
                     """,
                     item["item_name"],
