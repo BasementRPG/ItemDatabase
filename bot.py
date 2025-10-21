@@ -2256,6 +2256,84 @@ async def fetch_wiki_items(slot_name: str):
 
 
 
+@bot.tree.command(name="view_wiki_items", description="View items from the Monsters & Memories Wiki by slot.")
+@app_commands.describe(slot="Select which item slot to view from the Wiki.")
+@app_commands.choices(slot=[
+    app_commands.Choice(name="Head", value="Head"),
+    app_commands.Choice(name="Chest", value="Chest"),
+    app_commands.Choice(name="Wrist", value="Wrist"),
+    app_commands.Choice(name="Back", value="Back"),
+    app_commands.Choice(name="Feet", value="Feet"),
+    app_commands.Choice(name="Primary", value="Primary"),
+])
+async def view_wiki_items(interaction: discord.Interaction, slot: app_commands.Choice[str]):
+    await interaction.response.defer(thinking=True)
+    guild_id = interaction.guild.id
+
+    # --- Step 1: Get DB items ---
+    async with db_pool.acquire() as conn:
+        db_rows = await conn.fetch("""
+            SELECT item_name, npc_name, zone_name, item_slot, item_image
+            FROM item_database
+            WHERE guild_id = $1 AND LOWER(item_slot) = LOWER($2)
+        """, guild_id, slot.value)
+        db_items = {row["item_name"].lower(): row for row in db_rows}
+
+    # --- Step 2: Get Wiki items ---
+    wiki_items = await fetch_wiki_items(slot.value)
+    wiki_dict = {w["item_name"].lower(): w for w in wiki_items}
+
+    # --- Step 3: Compare ---
+    only_in_wiki = [w for name, w in wiki_dict.items() if name not in db_items]
+    matched = [w for name, w in wiki_dict.items() if name in db_items]
+
+    # --- Step 4: Build Embeds ---
+    embeds = []
+
+    # ✅ Existing items (found in both DB and Wiki)
+    for w in matched:
+        e = discord.Embed(
+            title=w["item_name"],
+            description="🟢 Already in your database.",
+            color=discord.Color.green(),
+            url=w["wiki_url"]
+        )
+        e.add_field(name="Zone", value=w["zone_name"], inline=True)
+        e.add_field(name="NPC", value=w["npc_name"], inline=True)
+        e.add_field(name="Stats", value=w["item_stats"][:1024], inline=False)
+        if w["item_image"]:
+            e.set_thumbnail(url=w["item_image"])
+        embeds.append(e)
+
+    # 🔵 Wiki-only items
+    for w in only_in_wiki:
+        e = discord.Embed(
+            title=w["item_name"],
+            description="🔵 Found on Wiki but not in your database.",
+            color=discord.Color.blurple(),
+            url=w["wiki_url"]
+        )
+        e.add_field(name="Zone", value=w["zone_name"], inline=True)
+        e.add_field(name="NPC", value=w["npc_name"], inline=True)
+        e.add_field(name="Stats", value=w["item_stats"][:1024], inline=False)
+        if w["item_image"]:
+            e.set_thumbnail(url=w["item_image"])
+        embeds.append(e)
+
+    # --- Step 5: Display ---
+    if not embeds:
+        await interaction.followup.send(f"No items found for slot `{slot.value}`.")
+        return
+
+    # Paginate or show the first few
+    await interaction.followup.send(embeds=embeds[:5])
+
+
+
+
+
+
+
 
 
 
