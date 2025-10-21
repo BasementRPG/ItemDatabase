@@ -2291,7 +2291,7 @@ async def view_wiki_items(interaction: discord.Interaction, slot: app_commands.C
         async with db_pool.acquire() as conn:
             db_rows = await conn.fetch("""
                 SELECT item_name, item_image, item_slot, npc_name, zone_name, item_stats,
-                       description, quest_name, crafted_name, npc_image,
+                       description, quest_name, crafted_name, npc_image
                 FROM item_database
                 WHERE LOWER(item_slot) = LOWER($1)
             """, slot.value)
