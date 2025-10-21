@@ -1955,13 +1955,12 @@ class WikiView(discord.ui.View):
         linkback= "https://monstersandmemories.miraheze.org/wiki/"
   
         for i, item in enumerate(current_items, start=1):
-             if item.get("in_database"):
-                embed.description = "🟢 Already exists in your database."
-                embed.color = discord.Color.green()
+            if item.get("in_database"):
+                color = discord.Color.green()
+                desc = "🟢 Already exists in your database."
             else:
-                embed.description = "🔵 Not in your database yet."
-                embed.color = discord.Color.blurple()
-                       
+                color = discord.Color.blurple()
+                desc = "🔵 Not in your database yet."       
             
             npc_string= item["npc_name"]
             # Split by comma and strip spaces
@@ -1993,11 +1992,12 @@ class WikiView(discord.ui.View):
                 # If no space is found, the original string is returned
                 crafted_name = crafted_name
             crafted_link = f"{linkback}{crafted_name}"
+
             
             embed = discord.Embed(
                 title=item["item_name"],
-                description=item["description"],
-                color=discord.Color.gold(),
+                description=desc,
+                color=color,
                 url=item["wiki_url"]
             )
 
