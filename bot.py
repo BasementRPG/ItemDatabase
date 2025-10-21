@@ -2142,33 +2142,36 @@ async def fetch_wiki_items(slot_name: str):
           
                 # --- Extract NPC and Zone (more tolerant of malformed HTML) ---
              
+   
                 npc_name, zone_name = "", ""
                 
-                # Find the Drops_From section (case-insensitive)
+                # Find the "Drops_From" header
                 drops_section = s2.find("h2", id="Drops_From")
                 if drops_section:
-                    # Start from the tag immediately after </h2>
-                    current = drops_section.find_next_sibling()
-                    while current:
-                        # Stop at next <h2> with an id (e.g., "Related_quests", "Player_crafted")
-                        if current.name == "h2" and current.has_attr("id"):
-                            break
+                    # Collect all elements until the next <h2> with an id
+                    next_h2 = drops_section.find_next(lambda tag: tag.name == "h2" and tag.has_attr("id"))
+                    content_tags = []
+                    tag = drops_section.next_sibling
+                    while tag and tag != next_h2:
+                        # Skip newline and comment nodes
+                        if getattr(tag, "name", None):
+                            content_tags.append(tag)
+                        tag = tag.next_sibling
                 
-                        # Capture zone name (usually first <p>)
-                        if current.name == "p" and not zone_name:
-                            zone_name = current.get_text(strip=True)
-                
-                        # Capture NPC list
-                        elif current.name == "ul" and not npc_name:
-                            npc_links = current.find_all("a")
+                    # Now scan that segment for <p> (zone) and <ul> (npc list)
+                    for tag in content_tags:
+                        # Zone name (first <p>)
+                        if tag.name == "p" and not zone_name:
+                            zone_name = tag.get_text(strip=True)
+                        # NPC list (<ul>)
+                        if tag.name == "ul" and not npc_name:
+                            npc_links = tag.find_all("a")
                             if npc_links:
                                 npc_name = ", ".join(a.get_text(strip=True) for a in npc_links)
                             else:
-                                npc_items = current.find_all("li")
+                                npc_items = tag.find_all("li")
                                 npc_name = ", ".join(li.get_text(strip=True) for li in npc_items)
-                
-                        # Move to next sibling
-                        current = current.find_next_sibling()
+
 
 
 
