@@ -1970,9 +1970,9 @@ class WikiView(discord.ui.View):
             for name in npc_name:
                 # Replace spaces with underscores for proper wiki URL formatting
                 npc_url = linkback + name.replace(" ", "_")
-                linked_npcs.append(f"[{name}]({npc_url})")
+                linked_npc.append(f"[{name}]({npc_url})")
             # Join with newlines for vertical display in embed
-            npc_name = "\n".join(linked_npcs)
+            npc_name = "\n".join(linked_npc)
 
 
 
@@ -2049,8 +2049,6 @@ async def fetch_wiki_items(slot_name: str):
     category_url = f"{base_url}/wiki/Category:{slot_name}"
    
 
-    os.environ["PLAYWRIGHT_BROWSERS_PATH"] = "/app/ms-playwright"  # ✅ Ensure consistent path
-    
     try:
         from playwright.__main__ import main as playwright_cli
         browser_dir = "/app/ms-playwright/chromium-1140/chrome-linux/chrome"
