@@ -1955,7 +1955,13 @@ class WikiView(discord.ui.View):
         linkback= "https://monstersandmemories.miraheze.org/wiki/"
   
         for i, item in enumerate(current_items, start=1):
-            
+             if item.get("in_database"):
+                embed.description = "🟢 Already exists in your database."
+                embed.color = discord.Color.green()
+            else:
+                embed.description = "🔵 Not in your database yet."
+                embed.color = discord.Color.blurple()
+                       
             
             npc_string= item["npc_name"]
             # Split by comma and strip spaces
@@ -2270,70 +2276,37 @@ async def view_wiki_items(interaction: discord.Interaction, slot: app_commands.C
     await interaction.response.defer(thinking=True)
     guild_id = interaction.guild.id
 
-    # --- Step 1: Get DB items ---
+    # --- Step 1: Pull all items for this slot from DB ---
     async with db_pool.acquire() as conn:
         db_rows = await conn.fetch("""
-            SELECT item_name, npc_name, zone_name, item_slot, item_image
-            FROM item_database
+            SELECT item_name FROM item_database
             WHERE guild_id = $1 AND LOWER(item_slot) = LOWER($2)
         """, guild_id, slot.value)
-        db_items = {row["item_name"].lower(): row for row in db_rows}
 
-    # --- Step 2: Get Wiki items ---
+    db_item_names = {row["item_name"].lower() for row in db_rows}
+
+    # --- Step 2: Pull wiki items ---
     wiki_items = await fetch_wiki_items(slot.value)
-    wiki_dict = {w["item_name"].lower(): w for w in wiki_items}
 
-    # --- Step 3: Compare ---
-    only_in_wiki = [w for name, w in wiki_dict.items() if name not in db_items]
-    matched = [w for name, w in wiki_dict.items() if name in db_items]
+    # --- Step 3: Compare and label ---
+    filtered_items = []
+    for item in wiki_items:
+        name_lower = item["item_name"].lower()
+        if name_lower in db_item_names:
+            # Exists in DB — mark as such for the embed
+            item["in_database"] = True
+        else:
+            # New item — not in DB
+            item["in_database"] = False
+        filtered_items.append(item)
 
-    # --- Step 4: Build Embeds ---
-    embeds = []
-
-    # ✅ Existing items (found in both DB and Wiki)
-    for w in matched:
-        e = discord.Embed(
-            title=w["item_name"],
-            description="🟢 Already in your database.",
-            color=discord.Color.green(),
-            url=w["wiki_url"]
-        )
-        e.add_field(name="Zone", value=w["zone_name"], inline=True)
-        e.add_field(name="NPC", value=w["npc_name"], inline=True)
-        e.add_field(name="Stats", value=w["item_stats"][:1024], inline=False)
-        if w["item_image"]:
-            e.set_thumbnail(url=w["item_image"])
-        embeds.append(e)
-
-    # 🔵 Wiki-only items
-    for w in only_in_wiki:
-        e = discord.Embed(
-            title=w["item_name"],
-            description="🔵 Found on Wiki but not in your database.",
-            color=discord.Color.blurple(),
-            url=w["wiki_url"]
-        )
-        e.add_field(name="Zone", value=w["zone_name"], inline=True)
-        e.add_field(name="NPC", value=w["npc_name"], inline=True)
-        e.add_field(name="Stats", value=w["item_stats"][:1024], inline=False)
-        if w["item_image"]:
-            e.set_thumbnail(url=w["item_image"])
-        embeds.append(e)
-
-    # --- Step 5: Display ---
-    if not embeds:
-        await interaction.followup.send(f"No items found for slot `{slot.value}`.")
+    if not filtered_items:
+        await interaction.followup.send(f"❌ No items found for `{slot.value}` on the wiki.")
         return
 
-    # Paginate or show the first few
-    await interaction.followup.send(embeds=embeds[:5])
-
-
-
-
-
-
-
+    # --- Step 4: Send to WikiView for embed building ---
+    view = WikiView(filtered_items)
+    await interaction.followup.send(embeds=view.build_embeds(0), view=view)
 
 
 
