@@ -2001,13 +2001,16 @@ class WikiView(discord.ui.View):
                 url=item["wiki_url"]
             )
 
-            if item["item_image"]:
-                embed.set_thumbnail(url=item["item_image"])
+
             if item["zone_name"] != "":
                 embed.add_field(name="🗺️ Zone ", value=f"[{item['zone_name']}]({zone_link})", inline=True)
             if item["npc_name"] != "":
                 embed.add_field(name="👹 Npc", value=f"{npc_name}", inline=True)
             embed.add_field(name="⚔️ Item Stats", value=item["item_stats"], inline=False)
+            if item_image:
+                embed.set_image(url=item_image)
+            if npc_image:
+                embed.set_thumbnail(url=npc_image)            
             if item["quest_name"] != "":
                 embed.add_field(name="🧩 Related Quest", value=f"[{item['quest_name']}]({quest_link})", inline=False)
             if item["crafted_name"] != "":
@@ -2336,10 +2339,10 @@ async def view_wiki_items(interaction: discord.Interaction, slot: app_commands.C
             db_items_formatted.append({
                 "item_name": row["item_name"],
                 "item_image": row["item_image"],
-                "npc_name": row["npc_name"] or "Unknown",
-                "zone_name": row["zone_name"] or "Unknown",
+                "npc_name": row["npc_name"] or "",
+                "zone_name": row["zone_name"] or "",
                 "slot_name": row["item_slot"],
-                "item_stats": row["item_stats"] or "None listed",
+                "item_stats": row["item_stats"] or "",
                 "wiki_url": None,
                 "description": row["description"] or "",
                 "quest_name": row["quest_name"] or "",
