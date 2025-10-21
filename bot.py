@@ -2248,22 +2248,7 @@ async def fetch_wiki_items(slot_name: str):
                     "crafted_name": crafted_name,
                     "source": "Wiki"
                 })
-                 async with self.db_pool.acquire() as conn:
-                    await conn.execute("""
-                        INSERT INTO item_database (
-                                    item_name, zone_name, npc_name, item_slot, item_stats, description, quest, tradeskill, added_by, created_at
-                                )
-                                VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,NOW())
-                            """,
-                    item_name,
-                    zone_name,
-                    npc_name,
-                    slot_name,
-                    item_stats,
-                    description,
-                    quest_name,
-                    crafted_name,
-                    self.added_by)
+                
 
                 await asyncio.sleep(1.0)  # polite delay
 
@@ -2291,38 +2276,53 @@ async def view_wiki_items(interaction: discord.Interaction, slot: app_commands.C
     await interaction.response.defer(thinking=True)
     guild_id = interaction.guild.id
 
-    # --- Step 1: Pull all items for this slot from DB ---
+    # --- Step 1: Pull all DB items for this slot ---
     async with db_pool.acquire() as conn:
         db_rows = await conn.fetch("""
-            SELECT item_name FROM item_database
+            SELECT item_name, item_image, item_slot, npc_name, zone_name, item_stats, description
+            FROM item_database
             WHERE guild_id = $1 AND LOWER(item_slot) = LOWER($2)
         """, guild_id, slot.value)
 
-    db_item_names = {row["item_name"].lower() for row in db_rows}
+    def normalize_name(name):
+        return name.strip().lower().replace("’", "'").replace("‘", "'").replace("`", "'")
 
-    # --- Step 2: Pull wiki items ---
+    db_item_names = {normalize_name(row["item_name"]) for row in db_rows}
+
+    # --- Step 2: Pull Wiki items ---
     wiki_items = await fetch_wiki_items(slot.value)
 
-    # --- Step 3: Compare and label ---
-    filtered_items = []
-    for item in wiki_items:
-        name_lower = item["item_name"].lower()
-        if name_lower in db_item_names:
-            # Exists in DB — mark as such for the embed
-            item["in_database"] = True
-        else:
-            # New item — not in DB
-            item["in_database"] = False
-            
-        filtered_items.append(item)
+    # --- Step 3: Filter wiki items that are NOT in the database ---
+    new_wiki_items = [item for item in wiki_items if normalize_name(item["item_name"]) not in db_item_names]
 
-    if not filtered_items:
-        await interaction.followup.send(f"❌ No items found for `{slot.value}` on the wiki.")
+    # --- Step 4: Convert DB items into same format for display ---
+    db_items_formatted = []
+    for row in db_rows:
+        db_items_formatted.append({
+            "item_name": row["item_name"],
+            "item_image": row["item_image"],
+            "npc_name": row["npc_name"] or "Unknown",
+            "zone_name": row["zone_name"] or "Unknown",
+            "slot_name": row["item_slot"],
+            "item_stats": row["item_stats"] or "None listed",
+            "wiki_url": None,
+            "description": row["description"] or "No description available.",
+            "quest_name": "",
+            "source": "Database",
+            "in_database": True
+        })
+
+    # --- Step 5: Combine DB + new wiki items ---
+    combined_items = db_items_formatted + new_wiki_items
+
+    if not combined_items:
+        await interaction.followup.send(f"❌ No items found for `{slot.value}`.")
         return
 
-    # --- Step 4: Send to WikiView for embed building ---
-    view = WikiView(filtered_items)
+    # --- Step 6: Send combined list to WikiView ---
+    view = WikiView(combined_items)
     await interaction.followup.send(embeds=view.build_embeds(0), view=view)
+
 
 
 # ---------------- Bot Setup ----------------
