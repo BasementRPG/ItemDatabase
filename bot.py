@@ -2215,9 +2215,7 @@ async def fetch_wiki_items(slot_name: str):
                     "source": "Wiki"
                 })
 
-            except Exception as e:
-                print(f"⚠️ Error fetching {item_name}: {e}")
-                continue
+
 
         await browser.close()
 
