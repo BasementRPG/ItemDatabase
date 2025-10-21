@@ -2291,7 +2291,37 @@ async def view_wiki_items(interaction: discord.Interaction, slot: app_commands.C
 
     # --- Step 2: Pull Wiki items ---
     wiki_items = await fetch_wiki_items(slot.value)
-
+    if new_wiki_items:
+            async with db_pool.acquire() as conn:
+                for item in new_wiki_items:
+                    await conn.execute("""
+                        INSERT INTO item_database (
+                            item_name,
+                            item_slot,
+                            item_image,
+                            npc_name,
+                            zone_name,
+                            item_stats,
+                            description,
+                            crafted_name
+                            quest_name
+                            added_by,
+                            source
+                        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, 'Wiki')
+                        ON CONFLICT (item_name) DO NOTHING
+                    """,
+                    item["item_name"],
+                    slot.value,
+                    item.get("item_image"),                  
+                    item.get("npc_name") or "",
+                    item.get("zone_name") or "",
+                    item.get("item_stats") or "",
+                    item.get("description") or "",
+                    item.get("crafted_name") or "", 
+                    item.get("quest_name") or "",                  
+                    interaction.user.name
+                    )
+            print(f"✅ Inserted {len(new_wiki_items)} new wiki items into the database.")
     # --- Step 3: Filter wiki items that are NOT in the database ---
     new_wiki_items = [item for item in wiki_items if normalize_name(item["item_name"]) not in db_item_names]
 
