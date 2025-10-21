@@ -2215,11 +2215,14 @@ async def fetch_wiki_items(slot_name: str):
                     "source": "Wiki"
                 })
 
+            await browser.close()
 
+        wiki_cache[slot_name] = items
+        return items
 
-        await browser.close()
-
-    return items
+    except Exception as e:
+        print(f"❌ Error fetching wiki items: {e}")
+        return []
 
 
 # -------------------- Slash Command --------------------
