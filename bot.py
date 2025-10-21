@@ -2043,7 +2043,7 @@ class WikiView(discord.ui.View):
 # -------------------- Helper Function --------------------
 
 
-    wiki_cache = {}
+wiki_cache = {}
 
 async def fetch_wiki_items(slot_name: str):
     """Scrapes the Monsters & Memories wiki category using Playwright for full browser rendering."""
