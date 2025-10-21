@@ -2276,87 +2276,91 @@ async def view_wiki_items(interaction: discord.Interaction, slot: app_commands.C
     await interaction.response.defer(thinking=True)
     guild_id = interaction.guild.id
 
-    # --- Step 1: Pull all DB items for this slot ---
-    async with db_pool.acquire() as conn:
-        db_rows = await conn.fetch("""
-            SELECT item_name, item_image, item_slot, npc_name, zone_name, item_stats, description, quest_name, crafted_name
-            FROM item_database
-            WHERE LOWER(item_slot) = LOWER($2)
-        """, slot.value)
+    try:
+        # --- Step 1: Pull Wiki items first ---
+        print(f"🌐 Fetching Wiki items for slot: {slot.value}")
+        wiki_items = await fetch_wiki_items(slot.value)
+        if not wiki_items:
+            print("⚠️ No wiki items returned.")
+            wiki_items = []
 
-    def normalize_name(name):
-        return name.strip().lower().replace("’", "'").replace("‘", "'").replace("`", "'")
-
-    db_item_names = {normalize_name(row["item_name"]) for row in db_rows}
-
-    # --- Step 2: Pull Wiki items ---
-    wiki_items = await fetch_wiki_items(slot.value)
-    
-    # --- Step 3: Filter wiki items that are NOT in the database ---
-    new_wiki_items = [item for item in wiki_items if normalize_name(item["item_name"]) not in db_item_names]
-    if new_wiki_items:
+        # --- Step 2: Pull DB items for this slot ---
         async with db_pool.acquire() as conn:
-            for item in new_wiki_items:
-                await conn.execute("""
-                    INSERT INTO item_database (
-                        item_name,
-                        item_slot,
-                        item_image,
-                        npc_name,
-                        zone_name,
-                        item_stats,
-                        description,
-                        crafted_name,
-                        quest_name,
-                        added_by,
-                        source
-                        
-                        
-                    ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10,'Wiki')
-                    ON CONFLICT (item_name) DO NOTHING
+            db_rows = await conn.fetch("""
+                SELECT item_name, item_image, item_slot, npc_name, zone_name, item_stats,
+                       description, quest_name, crafted_name
+                FROM item_database
+                WHERE LOWER(item_slot) = LOWER($1)
+            """, slot.value)
+
+        def normalize_name(name):
+            return name.strip().lower().replace("’", "'").replace("‘", "'").replace("`", "'")
+
+        db_item_names = {normalize_name(row["item_name"]) for row in db_rows}
+
+        # --- Step 3: Identify wiki items not yet in DB ---
+        new_wiki_items = []
+        for item in wiki_items:
+            if normalize_name(item["item_name"]) not in db_item_names:
+                new_wiki_items.append(item)
+
+        # --- Step 4: Insert missing wiki items into DB ---
+        if new_wiki_items:
+            print(f"🟢 Found {len(new_wiki_items)} new wiki items — inserting...")
+            async with db_pool.acquire() as conn:
+                for item in new_wiki_items:
+                    await conn.execute("""
+                        INSERT INTO item_database (
+                            item_name, item_slot, item_image, npc_name, zone_name,
+                            item_stats, description, crafted_name, quest_name,
+                            added_by, source
+                        ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,'Wiki')
+                        ON CONFLICT (item_name) DO NOTHING
                     """,
                     item["item_name"],
                     slot.value,
-                    item.get("item_image"),                  
+                    item.get("item_image"),
                     item.get("npc_name") or "",
                     item.get("zone_name") or "",
                     item.get("item_stats") or "",
                     item.get("description") or "",
-                    item.get("crafted_name") or "", 
-                    item.get("quest_name") or "",                 
+                    item.get("crafted_name") or "",
+                    item.get("quest_name") or "",
                     interaction.user.name
                     )
-            print(f"✅ Inserted {len(new_wiki_items)} new wiki items into the database.")           
+            print(f"✅ Inserted {len(new_wiki_items)} wiki items into DB.")
 
-    
-    # --- Step 4: Convert DB items into same format for display ---
-    db_items_formatted = []
-    for row in db_rows:
-        db_items_formatted.append({
-            "item_name": row["item_name"],
-            "item_image": row["item_image"],
-            "npc_name": row["npc_name"] or "Unknown",
-            "zone_name": row["zone_name"] or "Unknown",
-            "slot_name": row["item_slot"],
-            "item_stats": row["item_stats"] or "None listed",
-            "wiki_url": None,
-            "description": row["description"] or "",
-            "quest_name": row["quest_name"] or "",
-            "crafted_name":row["crafted_name"] or "",
-            "source": "Database",
-            "in_database": True
-        })
+        # --- Step 5: Combine DB + Wiki items for display ---
+        db_items_formatted = []
+        for row in db_rows:
+            db_items_formatted.append({
+                "item_name": row["item_name"],
+                "item_image": row["item_image"],
+                "npc_name": row["npc_name"] or "Unknown",
+                "zone_name": row["zone_name"] or "Unknown",
+                "slot_name": row["item_slot"],
+                "item_stats": row["item_stats"] or "None listed",
+                "wiki_url": None,
+                "description": row["description"] or "",
+                "quest_name": row["quest_name"] or "",
+                "crafted_name": row["crafted_name"] or "",
+                "source": "Database",
+                "in_database": True
+            })
 
-    # --- Step 5: Combine DB + new wiki items ---
-    combined_items = db_items_formatted + new_wiki_items
+        combined_items = db_items_formatted + new_wiki_items
 
-    if not combined_items:
-        await interaction.followup.send(f"❌ No items found for `{slot.value}`.")
-        return
+        if not combined_items:
+            await interaction.followup.send(f"❌ No items found for `{slot.value}` in the database or wiki.")
+            return
 
-    # --- Step 6: Send combined list to WikiView ---
-    view = WikiView(combined_items)
-    await interaction.followup.send(embeds=view.build_embeds(0), view=view)
+        # --- Step 6: Send combined results to WikiView ---
+        view = WikiView(combined_items)
+        await interaction.followup.send(embeds=view.build_embeds(0), view=view)
+
+    except Exception as e:
+        print(f"❌ Critical error in view_wiki_items: {e}")
+        await interaction.followup.send(f"❌ Error running command: {e}")
 
 
 
