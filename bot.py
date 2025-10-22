@@ -2318,8 +2318,8 @@ async def view_wiki_items(interaction: discord.Interaction, slot: app_commands.C
                     crafted_name = item.get("crafted_name") or ""
                     zone_name = item.get("zone_name") or ""
 
-                    # --- 1️⃣ If npc_name and crafted_name are the same, clear npc_name
-                    if npc_name.strip().lower() == crafted_name.strip().lower() and npc_name:
+                    # --- 1️⃣ If npc_name and quest_name are the same, clear npc_name
+                    if npc_name.strip().lower() == quest_name.strip().lower() and npc_name:
                         npc_name = ""
             
                     # --- 2️⃣ If zone_name contains a number, swap it into npc_name and clear zone_name
