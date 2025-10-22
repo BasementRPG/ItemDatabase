@@ -2006,8 +2006,11 @@ class WikiView(discord.ui.View):
                 embed.add_field(name="🗺️ Zone ", value=f"[{item['zone_name']}]({zone_link})", inline=True)
             if npc_name != "":
                 embed.add_field(name="👹 Npc", value=f"{npc_name}", inline=True)
-            embed.add_field(name="⚔️ Item Stats", value=item["item_stats"], inline=False)
-            if item["item_image"] != "":
+            
+            if item["item_image"] == "":
+                embed.add_field(name="⚔️ Item Stats", value=item["item_stats"], inline=False)
+             if item["item_image"] != "":
+                embed.add_field(name="⚔️ Item Stats", value="", inline=False)
                 embed.set_image(url=item["item_image"])
             if item["npc_image"] != "":
                 embed.set_thumbnail(url=item["npc_image"])            
