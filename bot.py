@@ -2315,7 +2315,7 @@ async def view_wiki_items(interaction: discord.Interaction, slot: app_commands.C
             async with db_pool.acquire() as conn:
                 for item in new_wiki_items:
                     npc_name = item.get("npc_name") or ""
-                    crafted_name = item.get("crafted_name") or ""
+                    quest_name = item.get("quest_name") or ""
                     zone_name = item.get("zone_name") or ""
 
                     # --- 1️⃣ If npc_name and quest_name are the same, clear npc_name
