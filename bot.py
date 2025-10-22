@@ -2001,9 +2001,6 @@ class WikiView(discord.ui.View):
                 url=item["wiki_url"]
             )
 
-            if crafted_name == npc_name:
-                npc_name = ""
-
             if item["zone_name"] != "":
                 embed.add_field(name="🗺️ Zone ", value=f"[{item['zone_name']}]({zone_link})", inline=True)
             if npc_name != "":
@@ -2314,8 +2311,23 @@ async def view_wiki_items(interaction: discord.Interaction, slot: app_commands.C
         # --- Step 4: Insert missing wiki items into DB ---
         if new_wiki_items:
             print(f"🟢 Found {len(new_wiki_items)} new wiki items — inserting...")
+                        
             async with db_pool.acquire() as conn:
                 for item in new_wiki_items:
+                    npc_name = item.get("npc_name") or ""
+                    crafted_name = item.get("crafted_name") or ""
+                    zone_name = item.get("zone_name") or ""
+
+                    # --- 1️⃣ If npc_name and crafted_name are the same, clear npc_name
+                    if npc_name.strip().lower() == crafted_name.strip().lower() and npc_name:
+                        npc_name = ""
+            
+                    # --- 2️⃣ If zone_name contains a number, swap it into npc_name and clear zone_name
+                    if any(char.isdigit() for char in zone_name):
+                        npc_name = zone_name
+                        zone_name = ""
+
+                    
                     await conn.execute("""
                         INSERT INTO item_database (
                             item_name, item_slot, item_image, npc_image, npc_name, zone_name,
@@ -2328,8 +2340,8 @@ async def view_wiki_items(interaction: discord.Interaction, slot: app_commands.C
                     slot.value,
                     item.get("item_image") or "",
                     item.get("npc_image") or "",                   
-                    item.get("npc_name") or "",
-                    item.get("zone_name") or "",
+                    npc_name,
+                    zone_name,
                     item.get("item_stats") or "",
                     item.get("description") or "",
                     item.get("crafted_name") or "",
