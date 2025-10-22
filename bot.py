@@ -2364,7 +2364,7 @@ async def view_wiki_items(interaction: discord.Interaction, slot: app_commands.C
             # Fonts (fallback to default)
             try:
                 font_title = ImageFont.truetype("assets/WinthorpeScB.ttf", 28)
-                font_slot = ImageFont.truetype("assets/Winthorpe.ttf", 16)
+                font_stats = ImageFont.truetype("assets/Winthorpe.ttf", 16)
             except:
                 title_font = ImageFont.load_default()
                 text_font = ImageFont.load_default()
@@ -2374,11 +2374,11 @@ async def view_wiki_items(interaction: discord.Interaction, slot: app_commands.C
             stats = item.get("item_stats", "None listed")
             
             # Write text
-            draw.text((40, 3), title, font=title_font, fill=text_color)
+            draw.text((40, 3), title, font=font_title, fill=text_color)
             
             # Stats block (wrapped for readability)
             wrapped_stats = "\n".join(stats.splitlines()[:8])
-            draw.text((110, 55), wrapped_stats, font=text_font, fill=text_color)
+            draw.text((110, 55), wrapped_stats, font=font_stats, fill=text_color)
             
             # Save to buffer
             buffer = io.BytesIO()
