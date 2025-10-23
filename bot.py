@@ -2299,6 +2299,7 @@ async def fetch_wiki_items(slot_name: str):
                     "quest_name": quest_name,
                     "crafted_name": crafted_name,
                     "npc_level": npc_level,
+                    "npc_image": npc_image,
                     
                     "source": "Wiki"
                 })
