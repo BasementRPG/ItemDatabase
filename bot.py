@@ -2009,7 +2009,7 @@ class WikiView(discord.ui.View):
             
             if item["item_image"] == "":
                 embed.add_field(name="⚔️ Item Stats", value=item["item_stats"], inline=False)
-             if item["item_image"] != "":
+            if item["item_image"] != "":
                 embed.add_field(name="⚔️ Item Stats", value="", inline=False)
                 embed.set_image(url=item["item_image"])
             if item["npc_image"] != "":
@@ -2167,6 +2167,7 @@ async def fetch_wiki_items(slot_name: str):
                             npc_name = ", ".join(li.get_text(strip=True) for li in npc_items)
 
 
+              
                 # --- Extract Quest (more tolerant of malformed HTML) ---
                 quest_name = ""
                 
@@ -2183,6 +2184,49 @@ async def fetch_wiki_items(slot_name: str):
                             quest_items = quest_list.find_all("li")
                             quest_name = ", ".join(li.get_text(strip=True) for li in quest_items)            
     
+               
+                # --- 1️⃣ If npc_name and quest_name are the same, clear npc_name
+                if npc_name.strip().lower() == quest_name.strip().lower() and npc_name:
+                    npc_name = ""                
+
+
+                # --- Fetch NPC details ---
+                npc_image = ""
+                npc_level = ""
+                
+                # Only proceed if npc_name exists
+                if npc_name:
+                    for npc in npc_name.split(","):
+                        npc_clean = npc.strip().replace(" ", "_")
+                        npc_url = f"https://monstersandmemories.miraheze.org/wiki/{npc_clean}"
+                
+                        async with session.get(npc_url, headers={"User-Agent": "Mozilla/5.0"}) as npc_resp:
+                            if npc_resp.status != 200:
+                                print(f"⚠️ Failed to fetch NPC page: {npc_url}")
+                                continue
+                
+                            npc_html = await npc_resp.text()
+                            npc_soup = BeautifulSoup(npc_html, "html.parser")
+                
+                            # --- NPC Image (inside <span typeof="mw:File">) ---
+                            file_span = npc_soup.select_one('span[typeof="mw:File"] img')
+                            if file_span:
+                                src = file_span.get("src", "")
+                                npc_image = f"https:{src}" if src.startswith("//") else src
+                
+                            # --- NPC Level (3rd <td> inside mobStatsBox) ---
+                            mob_stats_table = npc_soup.find("table", class_="mobStatsBox")
+                            if mob_stats_table:
+                                tds = mob_stats_table.find_all("td")
+                                if len(tds) >= 3:
+                                    npc_level = tds[2].get_text(strip=True)
+                
+                            # (Optional) Stop after first NPC to avoid multiple fetches
+                            break
+                
+                
+                
+                
                 # --- Extract Crafted  ---
     
     
@@ -2254,6 +2298,8 @@ async def fetch_wiki_items(slot_name: str):
                     "description": description,
                     "quest_name": quest_name,
                     "crafted_name": crafted_name,
+                    "npc_level": npc_level,
+                    
                     "source": "Wiki"
                 })
                 
@@ -2335,9 +2381,9 @@ async def view_wiki_items(interaction: discord.Interaction, slot: app_commands.C
                     await conn.execute("""
                         INSERT INTO item_database (
                             item_name, item_slot, item_image, npc_image, npc_name, zone_name,
-                            item_stats, description, crafted_name, quest_name,
+                            item_stats, description, crafted_name, quest_name, npc_level,
                             added_by, source
-                        ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,'Wiki')
+                        ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,'Wiki')
                         ON CONFLICT (item_name) DO NOTHING
                     """,
                     item["item_name"],
@@ -2350,6 +2396,7 @@ async def view_wiki_items(interaction: discord.Interaction, slot: app_commands.C
                     item.get("description") or "",
                     item.get("crafted_name") or "",
                     item.get("quest_name") or "",
+                    item.get("npc_level") or "",
                     interaction.user.name
                     )
             print(f"✅ Inserted {len(new_wiki_items)} wiki items into DB.")
