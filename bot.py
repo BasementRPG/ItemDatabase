@@ -2515,6 +2515,10 @@ async def run_wiki_items(interaction: discord.Interaction, slot: str, stat: Opti
             """, slot)
 
         if stat:
+            stat_filter = stat.value.lower()
+            def matches_stat(text: str):
+                text = text.lower()
+                return any(k in text for k in stat_filter)
             wiki_items = [i for i in wiki_items if stat.lower() in i.get("item_stats", "").lower()]
             db_rows = [r for r in db_rows if stat.lower() in (r["item_stats"] or "").lower()]
         
