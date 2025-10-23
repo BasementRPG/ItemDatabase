@@ -2444,7 +2444,7 @@ class WikiSelectView(discord.ui.View):
         
         # Classes dropdown
         self.classes_select = discord.ui.Select(
-            placeholder="⚔️ Filter by class (optional)...",
+            placeholder="🧙 Filter by class (optional)...",
             min_values=0,
             max_values=1,
             options=[
