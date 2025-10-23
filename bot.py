@@ -15,6 +15,7 @@ import asyncio
 from bs4 import BeautifulSoup
 from bs4 import NavigableString
 from playwright.async_api import async_playwright
+from typing import Optional
 import io
 
 
