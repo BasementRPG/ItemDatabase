@@ -1789,7 +1789,7 @@ async def show_results(interaction, items, db_pool=None, guild_id=None):
     app_commands.Choice(name="Waist", value="Waist"),
     app_commands.Choice(name="Wrist", value="Wrist"),
 ])
-async def view_item_db(interaction: discord.Interaction, slot: app_commands.Choice[str]):
+async def view_item_db(interaction: discord.Interaction, slot: app_commands.Choice[str] = None):
     await interaction.response.defer(thinking=True)
     guild_id = interaction.guild.id
 
@@ -1803,9 +1803,9 @@ async def view_item_db(interaction: discord.Interaction, slot: app_commands.Choi
 
     params = [guild_id]
 
-    if slot:
+    if slot is not None:
         query += " AND LOWER(item_slot) = LOWER($2)"
-        params.append(slot)
+        params.append(slot.value)
 
     query += " ORDER BY source DESC, item_name ASC"
 
