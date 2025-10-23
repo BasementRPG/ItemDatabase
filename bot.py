@@ -2432,7 +2432,7 @@ async def view_wiki_items(interaction: discord.Interaction, slot: app_commands.C
 
             for stat in stats:
                 draw.text((x, y), stat, font=font_stats, fill="white")
-                y += font.size + line_spacing  # add font height + spacing
+                y += font_stats.size + line_spacing  # add font height + spacing
         
             """
             # Stats block (wrapped for readability)
