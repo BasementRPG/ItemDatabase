@@ -2682,7 +2682,7 @@ async def run_wiki_items(interaction: discord.Interaction, slot: str, stat: Opti
     
             # 🖼️ Now that all inserts are safely committed
             for item in new_wiki_items:
-                img_width, img_height = 500, 300
+                img_width, img_height = 700, 300
                 text_color = (255, 255, 255)
             
                 image = Image.open("assets/backgrounds/itembg.png").convert("RGBA")
