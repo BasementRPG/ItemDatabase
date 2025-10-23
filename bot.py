@@ -2700,7 +2700,7 @@ async def run_wiki_items(interaction: discord.Interaction, slot: str, stat: Opti
             
                 # Title and stat spacing
                 draw.text((40, 3), title, font=font_title, fill="white")
-                draw.text((110, 55), stats, font=font_stats, fill=text_color, spacing=10)
+                draw.text((110, 55), stats, font=font_stats, fill=text_color, spacing=5)
             
                 buffer = io.BytesIO()
                 image.save(buffer, format="PNG")
