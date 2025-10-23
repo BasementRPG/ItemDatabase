@@ -12,6 +12,7 @@ from discord.ui import View, Select
 from discord import SelectOption, Interaction
 import aiohttp
 import asyncio
+import textwrap
 from bs4 import BeautifulSoup
 from bs4 import NavigableString
 from playwright.async_api import async_playwright
