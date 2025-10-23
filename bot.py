@@ -2392,6 +2392,7 @@ class WikiSelectView(discord.ui.View):
         super().__init__(timeout=None)
         self.slot = None
         self.stat = None
+        self.classes = None
         self.value = None
         self.search_interaction = None
 
@@ -2440,6 +2441,35 @@ class WikiSelectView(discord.ui.View):
         )
         self.stat_select.callback = self.select_stat
         self.add_item(self.stat_select)
+        
+        # Classes dropdown
+        self.classes_select = discord.ui.Select(
+            placeholder="⚔️ Filter by class (optional)...",
+            min_values=0,
+            max_values=1,
+            options=[
+                discord.SelectOption(label="ARC", value="ARC"),
+                discord.SelectOption(label="BRD", value="BRD"),
+                discord.SelectOption(label="BST", value="BST"),
+                discord.SelectOption(label="CLR", value="CLR"),
+                discord.SelectOption(label="DRU", value="DRU"),
+                discord.SelectOption(label="ELE", value="ELE"),
+                discord.SelectOption(label="ENC", value="ENC"),
+                discord.SelectOption(label="FTR", value="FTR"),
+                discord.SelectOption(label="INQ", value="INQ"),
+                discord.SelectOption(label="MNK", value="MNK"),
+                discord.SelectOption(label="NEC", value="NEC"),
+                discord.SelectOption(label="PAL", value="PAL"),
+                discord.SelectOption(label="RNG", value="RNG"),
+                discord.SelectOption(label="ROG", value="ROG"),
+                discord.SelectOption(label="SHD", value="SHD"),
+                discord.SelectOption(label="SHM", value="SHM"),
+                discord.SelectOption(label="SPB", value="SPB"),
+                discord.SelectOption(label="WIZ", value="WIZ"),
+            ]
+        )
+        self.classes_select.callback = self.select_classes
+        self.add_item(self.classes_select)
 
         # Confirm button
         confirm_button = discord.ui.Button(label="✅ Search", style=discord.ButtonStyle.green)
@@ -2455,7 +2485,10 @@ class WikiSelectView(discord.ui.View):
     async def select_stat(self, interaction: discord.Interaction):
         self.stat = self.stat_select.values[0] if self.stat_select.values else None
         await interaction.response.defer()
-
+        
+    async def select_classes(self, interaction: discord.Interaction):
+        self.classes = self.classes_select.values[0] if self.classes_select.values else None
+        await interaction.response.defer()
     
     async def confirm_selection(self, interaction: discord.Interaction):
         if not self.slot:
@@ -2488,7 +2521,7 @@ class WikiSelectView(discord.ui.View):
 async def view_wiki_items(interaction: discord.Interaction):
     view = WikiSelectView()
     await interaction.response.send_message(
-        "Please select the **Slot** and (optionally) a **Stat**, then press ✅ **Search**:",
+        "Please select the **Slot** and (optionally) a **Stat** and/or **Class**, then press ✅ **Search**:",
         view=view
     )
 
@@ -2497,17 +2530,17 @@ async def view_wiki_items(interaction: discord.Interaction):
     if not view.value:
         await interaction.followup.send("❌ Selection timed out or cancelled.", ephemeral=True)
         return
-
+    classes = view.classes
     slot = view.slot
     stat = view.stat
 
     # ✅ no send_message or followup here!
     # just call the runner, which does its own defer safely
-    await run_wiki_items(view.search_interaction, slot, stat)
+    await run_wiki_items(view.search_interaction, slot, stat, classes)
 
 
 
-async def run_wiki_items(interaction: discord.Interaction, slot: str, stat: Optional[str]):
+async def run_wiki_items(interaction: discord.Interaction, slot: str, stat: Optional[str], classes: Optional[str]):
     followup = interaction.followup
 
 
@@ -2532,11 +2565,47 @@ async def run_wiki_items(interaction: discord.Interaction, slot: str, stat: Opti
                 WHERE LOWER(item_slot) = LOWER($1)
             """, slot)
         
-        if stat:
-            # Normalize selected stat
-            stat_filter = str(stat).strip().lower()
+        if classes:
+            # Normalize selected classes
+            classes_filter = str(classes).strip().lower()
     
             # Broader matching dictionary
+            classes_keywords = {
+                "arc": [r"\barc\b"],
+                "brd": [r"\bbrd\b"],
+                "bst": [r"\bbst\b"],
+                "clr": [r"\bclr\b"],
+                "dru": [r"\bdru\b"],
+                "ele": [r"\bele\b"],
+                "enc": [r"\benc\b"],
+                "ftr": [r"\bftr\b"],
+                "inq": [r"\binq\b"],
+                "mnk": [r"\bmnk\b"],
+                "nec": [r"\bnec\b"],
+                "pal": [r"\bpal\b"],
+                "rng": [r"\brng\b"],
+                "rog": [r"\brog\b"],
+                "shd": [r"\bshd\b"],
+                "shm": [r"\bshm\b"],
+                "spd": [r"\bspd\b"],
+                "wiz": [r"\bwiz\b"],
+            }
+            patterns = [re.compile(pat, re.IGNORECASE) for pat in classes_keywords.get(classes_filter, [rf"\b{classes_filter}\b"])]
+    
+            def matches_classes_block(text: str) -> bool:
+                text = (text or "").replace("\n", " ").replace("\r", " ")
+                return any(p.search(text) for p in patterns)
+        
+            wiki_items = [i for i in wiki_items if matches_classes_block(i.get("item_stats", ""))]
+            db_rows = [r for r in db_rows if matches_classes_block(r.get("item_stats") or "")]
+           
+            print(f"🔍 Filtering for {classes_filter}: {len(wiki_items)} wiki, {len(db_rows)} db items matched")
+
+        if stat:
+            # Normalize selected class
+            stat_filter = str(stat).strip().lower()
+
+                        # Broader matching dictionary
             stat_keywords = {
                 "str": [r"\bstr\b", r"\bstrength\b"],
                 "agi": [r"\bagi\b", r"\bagility\b"],
@@ -2546,7 +2615,7 @@ async def run_wiki_items(interaction: discord.Interaction, slot: str, stat: Opti
                 "wis": [r"\bwis\b", r"\bwisdom\b"],
             }
             patterns = [re.compile(pat, re.IGNORECASE) for pat in stat_keywords.get(stat_filter, [rf"\b{stat_filter}\b"])]
-    
+            
             def matches_stat_block(text: str) -> bool:
                 text = (text or "").replace("\n", " ").replace("\r", " ")
                 return any(p.search(text) for p in patterns)
