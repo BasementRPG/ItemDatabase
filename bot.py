@@ -2492,7 +2492,9 @@ async def view_wiki_items(interaction: discord.Interaction):
 
 
 async def run_wiki_items(interaction: discord.Interaction, slot: str, stat: Optional[str]):
-    await interaction.response.defer(thinking=True)
+    followup = interaction.followup
+    await followup.send(f"⏳ Searching Wiki for `{slot}` items{f' with {stat}' if stat else ''}...")
+    
     guild_id = interaction.guild.id
 
     try:
