@@ -2499,7 +2499,7 @@ class WikiSelectView(discord.ui.View):
             child.disabled = True
             
         await interaction.response.edit_message(
-            content=f"⏳ Searching Wiki and Database for `{self.slot}` items{f' with {self.stat}' if self.stat else ''} {f' for {self.classes}' if self.classes else '' ...",
+            content=f"⏳ Searching Wiki and Database for `{self.slot}` items{f' with {self.stat}' if self.stat else ''} {f' for {self.classes}' if self.classes else ''} ...",
             view=None
         )
 
