@@ -2105,9 +2105,9 @@ class WikiView(discord.ui.View):
         await interaction.response.edit_message(embeds=self.build_embeds(self.current_page), view=self)
 
 
-   @discord.ui.button(label="🔄 Back to Filters, style=discord.ButtonStyle.primary)
-   async def back_page(self, interaction: discord.Interaction, button: discord.ui.Button):
-       await interaction.response.edit_message( content="Choose a new filter:", embeds=[], view=DatabaseView(self.db_pool, self.guild_id) )
+    @discord.ui.button(label="🔄 Back to Filters, style=discord.ButtonStyle.primary)
+    async def back_page(self, interaction: discord.Interaction, button: discord.ui.Button):
+        await interaction.response.edit_message( content="Choose a new filter:", embeds=[], view=WikiSelectView(self.db_pool, self.guild_id) )
      
 
 
@@ -2383,7 +2383,7 @@ async def fetch_wiki_items(slot_name: str):
 
 class WikiSelectView(discord.ui.View):
     def __init__(self):
-        super().__init__(timeout=60)
+        super().__init__(timeout=None)
         self.slot = None
         self.stat = None
         self.value = None
