@@ -2010,7 +2010,6 @@ class WikiView(discord.ui.View):
             if item["item_image"] == "":
                 embed.add_field(name="⚔️ Item Stats", value=item["item_stats"], inline=False)
             if item["item_image"] != "":
-                embed.add_field(name="⚔️ Item Stats", value="", inline=False)
                 embed.set_image(url=item["item_image"])
             if item["npc_image"] != "":
                 embed.set_thumbnail(url=item["npc_image"])            
@@ -2401,9 +2400,7 @@ async def view_wiki_items(interaction: discord.Interaction, slot: app_commands.C
                     interaction.user.name
                     )
             print(f"✅ Inserted {len(new_wiki_items)} wiki items into DB.")
-            
-            
-            
+    
           
             # --- Generate simple image for the item ---
             img_width, img_height = 500, 300
