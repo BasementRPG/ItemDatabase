@@ -1798,7 +1798,7 @@ async def view_item_db(interaction: discord.Interaction, slot: app_commands.Choi
                item_slot, item_stats, description, quest_name, crafted_name,
                npc_level, source
         FROM item_database
-        WHERE (guild_id = $1 OR guild_id::text = "" OR guild_id IS NULL)
+        WHERE (guild_id = $1 OR guild_id::text = '' OR guild_id IS NULL)
     """
 
     params = [guild_id]
@@ -2021,21 +2021,21 @@ class WikiView(discord.ui.View):
 
 
  # --- 2️⃣ If zone_name contains a number, swap it into npc_name and clear zone_name
-        if any(char.isdigit() for char in item["npc_name"]):
-            npc_name=item["npc_name"]
-
-        else:    
-            npc_string= item["npc_name"]
-            # Split by comma and strip spaces
-            npc_name = [name.strip() for name in npc_string.split(",") if name.strip()]
-            # Build full wiki links
-            linked_npc = []
-            for name in npc_name:
-                # Replace spaces with underscores for proper wiki URL formatting
-                npc_url = linkback + name.replace(" ", "_")
-                linked_npc.append(f"[{name}]({npc_url})")
-            # Join with newlines for vertical display in embed
-            npc_name = " \n ".join(linked_npc)
+            if any(char.isdigit() for char in item["npc_name"]):
+                npc_name=item["npc_name"]
+    
+            else:    
+                npc_string= item["npc_name"]
+                # Split by comma and strip spaces
+                npc_name = [name.strip() for name in npc_string.split(",") if name.strip()]
+                # Build full wiki links
+                linked_npc = []
+                for name in npc_name:
+                    # Replace spaces with underscores for proper wiki URL formatting
+                    npc_url = linkback + name.replace(" ", "_")
+                    linked_npc.append(f"[{name}]({npc_url})")
+                # Join with newlines for vertical display in embed
+                npc_name = " \n ".join(linked_npc)
 
 
 
