@@ -2530,12 +2530,12 @@ async def run_wiki_items(interaction: discord.Interaction, slot: str, stat: Opti
             }
             patterns = [re.compile(pat, re.IGNORECASE) for pat in stat_keywords.get(stat_filter, [rf"\b{stat_filter}\b"])]
     
-        def matches_stat_block(text: str) -> bool:
-            text = (text or "").replace("\n", " ").replace("\r", " ")
-            return any(p.search(text) for p in patterns)
-    
-        wiki_items = [i for i in wiki_items if matches_stat_block(i.get("item_stats", ""))]
-        db_rows = [r for r in db_rows if matches_stat_block(r.get("item_stats") or "")]
+            def matches_stat_block(text: str) -> bool:
+                text = (text or "").replace("\n", " ").replace("\r", " ")
+                return any(p.search(text) for p in patterns)
+        
+            wiki_items = [i for i in wiki_items if matches_stat_block(i.get("item_stats", ""))]
+            db_rows = [r for r in db_rows if matches_stat_block(r.get("item_stats") or "")]
         
         def normalize_name(name):
             return name.strip().lower().replace("’", "'").replace("‘", "'").replace("`", "'")
