@@ -2536,7 +2536,9 @@ async def run_wiki_items(interaction: discord.Interaction, slot: str, stat: Opti
         
             wiki_items = [i for i in wiki_items if matches_stat_block(i.get("item_stats", ""))]
             db_rows = [r for r in db_rows if matches_stat_block(r.get("item_stats") or "")]
-        
+           
+            print(f"🔍 Filtering for {stat_filter}: {len(wiki_items)} wiki, {len(db_rows)} db items matched")
+
         def normalize_name(name):
             return name.strip().lower().replace("’", "'").replace("‘", "'").replace("`", "'")
 
