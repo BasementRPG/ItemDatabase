@@ -2449,16 +2449,16 @@ class WikiSelectView(discord.ui.View):
         if not self.slot:
             await interaction.response.send_message("❌ Please select a slot first!", ephemeral=True)
             return
-            
-        # Disable all controls
+    
         for child in self.children:
             child.disabled = True
         await interaction.response.edit_message(view=self)
-
+    
+        # store interaction for run_wiki_items
         self.search_interaction = interaction
         self.value = True
         self.stop()
-        
+
 
 
 
@@ -2483,16 +2483,14 @@ async def view_wiki_items(interaction: discord.Interaction):
     slot = view.slot
     stat = view.stat
 
-    # ✅ use the button interaction instead of the slash one
-    await view.search_interaction.followup.send(f"⏳ Searching Wiki for `{slot}` items{f' with {stat}' if stat else ''}...")
-
-    # run your existing logic with the button’s interaction
+    # ✅ no send_message or followup here!
+    # just call the runner, which does its own defer safely
     await run_wiki_items(view.search_interaction, slot, stat)
 
 
 
 
-async def run_wiki_items(interaction: discord.Interaction, slot: app_commands.Choice[str], stat:app_commands.Choice[str] = None):
+async def run_wiki_items(interaction: discord.Interaction, slot: str, stat: Optional[str]):
     await interaction.response.defer(thinking=True)
     guild_id = interaction.guild.id
 
