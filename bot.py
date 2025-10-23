@@ -2444,9 +2444,20 @@ async def view_wiki_items(interaction: discord.Interaction, slot: app_commands.C
                     print(f"✅ Updated DB with image for {title}: {image_url}")
 
         # --- Step 5: Combine DB + Wiki items for display ---
-        db_items_formatted = []
-        for row in db_rows:
-            db_items_formatted.append({
+        # ✅ Re-fetch all slot items from DB so the new image URLs are included
+        async with db_pool.acquire() as conn:
+            refreshed_rows = await conn.fetch("""
+                SELECT item_name, item_image, npc_image, npc_name, zone_name,
+                       item_slot, item_stats, description, quest_name, crafted_name,
+                       npc_level, source
+                FROM item_database
+                WHERE LOWER(item_slot) = LOWER($1)
+                ORDER BY source DESC, item_name ASC
+            """, slot.value)
+        
+        # --- Convert into WikiView-compatible format ---
+        combined_items = [
+            {
                 "item_name": row["item_name"],
                 "item_image": row["item_image"] or "",
                 "npc_image": row["npc_image"] or "",
@@ -2459,11 +2470,11 @@ async def view_wiki_items(interaction: discord.Interaction, slot: app_commands.C
                 "quest_name": row["quest_name"] or "",
                 "crafted_name": row["crafted_name"] or "",
                 "npc_level": row["npc_level"] or "",
-                "source": "Database",
-                "in_database": True
-            })
-
-        combined_items = db_items_formatted + new_wiki_items
+                "source": row["source"],
+                "in_database": True,
+            }
+            for row in refreshed_rows
+        ]
 
         if not combined_items:
             await interaction.followup.send(f"❌ No items found for `{slot.value}` in the database or wiki.")
