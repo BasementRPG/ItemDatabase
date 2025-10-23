@@ -2109,8 +2109,8 @@ class WikiView(discord.ui.View):
     async def back_to_filters(self, interaction: discord.Interaction, button: discord.ui.Button):
         """Replace the results view with the WikiSelectView."""
         new_view = WikiSelectView()
-        await interaction.response.edit_message(
-            content="Please select the **Slot** and (optionally) a **Stat**, then press ✅ **Search**:",
+        await interaction.followup.send(
+            content="Please select the **Slot** and (optionally) a **Stat** and/or ***Class**, then press ✅ **Search**:",
             embeds=[],
             view=new_view
         )
@@ -2499,7 +2499,7 @@ class WikiSelectView(discord.ui.View):
             child.disabled = True
             
         await interaction.response.edit_message(
-            content=f"⏳ Searching Wiki and Database for `{self.slot}` items{f' with {self.stat}' if self.stat else ''}...",
+            content=f"⏳ Searching Wiki and Database for `{self.slot}` items{f' with {self.stat}' if self.stat else ''} {f' for {self.classes}' if self.classes else '' ...",
             view=None
         )
 
@@ -2735,6 +2735,13 @@ async def run_wiki_items(interaction: discord.Interaction, slot: str, stat: Opti
        
         if stat:
             refreshed_rows = [r for r in refreshed_rows if matches_stat_block(r.get("item_stats") or "")]
+        
+        if classes:
+            refreshed_rows = [r for r in refreshed_rows if matches_classes_block(r.get("item_stats") or "")]
+        
+        
+        
+        
         # --- Convert into WikiView-compatible format ---
         
         combined_items = [
