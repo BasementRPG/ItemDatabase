@@ -2394,15 +2394,7 @@ async def fetch_wiki_items(slot_name: str):
     app_commands.Choice(name="Waist", value="Waist"),
     app_commands.Choice(name="Wrist", value="Wrist"),
 ])
-@app_commands.describe(stat="Filter by stat.")
-@app_commands.choices(stat=[
-    app_commands.Choice(name="AGI", value="AGI"),
-    app_commands.Choice(name="DEX", value="Dex"),
-    app_commands.Choice(name="INT", value="INT"),
-    app_commands.Choice(name="STA", value="STA"),
-    app_commands.Choice(name="STR", value="STR"),
-    app_commands.Choice(name="WIS", value="WIS"),
-])
+
 async def view_wiki_items(interaction: discord.Interaction, slot: app_commands.Choice[str]):
     await interaction.response.defer(thinking=True)
     guild_id = interaction.guild.id
