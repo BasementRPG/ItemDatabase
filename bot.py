@@ -2000,7 +2000,7 @@ async def edit_item_image(
 # -------------------- WikiView Class --------------------
 
 class WikiView(discord.ui.View):
-    def __init__(self, item,):
+    def __init__(self, items,):
         super().__init__(timeout=None)
         self.items = items
         self.current_page = 0
