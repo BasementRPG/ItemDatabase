@@ -2655,7 +2655,7 @@ async def run_wiki_items(interaction: discord.Interaction, slot: str, stat: Opti
                        npc_level, source
                 FROM item_database
                 WHERE LOWER(item_slot) = LOWER($1)
-                ORDER BY source DESC, item_name ASC
+                ORDER BY item_name ASC
             """, slot)
        
         if stat:
