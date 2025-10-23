@@ -1767,23 +1767,79 @@ async def show_results(interaction, items, db_pool=None, guild_id=None):
 
             
 
-@bot.tree.command(name="view_item_db", description="View the guild's item database with filters.")
-async def view_item_db(interaction: discord.Interaction):
-    # Ensure DB is connected
-    async with db_pool.acquire() as conn:
-        check = await conn.fetchval("SELECT COUNT(*) FROM item_database WHERE guild_id=$1 AND guild_id=""", interaction.guild.id)
+@bot.tree.command(name="view_guild_db", description="View all item entries from the database for this guild.")
+@app_commands.describe(slot="Filter by slot.")
+@app_commands.choices(slot=[
+    app_commands.Choice(name="Ammo", value="Ammo"),
+    app_commands.Choice(name="Back", value="Back"),
+    app_commands.Choice(name="Chest", value="Chest"),
+    app_commands.Choice(name="Ear", value="Ear"),
+    app_commands.Choice(name="Feet", value="Feet"),
+    app_commands.Choice(name="Finger", value="Finger"),
+    app_commands.Choice(name="Hands", value="Hands"),
+    app_commands.Choice(name="Head", value="Head"),
+    app_commands.Choice(name="Legs", value="Legs"),
+    app_commands.Choice(name="Neck", value="Neck"),
+    app_commands.Choice(name="Primary", value="Primary"),
+    app_commands.Choice(name="Primary 2h", value="Primary 2h"),
+    app_commands.Choice(name="Range", value="Range"),
+    app_commands.Choice(name="Secondary", value="Secondary"),
+    app_commands.Choice(name="Shirt", value="Shirt"),
+    app_commands.Choice(name="Shoulders", value="Shoulders"),
+    app_commands.Choice(name="Waist", value="Waist"),
+    app_commands.Choice(name="Wrist", value="Wrist"),
+])
+async def view_guild_db(interaction: discord.Interaction, slot: app_commands.Choice[str]):
+    await interaction.response.defer(thinking=True)
+    guild_id = interaction.guild.id
 
-    if check == 0:
-        await interaction.response.send_message("❌ No data found in the item database.", ephemeral=True)
+    query = """
+        SELECT item_name, item_image, npc_image, npc_name, zone_name,
+               item_slot, item_stats, description, quest_name, crafted_name,
+               npc_level, source
+        FROM item_database
+        WHERE (guild_id = $1 OR guild_id = '')
+    """
+
+    params = [guild_id]
+
+    if slot:
+        query += " AND LOWER(item_slot) = LOWER($2)"
+        params.append(slot)
+
+    query += " ORDER BY source DESC, item_name ASC"
+
+    async with db_pool.acquire() as conn:
+        db_rows = await conn.fetch(query, *params)
+
+    if not db_rows:
+        await interaction.followup.send(f"❌ No items found for this guild{' in slot ' + slot if slot else ''}.")
         return
 
-    # Start with the FIRST dropdown view (DatabaseView)
-    view = DatabaseView(db_pool, interaction.guild.id)
-    await interaction.response.send_message(
-        content="Select a filter type to begin:",
-        view=view,
-        ephemeral=False  # make visible only to the user, remove if you want public
-    )
+    # --- Convert to WikiView-compatible format ---
+    formatted_items = []
+    for row in db_rows:
+        formatted_items.append({
+            "item_name": row["item_name"],
+            "item_image": row["item_image"] or "",
+            "npc_image": row["npc_image"] or "",
+            "npc_name": row["npc_name"] or "",
+            "zone_name": row["zone_name"] or "",
+            "slot_name": row["item_slot"] or "",
+            "item_stats": row["item_stats"] or "None listed",
+            "wiki_url": None,
+            "description": row["description"] or "",
+            "quest_name": row["quest_name"] or "",
+            "crafted_name": row["crafted_name"] or "",
+            "npc_level": row["npc_level"] or "",
+            "source": row["source"],
+            "in_database": True
+        })
+
+    # --- Send through WikiView for consistent embed formatting ---
+    view = WikiView(formatted_items)
+    await interaction.followup.send(embeds=view.build_embeds(0), view=view)
+
 
 
 
@@ -2317,14 +2373,35 @@ async def fetch_wiki_items(slot_name: str):
 
 
 @bot.tree.command(name="view_wiki_items", description="View items from the Monsters & Memories Wiki by slot.")
-@app_commands.describe(slot="Select which item slot to view from the Wiki.")
+@app_commands.describe(slot="Filter by slot.")
 @app_commands.choices(slot=[
-    app_commands.Choice(name="Head", value="Head"),
-    app_commands.Choice(name="Chest", value="Chest"),
-    app_commands.Choice(name="Wrist", value="Wrist"),
+    app_commands.Choice(name="Ammo", value="Ammo"),
     app_commands.Choice(name="Back", value="Back"),
+    app_commands.Choice(name="Chest", value="Chest"),
+    app_commands.Choice(name="Ear", value="Ear"),
     app_commands.Choice(name="Feet", value="Feet"),
+    app_commands.Choice(name="Finger", value="Finger"),
+    app_commands.Choice(name="Hands", value="Hands"),
+    app_commands.Choice(name="Head", value="Head"),
+    app_commands.Choice(name="Legs", value="Legs"),
+    app_commands.Choice(name="Neck", value="Neck"),
     app_commands.Choice(name="Primary", value="Primary"),
+    app_commands.Choice(name="Primary 2h", value="Primary 2h"),
+    app_commands.Choice(name="Range", value="Range"),
+    app_commands.Choice(name="Secondary", value="Secondary"),
+    app_commands.Choice(name="Shirt", value="Shirt"),
+    app_commands.Choice(name="Shoulders", value="Shoulders"),
+    app_commands.Choice(name="Waist", value="Waist"),
+    app_commands.Choice(name="Wrist", value="Wrist"),
+])
+@app_commands.describe(stat="Filter by stat.")
+@app_commands.choices(stat=[
+    app_commands.Choice(name="AGI", value="AGI"),
+    app_commands.Choice(name="DEX", value="Dex"),
+    app_commands.Choice(name="INT", value="INT"),
+    app_commands.Choice(name="STA", value="STA"),
+    app_commands.Choice(name="STR", value="STR"),
+    app_commands.Choice(name="WIS", value="WIS"),
 ])
 async def view_wiki_items(interaction: discord.Interaction, slot: app_commands.Choice[str]):
     await interaction.response.defer(thinking=True)
