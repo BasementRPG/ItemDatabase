@@ -2102,6 +2102,16 @@ class WikiView(discord.ui.View):
         self.current_page = (self.current_page + 1) % self.total_pages()
         await interaction.response.edit_message(embeds=self.build_embeds(self.current_page), view=self)
 
+    back_button = discord.ui.Button(label="🔁 Back to Filters", style=discord.ButtonStyle.blurple)
+    back_button.callback = self.back_to_filters
+    self.add_item(back_button)
+    async def back_to_filters(self, interaction: discord.Interaction):
+        view = WikiSelectView()
+        await interaction.response.edit_message(
+            content="Please select the **Slot** and (optionally) a **Stat**, then press ✅ **Search**:",
+            embeds=[],
+            view=view
+        )
 
 
 
@@ -2443,6 +2453,7 @@ class WikiSelectView(discord.ui.View):
         self.stat = self.stat_select.values[0] if self.stat_select.values else None
         await interaction.response.defer()
 
+    
     async def confirm_selection(self, interaction: discord.Interaction):
         if not self.slot:
             await interaction.response.send_message("❌ Please select a slot first!", ephemeral=True)
@@ -2450,12 +2461,18 @@ class WikiSelectView(discord.ui.View):
     
         for child in self.children:
             child.disabled = True
-        await interaction.response.edit_message(view=self)
     
-        # store interaction for run_wiki_items
+        # 🔄 Replace filters with "Searching..."
+        await interaction.response.edit_message(
+            content=f"⏳ Searching Wiki for `{self.slot}` items{f' with {self.stat}' if self.stat else ''}...",
+            view=None
+        )
+    
+        # Store the interaction for later
         self.search_interaction = interaction
         self.value = True
         self.stop()
+
 
 
 
@@ -2673,7 +2690,8 @@ async def run_wiki_items(interaction: discord.Interaction, slot: str, stat: Opti
 
         # --- Step 6: Send combined results to WikiView ---
         view = WikiView(combined_items)
-        await interaction.followup.send(embeds=view.build_embeds(0), view=view)
+        await interaction.edit_original_response(content=None, embeds=view.build_embeds(0), view=view)
+
 
     except Exception as e:
         print(f"❌ Critical error in view_wiki_items: {e}")
