@@ -2436,16 +2436,11 @@ async def view_wiki_items(interaction: discord.Interaction, slot: app_commands.C
                     async with db_pool.acquire() as conn:
                         await conn.execute("""
                             UPDATE item_database
-                            SET item_image = $1
-                            WHERE item_name = $2
-                        """, msg.attachments[0].url, item["item_name"])
-
-
-
-
-        
-
-        
+                            SET item_image = $1,
+                                item_msg_id = $2
+                            WHERE item_name = $3
+                        """, msg.attachments[0].url, str(msg.id), item["item_name"])
+                    print(f"✅ Updated DB with image for {title}: {image_url}")
 
         # --- Step 5: Combine DB + Wiki items for display ---
         db_items_formatted = []
