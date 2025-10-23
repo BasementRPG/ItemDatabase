@@ -2439,7 +2439,7 @@ async def view_wiki_items(interaction: discord.Interaction, slot: app_commands.C
                             SET item_image = $1,
                                 item_msg_id = $2
                             WHERE item_name = $3
-                        """, msg.attachments[0].url, str(msg.id), item["item_name"])
+                        """, msg.attachments[0].url, msg.id, item["item_name"])
                     print(f"✅ Updated DB with image for {title}: {image_url}")
 
         # --- Step 5: Combine DB + Wiki items for display ---
