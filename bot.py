@@ -1151,8 +1151,8 @@ class ItemDatabaseModal(discord.ui.Modal, title="Add Item to Database"):
 ])
 async def add_item_db(interaction: discord.Interaction, item_image: discord.Attachment, npc_image: discord.Attachment, item_slot: str):
     """Uploads images and opens modal for item info entry."""
-    if not item_image or not npc_image:
-        await interaction.response.send_message("❌ Both item and NPC images are required.", ephemeral=True)
+    if not item_image:
+        await interaction.response.send_message("❌ item image is required.", ephemeral=True)
         return
 
     added_by = str(interaction.user)
@@ -1767,7 +1767,7 @@ async def show_results(interaction, items, db_pool=None, guild_id=None):
 
             
 
-@bot.tree.command(name="view_guild_db", description="View all item entries from the database for this guild.")
+@bot.tree.command(name="view_item_db", description="View all item entries from the database for this guild.")
 @app_commands.describe(slot="Filter by slot.")
 @app_commands.choices(slot=[
     app_commands.Choice(name="Ammo", value="Ammo"),
@@ -1789,7 +1789,7 @@ async def show_results(interaction, items, db_pool=None, guild_id=None):
     app_commands.Choice(name="Waist", value="Waist"),
     app_commands.Choice(name="Wrist", value="Wrist"),
 ])
-async def view_guild_db(interaction: discord.Interaction, slot: app_commands.Choice[str]):
+async def view_item_db(interaction: discord.Interaction, slot: app_commands.Choice[str]):
     await interaction.response.defer(thinking=True)
     guild_id = interaction.guild.id
 
@@ -1798,7 +1798,7 @@ async def view_guild_db(interaction: discord.Interaction, slot: app_commands.Cho
                item_slot, item_stats, description, quest_name, crafted_name,
                npc_level, source
         FROM item_database
-        WHERE (guild_id = $1 OR guild_id = '')
+        WHERE (guild_id = $1 OR guild_id::text = "" OR guild_id IS NULL)
     """
 
     params = [guild_id]
