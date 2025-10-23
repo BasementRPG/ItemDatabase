@@ -2018,7 +2018,13 @@ class WikiView(discord.ui.View):
             else:
                 color = discord.Color.blurple()
                 desc = "🔵 Not in your database yet."       
-            
+
+
+ # --- 2️⃣ If zone_name contains a number, swap it into npc_name and clear zone_name
+        if any(char.isdigit() for char in item["npc_name"]):
+            npc_name=item["npc_name"]
+
+        else:    
             npc_string= item["npc_name"]
             # Split by comma and strip spaces
             npc_name = [name.strip() for name in npc_string.split(",") if name.strip()]
