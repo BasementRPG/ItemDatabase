@@ -2480,7 +2480,7 @@ class WikiSelectView(discord.ui.View):
 
 @bot.tree.command(name="view_wiki_items", description="View items from the Monsters & Memories Wiki.")
 async def view_wiki_items(interaction: discord.Interaction):
-    
+    view = WikiSelectView()
     await interaction.response.send_message(
         "Please select the **Slot** and (optionally) a **Stat**, then press ✅ **Search**:",
         view=view
