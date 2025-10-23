@@ -1998,7 +1998,9 @@ async def edit_item_image(
 # -------------------- WikiView Class --------------------
 
 class WikiView(discord.ui.View):
-    def __init__(self, items):
+    def __init__(self, items, back_button = discord.ui.Button(label="🔁 Back to Filters", style=discord.ButtonStyle.blurple)
+    back_button.callback = self.back_to_filters
+    self.add_item(back_button)):
         super().__init__(timeout=None)
         self.items = items
         self.current_page = 0
@@ -2102,9 +2104,7 @@ class WikiView(discord.ui.View):
         self.current_page = (self.current_page + 1) % self.total_pages()
         await interaction.response.edit_message(embeds=self.build_embeds(self.current_page), view=self)
 
-    back_button = discord.ui.Button(label="🔁 Back to Filters", style=discord.ButtonStyle.blurple)
-    back_button.callback = self.back_to_filters
-    self.add_item(back_button)
+
     async def back_to_filters(self, interaction: discord.Interaction):
         view = WikiSelectView()
         await interaction.response.edit_message(
