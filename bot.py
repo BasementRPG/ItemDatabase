@@ -2455,7 +2455,8 @@ class WikiSelectView(discord.ui.View):
 
         self.value = True
         self.stop()
-        await interaction.response.defer()
+        await interaction.response.edit_message(view=self)
+
 
 
 
@@ -2482,7 +2483,7 @@ async def view_wiki_items(interaction: discord.Interaction):
     stat = view.stat
 
     # Step 3: Run your existing logic
-    await interaction.followup.send(f"🔍 Searching Wiki for `{slot}` items{f' with {stat}' if stat else ''}...")
+    await interaction.followup.send(f"🔍 Searching Wiki and Database for `{slot}` items{f' with {stat}' if stat else ''}...")
     await run_wiki_items(interaction, slot, stat)
 
 
