@@ -2725,8 +2725,8 @@ async def run_wiki_items(interaction: discord.Interaction, slot: str, stat: Opti
                         lines.extend(wrap(line, width=max_width))
                     y = position[1]
                     for line in lines:
-                        draw.text((position[0], y), line, font=font, fill=fill, spacing)
-                        y += line_height
+                        draw.text((position[0], y), line, font=font, fill=fill)
+                        y += line_height + spacing
 
                 try:
                     font_title = ImageFont.truetype("assets/WinthorpeScB.ttf", 28)
