@@ -2381,6 +2381,8 @@ class WikiSelectView(discord.ui.View):
         super().__init__(timeout=60)
         self.slot = None
         self.stat = None
+        self.value = None
+        self.search_interaction = None
 
         # Slot dropdown
         self.slot_select = discord.ui.Select(
@@ -2451,11 +2453,12 @@ class WikiSelectView(discord.ui.View):
         # Disable all controls
         for child in self.children:
             child.disabled = True
-        await interaction.message.edit(view=self)
+         await interaction.response.edit_message(view=self)
 
+        self.search_interaction = interaction
         self.value = True
         self.stop()
-        await interaction.response.edit_message(view=self)
+        
 
 
 
@@ -2465,14 +2468,12 @@ class WikiSelectView(discord.ui.View):
 
 @bot.tree.command(name="view_wiki_items", description="View items from the Monsters & Memories Wiki.")
 async def view_wiki_items(interaction: discord.Interaction):
-    # Step 1: Show dropdown view
     view = WikiSelectView()
     await interaction.response.send_message(
-        "Please select the **Slot** and (optionally) a **Stat** below 👇",
+        "Please select the **Slot** and (optionally) a **Stat**, then press ✅ **Search**:",
         view=view
     )
 
-    # Step 2: Wait for selection
     await view.wait()
 
     if not view.value:
@@ -2482,9 +2483,12 @@ async def view_wiki_items(interaction: discord.Interaction):
     slot = view.slot
     stat = view.stat
 
-    # Step 3: Run your existing logic
-    await interaction.followup.send(f"🔍 Searching Wiki and Database for `{slot}` items{f' with {stat}' if stat else ''}...")
-    await run_wiki_items(interaction, slot, stat)
+    # ✅ use the button interaction instead of the slash one
+    await view.search_interaction.followup.send(f"⏳ Searching Wiki for `{slot}` items{f' with {stat}' if stat else ''}...")
+
+    # run your existing logic with the button’s interaction
+    await run_wiki_items(view.search_interaction, slot, stat)
+
 
 
 
