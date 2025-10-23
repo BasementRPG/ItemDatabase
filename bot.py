@@ -1557,6 +1557,8 @@ class PaginatedResultsView(discord.ui.View):
                 await self._render(interaction)
             return True
 
+
+        
         # Back to Filters
         elif cid == "back":
             await interaction.response.edit_message(
@@ -2003,9 +2005,7 @@ class WikiView(discord.ui.View):
         self.items = items
         self.current_page = 0
         self.items_per_page = 5
-        back_button = discord.ui.Button(label="🔁 Back to Filters", style=discord.ButtonStyle.blurple)
-        back_button.callback = self.back_to_filters
-        self.add_item(back_button)
+        
 
     def build_embeds(self, page_index: int):
         """Builds up to 5 embeds per page."""
@@ -2105,13 +2105,10 @@ class WikiView(discord.ui.View):
         await interaction.response.edit_message(embeds=self.build_embeds(self.current_page), view=self)
 
 
-    async def back_to_filters(self, interaction: discord.Interaction):
-        view = WikiSelectView()
-        await interaction.response.edit_message(
-            content="Please select the **Slot** and (optionally) a **Stat**, then press ✅ **Search**:",
-            embeds=[],
-            view=view
-        )
+   @discord.ui.button(label="🔄 Back to Filters, style=discord.ButtonStyle.primary)
+   async def back_page(self, interaction: discord.Interaction, button: discord.ui.Button):
+       await interaction.response.edit_message( content="Choose a new filter:", embeds=[], view=DatabaseView(self.db_pool, self.guild_id) )
+     
 
 
 
@@ -2461,7 +2458,12 @@ class WikiSelectView(discord.ui.View):
     
         for child in self.children:
             child.disabled = True
-    
+            
+        await interaction.response.edit_message(
+            content=f"⏳ Searching Wiki and Database for `{self.slot}` items{f' with {self.stat}' if self.stat else ''}...",
+            view=None
+        )
+
     
         # Store the interaction for later
         self.search_interaction = interaction
@@ -2501,7 +2503,9 @@ async def view_wiki_items(interaction: discord.Interaction):
 
 async def run_wiki_items(interaction: discord.Interaction, slot: str, stat: Optional[str]):
     followup = interaction.followup
-    await interaction.response.edit_message(f"⏳ Searching Wiki and Database for `{slot}` items{f' with {stat}' if stat else ''}...")
+    await interaction.edit_original_response(content=None, embeds=view.build_embeds(0), view=view)
+
+
     
     guild_id = interaction.guild.id
 
