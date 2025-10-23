@@ -2433,6 +2433,7 @@ async def view_wiki_items(interaction: discord.Interaction, slot: app_commands.C
                         content=f"📦 Generated image for `{title}` (Wiki Import)",
                         file=discord.File(buffer, filename=f"{title.replace(' ', '_')}.png")
                     )
+                    image_url =msg.attachments[0].url
                     async with db_pool.acquire() as conn:
                         await conn.execute("""
                             UPDATE item_database
