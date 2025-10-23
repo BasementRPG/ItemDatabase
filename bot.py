@@ -2424,7 +2424,7 @@ async def view_wiki_items(interaction: discord.Interaction, slot: app_commands.C
             title = item["item_name"]
             stats = item.get("item_stats", "None listed")
             x, y = 110, 55
-            link_spacing = 15
+            line_spacing = 15
             
             # Write text
             draw.text((40, 3), title, font=font_title, fill="white")
