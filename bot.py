@@ -2515,7 +2515,7 @@ async def run_wiki_items(interaction: discord.Interaction, slot: str, stat: Opti
             """, slot)
         
         if stat:
-            stat_filter = str{stat}.strip().lower()
+            stat_filter = str(stat).strip().lower()
             def matches_stat(text: str) -> bool:
                 text = (text or "").lower()
                 return any(k in text for k in stat_filter)
