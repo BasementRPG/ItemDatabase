@@ -1771,7 +1771,7 @@ async def show_results(interaction, items, db_pool=None, guild_id=None):
 async def view_item_db(interaction: discord.Interaction):
     # Ensure DB is connected
     async with db_pool.acquire() as conn:
-        check = await conn.fetchval("SELECT COUNT(*) FROM item_database WHERE guild_id=$1", interaction.guild.id)
+        check = await conn.fetchval("SELECT COUNT(*) FROM item_database WHERE guild_id=$1 AND guild_id=""", interaction.guild.id)
 
     if check == 0:
         await interaction.response.send_message("❌ No data found in the item database.", ephemeral=True)
