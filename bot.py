@@ -2402,61 +2402,62 @@ async def view_wiki_items(interaction: discord.Interaction, slot: app_commands.C
                     )
             print(f"✅ Inserted {len(new_wiki_items)} wiki items into DB.")
             # 🧩 After DB transaction fully commits
+            
             await generate_item_images(new_wiki_items)
           
-                # --- Generate simple image for the item ---
-                img_width, img_height = 500, 300
-                background_color = (20, 20, 20)
-                text_color = (255, 255, 255)
+            # --- Generate simple image for the item ---
+            img_width, img_height = 500, 300
+            background_color = (20, 20, 20)
+            text_color = (255, 255, 255)
                 
-                # Create image
+            # Create image
                 
-                image = Image.open("assets/backgrounds/itembg.png").convert("RGBA")
-                draw = ImageDraw.Draw(image)
+            image = Image.open("assets/backgrounds/itembg.png").convert("RGBA")
+            draw = ImageDraw.Draw(image)
                 
-                # Fonts (fallback to default)
-                try:
-                    font_title = ImageFont.truetype("assets/WinthorpeScB.ttf", 28)
-                    font_stats = ImageFont.truetype("assets/Winthorpe.ttf", 16)
-                except:
-                    title_font = ImageFont.load_default()
-                    text_font = ImageFont.load_default()
+            # Fonts (fallback to default)
+            try:
+                font_title = ImageFont.truetype("assets/WinthorpeScB.ttf", 28)
+                font_stats = ImageFont.truetype("assets/Winthorpe.ttf", 16)
+            except:
+                title_font = ImageFont.load_default()
+                text_font = ImageFont.load_default()
                 
-                # Item text layout
-                title = item["item_name"]
-                stats = item.get("item_stats", "None listed")
-                x, y = 110, 55
-                line_spacing = 15
+            # Item text layout
+            title = item["item_name"]
+            stats = item.get("item_stats", "None listed")
+            x, y = 110, 55
+            line_spacing = 15
                 
-                # Write text
-                draw.text((40, 3), title, font=font_title, fill="white")
+            # Write text
+            draw.text((40, 3), title, font=font_title, fill="white")
     
     
-                # Stats block (wrapped for readability)
-                wrapped_stats = "\n".join(stats.splitlines()[:8])
-                draw.text((110, 55), wrapped_stats, font=font_stats, fill=text_color, spacing=10)
+            # Stats block (wrapped for readability)
+            wrapped_stats = "\n".join(stats.splitlines()[:8])
+            draw.text((110, 55), wrapped_stats, font=font_stats, fill=text_color, spacing=10)
     
                 
-                # Save to buffer
-                buffer = io.BytesIO()
-                image.save(buffer, format="PNG")
-                buffer.seek(0)
+            # Save to buffer
+            buffer = io.BytesIO()
+            image.save(buffer, format="PNG")
+            buffer.seek(0)
                 
-                # --- Upload to Discord channel ---
-                upload_channel = discord.utils.get(interaction.guild.text_channels, name="item-database-upload-log")
-                if upload_channel:
-                    msg = await upload_channel.send(
-                        content=f"📦 Generated image for `{title}` (Wiki Import)",
-                        file=discord.File(buffer, filename=f"{title.replace(' ', '_')}.png")
-                    )
+            # --- Upload to Discord channel ---
+            upload_channel = discord.utils.get(interaction.guild.text_channels, name="item-database-upload-log")
+            if upload_channel:
+                msg = await upload_channel.send(
+                    content=f"📦 Generated image for `{title}` (Wiki Import)",
+                    file=discord.File(buffer, filename=f"{title.replace(' ', '_')}.png")
+                )
                 
-                    # --- Update DB with the uploaded image URL ---
-                    async with db_pool.acquire() as conn:
-                        await conn.execute("""
-                            UPDATE item_database
-                            SET item_image = $1
-                            WHERE item_name = $2
-                        """, msg.attachments[0].url, item["item_name"])
+                # --- Update DB with the uploaded image URL ---
+                async with db_pool.acquire() as conn:
+                    await conn.execute("""
+                        UPDATE item_database
+                        SET item_image = $1
+                        WHERE item_name = $2
+                    """, msg.attachments[0].url, item["item_name"])
 
 
         
