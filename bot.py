@@ -2401,9 +2401,9 @@ async def view_wiki_items(interaction: discord.Interaction, slot: app_commands.C
                     interaction.user.name
                     )
             print(f"✅ Inserted {len(new_wiki_items)} wiki items into DB.")
-            # 🧩 After DB transaction fully commits
             
-            await generate_item_images(new_wiki_items)
+            
+            
           
             # --- Generate simple image for the item ---
             img_width, img_height = 500, 300
