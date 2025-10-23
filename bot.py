@@ -2009,7 +2009,7 @@ class WikiView(discord.ui.View):
             
             if item["item_image"] == "":
                 embed.add_field(name="⚔️ Item Stats", value=item["item_stats"], inline=False)
-            if {item_image} != "":
+            if item["item_image"] != "":
                 embed.add_field(name="⚔️ Item Stats", value="", inline=False)
                 embed.set_image(url=item["item_image"])
             if item["npc_image"] != "":
@@ -2403,7 +2403,7 @@ async def view_wiki_items(interaction: discord.Interaction, slot: app_commands.C
             print(f"✅ Inserted {len(new_wiki_items)} wiki items into DB.")
           
             # --- Generate simple image for the item ---
-            img_width, img_height = 700, 300
+            img_width, img_height = 500, 300
             background_color = (20, 20, 20)
             text_color = (255, 255, 255)
             
@@ -2423,13 +2423,20 @@ async def view_wiki_items(interaction: discord.Interaction, slot: app_commands.C
             # Item text layout
             title = item["item_name"]
             stats = item.get("item_stats", "None listed")
+            x, y = 110, 55
+            link_spacing = 15
             
             # Write text
-            draw.text((40, 3), title, font=font_title, fill=text_color)
-            
-            # Stats block (wrapped for readability)
+            draw.text((40, 3), title, font=font_title, fill="white")
+
+
+            for stat in stats:
+                draw.text((x, y), stat, font=font_stats, fill="white")
+                y += font.size + line_spacing  # add font height + spacing
+        
+           """# Stats block (wrapped for readability)
             wrapped_stats = "\n".join(stats.splitlines()[:8])
-            draw.text((110, 55), wrapped_stats, font=font_stats, fill=text_color)
+            draw.text((110, 55), wrapped_stats, font=font_stats, fill=text_color)"""
             
             # Save to buffer
             buffer = io.BytesIO()
