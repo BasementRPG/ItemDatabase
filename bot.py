@@ -2719,13 +2719,13 @@ async def run_wiki_items(interaction: discord.Interaction, slot: str, stat: Opti
                 draw = ImageDraw.Draw(image)
                 max_width = 500
 
-                def draw_wrapped_text(draw, text, font, position, max_width, line_height, fill=(255,255,255), spacing):
+                def draw_wrapped_text(draw, text, font, position, max_width, line_height, fill=(255,255,255), spacing=7):
                     lines = []
                     for line in text.split("\n"):
                         lines.extend(wrap(line, width=max_width))
                     y = position[1]
                     for line in lines:
-                        draw.text((position[0], y), line, font=font, fill=fill)
+                        draw.text((position[0], y), line, font=font, fill=fill, spacing)
                         y += line_height
 
                 try:
@@ -2741,7 +2741,7 @@ async def run_wiki_items(interaction: discord.Interaction, slot: str, stat: Opti
                                               
                 # Title and stat spacing
                 draw.text((40, 3), title, font=font_title, fill="white")
-                draw_wrapped_text(draw, stats, font_stats, (110, 55), max_width=60, line_height=18, fill=text_color, spacing=7 )
+                draw_wrapped_text(draw, stats, font_stats, (110, 55), max_width=60, line_height=18, spacing=7, fill=text_color )
             
                 buffer = io.BytesIO()
                 image.save(buffer, format="PNG")
