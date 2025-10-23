@@ -2503,6 +2503,7 @@ async def view_wiki_items(interaction: discord.Interaction):
 
 async def run_wiki_items(interaction: discord.Interaction, slot: str, stat: Optional[str]):
     followup = interaction.followup
+    view = WikiView(combined_items)
     await interaction.edit_original_response(content=None, embeds=view.build_embeds(0), view=view)
 
 
@@ -2682,9 +2683,15 @@ async def run_wiki_items(interaction: discord.Interaction, slot: str, stat: Opti
             for row in refreshed_rows
         ]
 
+    
+        
         if not combined_items:
-            await interaction.followup.send(f"❌ No items found for `{slot}` in the database or wiki.")
+            await interaction.edit_original_response(
+                content=f"❌ No items found for `{slot}` in the database or wiki.",
+                embeds=[], view=None
+            )
             return
+
 
         # --- Step 6: Send combined results to WikiView ---
         view = WikiView(combined_items)
