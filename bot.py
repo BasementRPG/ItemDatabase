@@ -2009,7 +2009,7 @@ class WikiView(discord.ui.View):
             
             if item["item_image"] == "":
                 embed.add_field(name="⚔️ Item Stats", value=item["item_stats"], inline=False)
-            if item["item_image"] != "":
+            if {item_image} != "":
                 embed.add_field(name="⚔️ Item Stats", value="", inline=False)
                 embed.set_image(url=item["item_image"])
             if item["npc_image"] != "":
