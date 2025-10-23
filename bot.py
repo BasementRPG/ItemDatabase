@@ -2376,48 +2376,119 @@ async def fetch_wiki_items(slot_name: str):
 
 
 
+class WikiSelectView(discord.ui.View):
+    def __init__(self):
+        super().__init__(timeout=60)
+        self.slot = None
+        self.stat = None
 
-@bot.tree.command(name="view_wiki_items", description="View items from the Monsters & Memories Wiki by slot.")
-@app_commands.describe(slot="Filter by slot (required).", stat="Filter by stat (optional).")
-@app_commands.choices(
-    slot=[
-        app_commands.Choice(name="Ammo", value="Ammo"),
-        app_commands.Choice(name="Back", value="Back"),
-        app_commands.Choice(name="Chest", value="Chest"),
-        app_commands.Choice(name="Ear", value="Ear"),
-        app_commands.Choice(name="Feet", value="Feet"),
-        app_commands.Choice(name="Finger", value="Finger"),
-        app_commands.Choice(name="Hands", value="Hands"),
-        app_commands.Choice(name="Head", value="Head"),
-        app_commands.Choice(name="Legs", value="Legs"),
-        app_commands.Choice(name="Neck", value="Neck"),
-        app_commands.Choice(name="Primary", value="Primary"),
-        app_commands.Choice(name="Primary 2h", value="Primary 2h"),
-        app_commands.Choice(name="Range", value="Range"),
-        app_commands.Choice(name="Secondary", value="Secondary"),
-        app_commands.Choice(name="Shirt", value="Shirt"),
-        app_commands.Choice(name="Shoulders", value="Shoulders"),
-        app_commands.Choice(name="Waist", value="Waist"),
-        app_commands.Choice(name="Wrist", value="Wrist"),
-    ],
-    stat=[
-        app_commands.Choice(name="AGI", value="AGI"),
-        app_commands.Choice(name="DEX", value="DEX"),
-        app_commands.Choice(name="INT", value="INT"),
-        app_commands.Choice(name="STA", value="STA"),
-        app_commands.Choice(name="STR", value="STR"),
-        app_commands.Choice(name="WIS", value="WIS"),
-    ]
-)
+        # Slot dropdown
+        self.slot_select = discord.ui.Select(
+            placeholder="🎒 Select item slot...",
+            min_values=1,
+            max_values=1,
+            options=[
+                discord.SelectOption(label="Ammo", value="Ammo"),
+                discord.SelectOption(label="Back", value="Back"),
+                discord.SelectOption(label="Chest", value="Chest"),
+                discord.SelectOption(label="Ear", value="Ear"),
+                discord.SelectOption(label="Feet", value="Feet"),
+                discord.SelectOption(label="Finger", value="Finger"),
+                discord.SelectOption(label="Hands", value="Hands"),
+                discord.SelectOption(label="Head", value="Head"),
+                discord.SelectOption(label="Legs", value="Legs"),
+                discord.SelectOption(label="Neck", value="Neck"),
+                discord.SelectOption(label="Primary", value="Primary"),
+                discord.SelectOption(label="Primary 2h", value="Primary 2h"),
+                discord.SelectOption(label="Range", value="Range"),
+                discord.SelectOption(label="Secondary", value="Secondary"),
+                discord.SelectOption(label="Shirt", value="Shirt"),
+                discord.SelectOption(label="Shoulders", value="Shoulders"),
+                discord.SelectOption(label="Waist", value="Waist"),
+                discord.SelectOption(label="Wrist", value="Wrist"),
+            ]
+        )
+        self.slot_select.callback = self.select_slot
+        self.add_item(self.slot_select)
 
-async def view_wiki_items(interaction: discord.Interaction, slot: app_commands.Choice[str], stat:app_commands.Choice[str] = None):
+        # Stat dropdown
+        self.stat_select = discord.ui.Select(
+            placeholder="⚔️ Filter by stat (optional)...",
+            min_values=0,
+            max_values=1,
+            options=[
+                discord.SelectOption(label="AGI", value="AGI"),
+                discord.SelectOption(label="DEX", value="DEX"),
+                discord.SelectOption(label="INT", value="INT"),
+                discord.SelectOption(label="STA", value="STA"),
+                discord.SelectOption(label="STR", value="STR"),
+                discord.SelectOption(label="WIS", value="WIS"),
+            ]
+        )
+        self.stat_select.callback = self.select_stat
+        self.add_item(self.stat_select)
+
+        # Confirm button
+        confirm_button = discord.ui.Button(label="✅ Search", style=discord.ButtonStyle.green)
+        confirm_button.callback = self.confirm_selection
+        self.add_item(confirm_button)
+
+        self.value = None
+
+    async def select_slot(self, interaction: discord.Interaction):
+        self.slot = self.slot_select.values[0]
+        await interaction.response.defer()
+
+    async def select_stat(self, interaction: discord.Interaction):
+        self.stat = self.stat_select.values[0] if self.stat_select.values else None
+        await interaction.response.defer()
+
+    async def confirm_selection(self, interaction: discord.Interaction):
+        if not self.slot:
+            await interaction.response.send_message("❌ Please select a slot first!", ephemeral=True)
+            return
+        self.value = True
+        self.stop()
+        await interaction.response.defer()
+
+
+
+
+
+
+@bot.tree.command(name="view_wiki_items", description="View items from the Monsters & Memories Wiki.")
+async def view_wiki_items(interaction: discord.Interaction):
+    # Step 1: Show dropdown view
+    view = WikiSelectView()
+    await interaction.response.send_message(
+        "Please select the **Slot** and (optionally) a **Stat** below 👇",
+        view=view
+    )
+
+    # Step 2: Wait for selection
+    await view.wait()
+
+    if not view.value:
+        await interaction.followup.send("❌ Selection timed out or cancelled.", ephemeral=True)
+        return
+
+    slot = view.slot
+    stat = view.stat
+
+    # Step 3: Run your existing logic
+    await run_wiki_items(interaction, slot, stat)
+
+
+
+
+async def run_wiki_items(interaction: discord.Interaction, slot: app_commands.Choice[str], stat:app_commands.Choice[str] = None):
     await interaction.response.defer(thinking=True)
     guild_id = interaction.guild.id
 
     try:
         # --- Step 1: Pull Wiki items first ---
-        print(f"🌐 Fetching Wiki items for slot: {slot.value}")
-        wiki_items = await fetch_wiki_items(slot.value)
+        print(f"🌐 Fetching Wiki items for slot: {slot}")
+        wiki_items = await fetch_wiki_items(slot)
         if not wiki_items:
             print("⚠️ No wiki items returned.")
             wiki_items = []
@@ -2429,11 +2500,11 @@ async def view_wiki_items(interaction: discord.Interaction, slot: app_commands.C
                        description, quest_name, crafted_name, npc_image, npc_level
                 FROM item_database
                 WHERE LOWER(item_slot) = LOWER($1)
-            """, slot.value)
+            """, slot)
 
         if stat:
-            wiki_items = [i for i in wiki_items if stat.value.lower() in i.get("item_stats", "").lower()]
-            db_rows = [r for r in db_rows if stat.value.lower() in (r["item_stats"] or "").lower()]
+            wiki_items = [i for i in wiki_items if stat.lower() in i.get("item_stats", "").lower()]
+            db_rows = [r for r in db_rows if stat.lower() in (r["item_stats"] or "").lower()]
         
         def normalize_name(name):
             return name.strip().lower().replace("’", "'").replace("‘", "'").replace("`", "'")
@@ -2475,7 +2546,7 @@ async def view_wiki_items(interaction: discord.Interaction, slot: app_commands.C
                         ON CONFLICT (item_name) DO NOTHING
                     """,
                     item["item_name"],
-                    slot.value,
+                    slot,
                     item.get("item_image") or "",
                     item.get("npc_image") or "",                   
                     npc_name,
@@ -2541,7 +2612,7 @@ async def view_wiki_items(interaction: discord.Interaction, slot: app_commands.C
                 FROM item_database
                 WHERE LOWER(item_slot) = LOWER($1)
                 ORDER BY source DESC, item_name ASC
-            """, slot.value)
+            """, slot)
         
         # --- Convert into WikiView-compatible format ---
         combined_items = [
@@ -2565,7 +2636,7 @@ async def view_wiki_items(interaction: discord.Interaction, slot: app_commands.C
         ]
 
         if not combined_items:
-            await interaction.followup.send(f"❌ No items found for `{slot.value}` in the database or wiki.")
+            await interaction.followup.send(f"❌ No items found for `{slot}` in the database or wiki.")
             return
 
         # --- Step 6: Send combined results to WikiView ---
