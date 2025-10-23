@@ -2453,7 +2453,7 @@ class WikiSelectView(discord.ui.View):
         # Disable all controls
         for child in self.children:
             child.disabled = True
-         await interaction.response.edit_message(view=self)
+        await interaction.response.edit_message(view=self)
 
         self.search_interaction = interaction
         self.value = True
