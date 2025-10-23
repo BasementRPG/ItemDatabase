@@ -2646,8 +2646,11 @@ async def run_wiki_items(interaction: discord.Interaction, slot: str, stat: Opti
                 WHERE LOWER(item_slot) = LOWER($1)
                 ORDER BY source DESC, item_name ASC
             """, slot)
-        
+       
+        if stat:
+            refreshed_rows = [r for r in refreshed_rows if matches_stat_block(r.get("item_stats") or "")]
         # --- Convert into WikiView-compatible format ---
+        
         combined_items = [
             {
                 "item_name": row["item_name"],
