@@ -2061,7 +2061,7 @@ class WikiView(discord.ui.View):
                 title=item["item_name"],
                 description=desc,
                 color=color,
-                url=item["item_link"]
+                url=f"{item_link}"
             )
 
             if item["zone_name"] != "":
@@ -2378,29 +2378,39 @@ async def fetch_wiki_items(slot_name: str):
 
 
 @bot.tree.command(name="view_wiki_items", description="View items from the Monsters & Memories Wiki by slot.")
-@app_commands.describe(slot="Filter by slot.")
-@app_commands.choices(slot=[
-    app_commands.Choice(name="Ammo", value="Ammo"),
-    app_commands.Choice(name="Back", value="Back"),
-    app_commands.Choice(name="Chest", value="Chest"),
-    app_commands.Choice(name="Ear", value="Ear"),
-    app_commands.Choice(name="Feet", value="Feet"),
-    app_commands.Choice(name="Finger", value="Finger"),
-    app_commands.Choice(name="Hands", value="Hands"),
-    app_commands.Choice(name="Head", value="Head"),
-    app_commands.Choice(name="Legs", value="Legs"),
-    app_commands.Choice(name="Neck", value="Neck"),
-    app_commands.Choice(name="Primary", value="Primary"),
-    app_commands.Choice(name="Primary 2h", value="Primary 2h"),
-    app_commands.Choice(name="Range", value="Range"),
-    app_commands.Choice(name="Secondary", value="Secondary"),
-    app_commands.Choice(name="Shirt", value="Shirt"),
-    app_commands.Choice(name="Shoulders", value="Shoulders"),
-    app_commands.Choice(name="Waist", value="Waist"),
-    app_commands.Choice(name="Wrist", value="Wrist"),
-])
+@app_commands.describe(slot="Filter by slot (required).", stat="Filter by stat (optional).")
+@app_commands.choices(
+    slot=[
+        app_commands.Choice(name="Ammo", value="Ammo"),
+        app_commands.Choice(name="Back", value="Back"),
+        app_commands.Choice(name="Chest", value="Chest"),
+        app_commands.Choice(name="Ear", value="Ear"),
+        app_commands.Choice(name="Feet", value="Feet"),
+        app_commands.Choice(name="Finger", value="Finger"),
+        app_commands.Choice(name="Hands", value="Hands"),
+        app_commands.Choice(name="Head", value="Head"),
+        app_commands.Choice(name="Legs", value="Legs"),
+        app_commands.Choice(name="Neck", value="Neck"),
+        app_commands.Choice(name="Primary", value="Primary"),
+        app_commands.Choice(name="Primary 2h", value="Primary 2h"),
+        app_commands.Choice(name="Range", value="Range"),
+        app_commands.Choice(name="Secondary", value="Secondary"),
+        app_commands.Choice(name="Shirt", value="Shirt"),
+        app_commands.Choice(name="Shoulders", value="Shoulders"),
+        app_commands.Choice(name="Waist", value="Waist"),
+        app_commands.Choice(name="Wrist", value="Wrist"),
+    ],
+    stat=[
+        app_commands.Choice(name="AGI", value="AGI"),
+        app_commands.Choice(name="DEX", value="DEX"),
+        app_commands.Choice(name="INT", value="INT"),
+        app_commands.Choice(name="STA", value="STA"),
+        app_commands.Choice(name="STR", value="STR"),
+        app_commands.Choice(name="WIS", value="WIS"),
+    ]
+)
 
-async def view_wiki_items(interaction: discord.Interaction, slot: app_commands.Choice[str]):
+async def view_wiki_items(interaction: discord.Interaction, slot: app_commands.Choice[str], stat:):
     await interaction.response.defer(thinking=True)
     guild_id = interaction.guild.id
 
@@ -2421,6 +2431,10 @@ async def view_wiki_items(interaction: discord.Interaction, slot: app_commands.C
                 WHERE LOWER(item_slot) = LOWER($1)
             """, slot.value)
 
+        if stat:
+            wiki_items = [i for i in wiki_items if stat.value.lower() in i.get("item_stats", "").lower()]
+            db_rows = [r for r in db_rows if stat.value.lower() in (r["item_stats"] or "").lower()]
+        
         def normalize_name(name):
             return name.strip().lower().replace("’", "'").replace("‘", "'").replace("`", "'")
 
