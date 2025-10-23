@@ -2401,7 +2401,49 @@ async def view_wiki_items(interaction: discord.Interaction, slot: app_commands.C
                     )
             print(f"✅ Inserted {len(new_wiki_items)} wiki items into DB.")
     
-          
+            # 🖼️ Now that all inserts are safely committed
+            for item in new_wiki_items:
+                img_width, img_height = 500, 300
+                text_color = (255, 255, 255)
+            
+                image = Image.open("assets/backgrounds/itembg.png").convert("RGBA")
+                draw = ImageDraw.Draw(image)
+            
+                try:
+                    font_title = ImageFont.truetype("assets/WinthorpeScB.ttf", 28)
+                    font_stats = ImageFont.truetype("assets/Winthorpe.ttf", 16)
+                except:
+                    font_title = ImageFont.load_default()
+                    font_stats = ImageFont.load_default()
+            
+                title = item["item_name"]
+                stats = item.get("item_stats", "None listed")
+            
+                # Title and stat spacing
+                draw.text((40, 3), title, font=font_title, fill="white")
+                draw.text((110, 55), stats, font=font_stats, fill=text_color, spacing=10)
+            
+                buffer = io.BytesIO()
+                image.save(buffer, format="PNG")
+                buffer.seek(0)
+            
+                upload_channel = discord.utils.get(interaction.guild.text_channels, name="item-database-upload-log")
+                if upload_channel:
+                    msg = await upload_channel.send(
+                        content=f"📦 Generated image for `{title}` (Wiki Import)",
+                        file=discord.File(buffer, filename=f"{title.replace(' ', '_')}.png")
+                    )
+                    async with db_pool.acquire() as conn:
+                        await conn.execute("""
+                            UPDATE item_database
+                            SET item_image = $1
+                            WHERE item_name = $2
+                        """, msg.attachments[0].url, item["item_name"])
+
+
+
+
+"""          
             # --- Generate simple image for the item ---
             img_width, img_height = 500, 300
             background_color = (20, 20, 20)
@@ -2455,6 +2497,7 @@ async def view_wiki_items(interaction: discord.Interaction, slot: app_commands.C
                         SET item_image = $1
                         WHERE item_name = $2
                     """, msg.attachments[0].url, item["item_name"])
+"""
 
 
         
