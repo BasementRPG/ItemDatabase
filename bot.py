@@ -1,6 +1,7 @@
 import os
 import math
 import discord
+from textwrap import wrap
 from PIL import Image, ImageDraw, ImageFont
 from discord import app_commands, Interaction
 from discord.ext import commands
@@ -12,7 +13,6 @@ from discord.ui import View, Select
 from discord import SelectOption, Interaction
 import aiohttp
 import asyncio
-import textwrap
 from bs4 import BeautifulSoup
 from bs4 import NavigableString
 from playwright.async_api import async_playwright
@@ -2106,15 +2106,44 @@ class WikiView(discord.ui.View):
 
 
    # 🔙 Back to Filters Button
-    @discord.ui.button(label="🔄 Back to Filters", style=discord.ButtonStyle.red)
+    @discord.ui.button(label="🔄 Back to Filters", style=discord.ButtonStyle.danger)
     async def back_to_filters(self, interaction: discord.Interaction, button: discord.ui.Button):
-        """Replace the results view with the WikiSelectView."""
-        new_view = WikiSelectView()
-        await interaction.message.edit(
-            content="Please select the **Slot** and (optionally) a **Stat** and/or ***Class**, then press ✅ **Search**:",
-            embeds=[],
-            view=new_view
-        )
+        try:
+            for child in self.children:
+                child.disabled = True
+            await interaction.response.edit_message(view=self)
+    
+            # Make new filter view
+            new_view = WikiSelectView()
+    
+            # Rebind the search trigger to the existing logic
+            async def search_callback(i: discord.Interaction):
+                slot = new_view.slot
+                stat = new_view.stat
+                if not slot:
+                    await i.response.send_message("❌ Please select a slot first!", ephemeral=True)
+                    return
+                for child in new_view.children:
+                    child.disabled = True
+                await i.response.edit_message(
+                    content=f"⏳ Searching Wiki and Database for `{slot}` items{f' with {stat}' if stat else ''}...",
+                    view=None
+                )
+                await run_wiki_items(i, slot, stat)
+    
+            # Attach it dynamically
+            new_view.confirm_selection = search_callback
+    
+            await interaction.message.edit(
+                content="Please select the **Slot** and (optionally) a **Stat**, then press ✅ **Search**:",
+                embeds=[],
+                view=new_view
+            )
+    
+        except Exception as e:
+            print(f"⚠️ Error returning to filters: {e}")
+            await interaction.response.send_message(f"❌ Could not return to filters: {e}", ephemeral=True)
+
         
 
 
@@ -2610,7 +2639,7 @@ async def run_wiki_items(interaction: discord.Interaction, slot: str, stat: Opti
                 "wiz": [r"\bwiz\b"],
             }
             # Also include "ALL" automatically
-            class_patterns = [re.compile(pat, re.IGNORECASE) for pat in (class_keywords.get(classes_filter, [rf"\b{classes_filter}\b"]) + [r"\ball\b"])]
+            class_patterns = [re.compile(pat, re.IGNORECASE) for pat in (class_keywords.get(classes_filter, [rf"\b{classes_filter}\b"]) + [r"\bclass: all\b"])]
 
         # Function to check a text block against active filters
         def matches_filters(text: str) -> bool:
@@ -2621,7 +2650,7 @@ async def run_wiki_items(interaction: discord.Interaction, slot: str, stat: Opti
             return stat_match and class_match
 
         # Apply filters
-        wiki_items = [i for i in wiki_items if matches_filters(i.get("item_stats", ""))]
+        wiki_items = [i for i in wiki_items if matches_filters(i.get("item_stats" or ""))]
         db_rows = [r for r in db_rows if matches_filters(r.get("item_stats") or "")]
 
         print(f"🔍 Final filter results — Stat: {stat or 'None'}, Class: {classes or 'None'} | Wiki: {len(wiki_items)}, DB: {len(db_rows)}")
@@ -2689,7 +2718,16 @@ async def run_wiki_items(interaction: discord.Interaction, slot: str, stat: Opti
                 image = Image.open("assets/backgrounds/itembg.png").convert("RGBA")
                 draw = ImageDraw.Draw(image)
                 max_width = 500
-                
+
+                def draw_wrapped_text(draw, text, font, position, max_width, line_height, fill=(255,255,255)):
+                    lines = []
+                    for line in text.split("\n"):
+                        lines.extend(wrap(line, width=max_width))
+                    y = position[1]
+                    for line in lines:
+                        draw.text((position[0], y), line, font=font, fill=fill)
+                        y += line_height
+
                 try:
                     font_title = ImageFont.truetype("assets/WinthorpeScB.ttf", 28)
                     font_stats = ImageFont.truetype("assets/Winthorpe.ttf", 16)
@@ -2699,13 +2737,11 @@ async def run_wiki_items(interaction: discord.Interaction, slot: str, stat: Opti
             
                 title = item["item_name"]
                 stats = item.get("item_stats", "None listed")
-                char_limit = 80
-                stats_wrapped = textwrap.fill(stats, char_limit)
-                
+                                
                                               
                 # Title and stat spacing
                 draw.text((40, 3), title, font=font_title, fill="white")
-                draw.text((110, 55), stats_wrapped, font=font_stats, fill=text_color, spacing=7)
+                draw_wrapped_text(draw, stats, font_stats, (110, 55), max_width=60, line_height=18, fill=text_color, spacing=7)
             
                 buffer = io.BytesIO()
                 image.save(buffer, format="PNG")
