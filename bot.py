@@ -2059,7 +2059,6 @@ class WikiView(discord.ui.View):
             
             embed = discord.Embed(
                 title=item["item_name"],
-                description=desc,
                 color=color,
                 url=f"{item_link}"
             )
@@ -2105,9 +2104,16 @@ class WikiView(discord.ui.View):
         await interaction.response.edit_message(embeds=self.build_embeds(self.current_page), view=self)
 
 
-    @discord.ui.button(label="🔄 Back to Filters", style=discord.ButtonStyle.primary)
-    async def back_to_filters(self, interaction: discord.Interaction):
-        await interaction.response.edit_message( content="Please select the **Slot** and (optionally) a **Stat**, then press ✅ **Search**:", embeds=[], view=WikiSelectView() )
+   # 🔙 Back to Filters Button
+    @discord.ui.button(label="🔄 Back to Filters", style=discord.ButtonStyle.red)
+    async def back_to_filters(self, interaction: discord.Interaction, button: discord.ui.Button):
+        """Replace the results view with the WikiSelectView."""
+        new_view = WikiSelectView()
+        await interaction.response.edit_message(
+            content="Please select the **Slot** and (optionally) a **Stat**, then press ✅ **Search**:",
+            embeds=[],
+            view=new_view
+        )
      
 
 
