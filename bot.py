@@ -2447,6 +2447,12 @@ class WikiSelectView(discord.ui.View):
         if not self.slot:
             await interaction.response.send_message("❌ Please select a slot first!", ephemeral=True)
             return
+            
+        # Disable all controls
+        for child in self.children:
+            child.disabled = True
+        await interaction.message.edit(view=self)
+
         self.value = True
         self.stop()
         await interaction.response.defer()
@@ -2476,8 +2482,8 @@ async def view_wiki_items(interaction: discord.Interaction):
     stat = view.stat
 
     # Step 3: Run your existing logic
+    await interaction.followup.send(f"🔍 Searching Wiki for `{slot}` items{f' with {stat}' if stat else ''}...")
     await run_wiki_items(interaction, slot, stat)
-
 
 
 
