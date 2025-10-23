@@ -2687,7 +2687,8 @@ async def run_wiki_items(interaction: discord.Interaction, slot: str, stat: Opti
             
                 image = Image.open("assets/backgrounds/itembg.png").convert("RGBA")
                 draw = ImageDraw.Draw(image)
-            
+                max_width = 500
+                
                 try:
                     font_title = ImageFont.truetype("assets/WinthorpeScB.ttf", 28)
                     font_stats = ImageFont.truetype("assets/Winthorpe.ttf", 16)
@@ -2697,10 +2698,13 @@ async def run_wiki_items(interaction: discord.Interaction, slot: str, stat: Opti
             
                 title = item["item_name"]
                 stats = item.get("item_stats", "None listed")
-            
+                char_limit = 80
+                stats_wrapped = textwrap.fill(stats, char_limit)
+                
+                                              
                 # Title and stat spacing
                 draw.text((40, 3), title, font=font_title, fill="white")
-                draw.text((110, 55), stats, font=font_stats, fill=text_color, spacing=7)
+                draw.text((110, 55), stats_wrapped, font=font_stats, fill=text_color, spacing=7)
             
                 buffer = io.BytesIO()
                 image.save(buffer, format="PNG")
@@ -2734,11 +2738,11 @@ async def run_wiki_items(interaction: discord.Interaction, slot: str, stat: Opti
                 ORDER BY item_name ASC
             """, slot)
        
-        if stat:
-            refreshed_rows = [r for r in refreshed_rows if stat_match(r.get("item_stats") or "")]
-        
-        if classes:
-            refreshed_rows = [r for r in refreshed_rows if class_match(r.get("item_stats") or "")]
+ 
+        # After fetching refreshed_rows
+        if stat or classes:
+            refreshed_rows = [r for r in refreshed_rows if matches_filters(r.get("item_stats") or "")]
+
         
         
         
