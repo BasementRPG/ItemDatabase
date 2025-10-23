@@ -2014,7 +2014,7 @@ class WikiView(discord.ui.View):
         linkback= "https://monstersandmemories.miraheze.org/wiki/"
   
         for i, item in enumerate(current_items, start=1):
-                color = discord.Color.blurple()
+            color = discord.Color.blurple()
              
 
 
