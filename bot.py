@@ -2434,9 +2434,11 @@ async def view_wiki_items(interaction: discord.Interaction, slot: app_commands.C
                 draw.text((x, y), stat, font=font_stats, fill="white")
                 y += font.size + line_spacing  # add font height + spacing
         
-           """# Stats block (wrapped for readability)
+            """
+            # Stats block (wrapped for readability)
             wrapped_stats = "\n".join(stats.splitlines()[:8])
-            draw.text((110, 55), wrapped_stats, font=font_stats, fill=text_color)"""
+            draw.text((110, 55), wrapped_stats, font=font_stats, fill=text_color)
+            """
             
             # Save to buffer
             buffer = io.BytesIO()
