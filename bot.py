@@ -2109,12 +2109,16 @@ class WikiView(discord.ui.View):
     async def back_to_filters(self, interaction: discord.Interaction, button: discord.ui.Button):
         """Replace the results view with the WikiSelectView."""
         new_view = WikiSelectView()
-        await interaction.followup.send(
+        await interaction.message.edit(
             content="Please select the **Slot** and (optionally) a **Stat** and/or ***Class**, then press ✅ **Search**:",
             embeds=[],
             view=new_view
         )
-     
+    except Exception as e:
+        print(f"⚠️ Error returning to filters: {e}")
+        await interaction.response.send_message(
+            f"❌ Could not return to filters: {e}", ephemeral=True
+        )
 
 
 
@@ -2565,12 +2569,30 @@ async def run_wiki_items(interaction: discord.Interaction, slot: str, stat: Opti
                 WHERE LOWER(item_slot) = LOWER($1)
             """, slot)
         
+        
+        # --- Apply Filters ---
+        def text_cleanup(text: str) -> str:
+            return (text or "").replace("\n", " ").replace("\r", " ")
+
+        # Prepare regex patterns
+        stat_patterns = []
+        class_patterns = []
+
+        if stat:
+            stat_filter = str(stat).strip().lower()
+            stat_keywords = {
+                "str": [r"\bstr\b", r"\bstrength\b"],
+                "agi": [r"\bagi\b", r"\bagility\b"],
+                "dex": [r"\bdex\b", r"\bdexterity\b"],
+                "int": [r"\bint\b", r"\bintelligence\b"],
+                "sta": [r"\bsta\b", r"\bstamina\b"],
+                "wis": [r"\bwis\b", r"\bwisdom\b"],
+            }
+            stat_patterns = [re.compile(pat, re.IGNORECASE) for pat in stat_keywords.get(stat_filter, [rf"\b{stat_filter}\b"])]
+
         if classes:
-            # Normalize selected classes
             classes_filter = str(classes).strip().lower()
-    
-            # Broader matching dictionary
-            classes_keywords = {
+            class_keywords = {
                 "arc": [r"\barc\b"],
                 "brd": [r"\bbrd\b"],
                 "bst": [r"\bbst\b"],
@@ -2590,41 +2612,24 @@ async def run_wiki_items(interaction: discord.Interaction, slot: str, stat: Opti
                 "spd": [r"\bspd\b"],
                 "wiz": [r"\bwiz\b"],
             }
-            patterns = [re.compile(pat, re.IGNORECASE) for pat in classes_keywords.get(classes_filter, [rf"\b{classes_filter}\b"])]
-    
-            def matches_classes_block(text: str) -> bool:
-                text = (text or "").replace("\n", " ").replace("\r", " ")
-                return any(p.search(text) for p in patterns)
+            # Also include "ALL" automatically
+            class_patterns = [re.compile(pat, re.IGNORECASE) for pat in (class_keywords.get(classes_filter, [rf"\b{classes_filter}\b"]) + [r"\ball\b"])]
+
+        # Function to check a text block against active filters
+        def matches_filters(text: str) -> bool:
+            text = text_cleanup(text)
+            stat_match = any(p.search(text) for p in stat_patterns) if stat_patterns else True
+            class_match = any(p.search(text) for p in class_patterns) if class_patterns else True
+            # Both must match if both filters active
+            return stat_match and class_match
+
+        # Apply filters
+        wiki_items = [i for i in wiki_items if matches_filters(i.get("item_stats", ""))]
+        db_rows = [r for r in db_rows if matches_filters(r.get("item_stats") or "")]
+
+        print(f"🔍 Final filter results — Stat: {stat or 'None'}, Class: {classes or 'None'} | Wiki: {len(wiki_items)}, DB: {len(db_rows)}")
+
         
-            wiki_items = [i for i in wiki_items if matches_classes_block(i.get("item_stats", ""))]
-            db_rows = [r for r in db_rows if matches_classes_block(r.get("item_stats") or "")]
-           
-            print(f"🔍 Filtering for {classes_filter}: {len(wiki_items)} wiki, {len(db_rows)} db items matched")
-
-        if stat:
-            # Normalize selected class
-            stat_filter = str(stat).strip().lower()
-
-                        # Broader matching dictionary
-            stat_keywords = {
-                "str": [r"\bstr\b", r"\bstrength\b"],
-                "agi": [r"\bagi\b", r"\bagility\b"],
-                "dex": [r"\bdex\b", r"\bdexterity\b"],
-                "int": [r"\bint\b", r"\bintelligence\b"],
-                "sta": [r"\bsta\b", r"\bstamina\b"],
-                "wis": [r"\bwis\b", r"\bwisdom\b"],
-            }
-            patterns = [re.compile(pat, re.IGNORECASE) for pat in stat_keywords.get(stat_filter, [rf"\b{stat_filter}\b"])]
-            
-            def matches_stat_block(text: str) -> bool:
-                text = (text or "").replace("\n", " ").replace("\r", " ")
-                return any(p.search(text) for p in patterns)
-        
-            wiki_items = [i for i in wiki_items if matches_stat_block(i.get("item_stats", ""))]
-            db_rows = [r for r in db_rows if matches_stat_block(r.get("item_stats") or "")]
-           
-            print(f"🔍 Filtering for {stat_filter}: {len(wiki_items)} wiki, {len(db_rows)} db items matched")
-
         def normalize_name(name):
             return name.strip().lower().replace("’", "'").replace("‘", "'").replace("`", "'")
 
