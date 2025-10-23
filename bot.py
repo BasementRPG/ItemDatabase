@@ -2410,7 +2410,7 @@ async def fetch_wiki_items(slot_name: str):
     ]
 )
 
-async def view_wiki_items(interaction: discord.Interaction, slot: app_commands.Choice[str], stat:):
+async def view_wiki_items(interaction: discord.Interaction, slot: app_commands.Choice[str], stat:app_commands.Choice[str] = None):
     await interaction.response.defer(thinking=True)
     guild_id = interaction.guild.id
 
