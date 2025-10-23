@@ -2040,7 +2040,7 @@ class WikiView(discord.ui.View):
 
 
 
-            
+            item_link =f"{linkback}{item['item_name'].replace(' ', '_')}"
             zone_link = f"{linkback}{item['zone_name'].replace(' ', '_')}"
             
             quest_link = f"{linkback}{item['quest_name'].replace(' ', '_')}"
@@ -2061,7 +2061,7 @@ class WikiView(discord.ui.View):
                 title=item["item_name"],
                 description=desc,
                 color=color,
-                url=item["wiki_url"]
+                url=item["item_link"]
             )
 
             if item["zone_name"] != "":
