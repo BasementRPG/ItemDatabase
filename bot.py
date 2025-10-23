@@ -2014,12 +2014,8 @@ class WikiView(discord.ui.View):
         linkback= "https://monstersandmemories.miraheze.org/wiki/"
   
         for i, item in enumerate(current_items, start=1):
-            if item.get("in_database"):
-                color = discord.Color.green()
-                desc = "🟢 Already exists in your database."
-            else:
                 color = discord.Color.blurple()
-                desc = "🔵 Not in your database yet."       
+             
 
 
  # --- 2️⃣ If zone_name contains a number, swap it into npc_name and clear zone_name
