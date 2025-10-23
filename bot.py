@@ -2700,7 +2700,7 @@ async def run_wiki_items(interaction: discord.Interaction, slot: str, stat: Opti
             
                 # Title and stat spacing
                 draw.text((40, 3), title, font=font_title, fill="white")
-                draw.text((110, 55), stats, font=font_stats, fill=text_color, spacing=5)
+                draw.text((110, 55), stats, font=font_stats, fill=text_color, spacing=7)
             
                 buffer = io.BytesIO()
                 image.save(buffer, format="PNG")
@@ -2735,10 +2735,10 @@ async def run_wiki_items(interaction: discord.Interaction, slot: str, stat: Opti
             """, slot)
        
         if stat:
-            refreshed_rows = [r for r in refreshed_rows if matches_stat_block(r.get("item_stats") or "")]
+            refreshed_rows = [r for r in refreshed_rows if stat_match(r.get("item_stats") or "")]
         
         if classes:
-            refreshed_rows = [r for r in refreshed_rows if matches_classes_block(r.get("item_stats") or "")]
+            refreshed_rows = [r for r in refreshed_rows if class_match(r.get("item_stats") or "")]
         
         
         
