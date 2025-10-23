@@ -2462,11 +2462,6 @@ class WikiSelectView(discord.ui.View):
         for child in self.children:
             child.disabled = True
     
-        # 🔄 Replace filters with "Searching..."
-        await interaction.response.edit_message(
-            content=f"⏳ Searching Wiki for `{self.slot}` items{f' with {self.stat}' if self.stat else ''}...",
-            view=None
-        )
     
         # Store the interaction for later
         self.search_interaction = interaction
@@ -2504,10 +2499,9 @@ async def view_wiki_items(interaction: discord.Interaction):
 
 
 
-
 async def run_wiki_items(interaction: discord.Interaction, slot: str, stat: Optional[str]):
     followup = interaction.followup
-    await followup.send(f"⏳ Searching Wiki for `{slot}` items{f' with {stat}' if stat else ''}...")
+    await interaction.response.edit_message(f"⏳ Searching Wiki and Database for `{slot}` items{f' with {stat}' if stat else ''}...")
     
     guild_id = interaction.guild.id
 
