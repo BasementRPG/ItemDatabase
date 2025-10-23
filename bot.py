@@ -2114,11 +2114,7 @@ class WikiView(discord.ui.View):
             embeds=[],
             view=new_view
         )
-    except Exception as e:
-        print(f"⚠️ Error returning to filters: {e}")
-        await interaction.response.send_message(
-            f"❌ Could not return to filters: {e}", ephemeral=True
-        )
+        
 
 
 
