@@ -2515,13 +2515,26 @@ async def run_wiki_items(interaction: discord.Interaction, slot: str, stat: Opti
             """, slot)
         
         if stat:
+            # Normalize selected stat
             stat_filter = str(stat).strip().lower()
-            def matches_stat(text: str) -> bool:
-                text = (text or "").lower()
-                return any(k in text for k in stat_filter)
-        
-            wiki_items = [i for i in wiki_items if matches_stat(i.get("item_stats", ""))]
-            db_rows = [r for r in db_rows if matches_stat(r.get("item_stats") or "")]
+    
+            # Broader matching dictionary
+            stat_keywords = {
+                "str": [r"\bstr\b", r"\bstrength\b"],
+                "agi": [r"\bagi\b", r"\bagility\b"],
+                "dex": [r"\bdex\b", r"\bdexterity\b"],
+                "int": [r"\bint\b", r"\bintelligence\b"],
+                "sta": [r"\bsta\b", r"\bstamina\b"],
+                "wis": [r"\bwis\b", r"\bwisdom\b"],
+            }
+            patterns = [re.compile(pat, re.IGNORECASE) for pat in stat_keywords.get(stat_filter, [rf"\b{stat_filter}\b"])]
+    
+        def matches_stat_block(text: str) -> bool:
+            text = (text or "").replace("\n", " ").replace("\r", " ")
+            return any(p.search(text) for p in patterns)
+    
+        wiki_items = [i for i in wiki_items if matches_stat_block(i.get("item_stats", ""))]
+        db_rows = [r for r in db_rows if matches_stat_block(r.get("item_stats") or "")]
         
         def normalize_name(name):
             return name.strip().lower().replace("’", "'").replace("‘", "'").replace("`", "'")
