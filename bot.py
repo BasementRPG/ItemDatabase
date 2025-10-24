@@ -1250,40 +1250,16 @@ class WikiView(discord.ui.View):
         await interaction.response.edit_message(embeds=self.build_embeds(self.current_page), view=self)
 
 
-   # 🔙 Back to Filters Button
+   # 🔄 Back to Filters Button
     @discord.ui.button(label="🔄 Back to Filters", style=discord.ButtonStyle.danger)
     async def back_to_filters(self, interaction: discord.Interaction, button: discord.ui.Button):
-        try:
-            for child in self.children:
-                child.disabled = True
-            await interaction.response.edit_message(view=self)
-    
-            # Make new filter view
-            new_view = WikiSelectView()
-    
-            # Rebind the search trigger to the existing logic
-            async def search_callback(i: discord.Interaction):
-                slot = new_view.slot
-                stat = new_view.stat
-                if not slot:
-                    await i.response.send_message("❌ Please select a slot first!", ephemeral=True)
-                    return
-                for child in new_view.children:
-                    child.disabled = True
-                await i.response.edit_message(
-                    content=f"⏳ Searching Wiki and Database for `{slot}` items{f' with {stat}' if stat else ''}...",
-                    view=None
-                )
-                await run_wiki_items(i, slot, stat)
-    
-            # Attach it dynamically
-            new_view.confirm_selection = search_callback
-    
-            await interaction.message.edit(
-                content="Please select the **Slot** and (optionally) a **Stat**, then press ✅ **Search**:",
-                embeds=[],
-                view=new_view
-            )
+        new_filter_view = WikiSelectView()
+        await interaction.response.edit_message(
+            content="Please select the **Slot**, and (optionally) **Stat** and **Class**, then press ✅ **Search**:",
+            embeds=[],
+            view=new_filter_view
+        )
+
     
         except Exception as e:
             print(f"⚠️ Error returning to filters: {e}")
