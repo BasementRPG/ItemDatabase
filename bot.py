@@ -2541,11 +2541,6 @@ class WikiSelectView(discord.ui.View):
 
 
 
-
-
-
-
-
 @bot.tree.command(name="view_wiki_items", description="View items from the Monsters & Memories Wiki.")
 async def view_wiki_items(interaction: discord.Interaction):
     view = WikiSelectView()
@@ -2740,7 +2735,7 @@ async def run_wiki_items(interaction: discord.Interaction, slot: str, stat: Opti
                                               
                 # Title and stat spacing
                 draw.text((40, 3), title, font=font_title, fill="white")
-                draw_wrapped_text(draw, stats, font_stats, (110, 55), max_width=150, line_height=18, spacing=3, fill=text_color )
+                draw_wrapped_text(draw, stats, font_stats, (110, 55), max_width=100, line_height=18, spacing=3, fill=text_color )
             
                 buffer = io.BytesIO()
                 image.save(buffer, format="PNG")
