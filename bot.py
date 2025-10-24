@@ -2716,7 +2716,7 @@ async def run_wiki_items(interaction: discord.Interaction, slot: str, stat: Opti
             
                 image = Image.open("assets/backgrounds/itembg.png").convert("RGBA")
                 draw = ImageDraw.Draw(image)
-                max_width = 500
+                max_width = 600
 
                 def draw_wrapped_text(draw, text, font, position, max_width, line_height, fill=(255,255,255), spacing=7):
                     lines = []
@@ -2725,7 +2725,7 @@ async def run_wiki_items(interaction: discord.Interaction, slot: str, stat: Opti
                     y = position[1]
                     for line in lines:
                         draw.text((position[0], y), line, font=font, fill=fill)
-                        y += line_height + spacing
+                        y += spacing
 
                 try:
                     font_title = ImageFont.truetype("assets/WinthorpeScB.ttf", 28)
