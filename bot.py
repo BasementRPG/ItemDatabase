@@ -902,7 +902,7 @@ async def view_item_db(interaction: discord.Interaction):
     classes = getattr(view, "classes", None)  # If you added a class dropdown
 
     # Step 2: Edit the original message to show searching state
-    await view.search_interaction.response.edit_message(
+    await view.search_interaction.edit_original_response(
         content=f"⏳ Searching Database for `{slot}` items"
                 f"{f' with {stat}' if stat else ''}"
                 f"{f' for {classes}' if classes else ''}...",
@@ -919,7 +919,7 @@ async def run_item_db_search(interaction: discord.Interaction, slot: str, stat: 
             query = """
                 SELECT item_name, item_image, npc_image, npc_name, zone_name,
                        item_slot, item_stats, description, quest_name,
-                       crafted_name, npc_level, source
+                       crafted_name, npc_level
                 FROM item_database
                 WHERE LOWER(item_slot) = LOWER($1)
                 ORDER BY item_name ASC
@@ -975,7 +975,6 @@ async def run_item_db_search(interaction: discord.Interaction, slot: str, stat: 
                 "quest_name": row["quest_name"] or "",
                 "crafted_name": row["crafted_name"] or "",
                 "npc_level": row["npc_level"] or "",
-                "source": row["source"],
                 "in_database": True,
             }
             for row in filtered
@@ -2224,11 +2223,11 @@ async def run_update_db(interaction: discord.Interaction):
             if len(changes_log) > 20:
                 msg += f"\n...and {len(changes_log) - 20} more changes."
 
-        await interaction.followup.send(msg)
+        await interaction.followup.send(msg, ephemeral=True)
 
     except Exception as e:
         print(f"❌ Error in run_update_db: {e}")
-        await interaction.followup.send(f"❌ Error: {e}")
+        await interaction.followup.send(f"❌ Error: {e}", ephemeral=True)
 
 
 
