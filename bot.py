@@ -1260,10 +1260,6 @@ class WikiView(discord.ui.View):
             view=new_filter_view
         )
 
-    
-        except Exception as e:
-            print(f"⚠️ Error returning to filters: {e}")
-            await interaction.response.send_message(f"❌ Could not return to filters: {e}", ephemeral=True)
 
         
 
