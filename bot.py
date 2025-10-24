@@ -1973,6 +1973,138 @@ async def update_db(interaction: discord.Interaction):
     await interaction.response.send_message("🔍 Starting database update from Wiki... this may take a few minutes.", ephemeral=False)
     await run_update_db(interaction)
 
+async def run_update_db(interaction: discord.Interaction):
+    base_url = "https://monstersandmemories.miraheze.org"
+    category_url = f"{base_url}/wiki/Category:Items"
+    updated_count = 0
+    checked_count = 0
+    changes_log = []
+
+    try:
+        # ✅ Get current DB items
+        async with db_pool.acquire() as conn:
+            db_items = await conn.fetch("""
+                SELECT item_name, zone_name, npc_name, item_stats, crafted_name, quest_name
+                FROM item_database
+            """)
+
+        db_map = {i["item_name"].strip().lower(): i for i in db_items}
+
+        # ✅ Fetch main items page
+        async with aiohttp.ClientSession() as session:
+            async with session.get(category_url, ssl=False) as resp:
+                html = await resp.text()
+
+        soup = BeautifulSoup(html, "html.parser")
+        item_links = soup.select("div.mw-category a")
+
+        # ✅ Check every item link on the page
+        async with aiohttp.ClientSession() as session:
+            for link in item_links:
+                item_name = link.text.strip()
+                item_url = f"{base_url}{link['href']}"
+
+                if item_name.lower() not in db_map:
+                    continue  # Skip new items — do not add
+
+                db_item = db_map[item_name.lower()]
+                checked_count += 1
+
+                async with session.get(item_url, ssl=False) as resp:
+                    if resp.status != 200:
+                        continue
+                    item_html = await resp.text()
+
+                s2 = BeautifulSoup(item_html, "html.parser")
+
+                # 🧾 Extract fields
+                zone_name, npc_name, item_stats, crafted_name, quest_name = "", "", "", "", ""
+
+                # Zone/NPC
+                drops_section = s2.find("h2", id="Drops_From")
+                if drops_section:
+                    zone_tag = drops_section.find_next("p")
+                    if zone_tag:
+                        zone_name = zone_tag.get_text(strip=True)
+                    npc_list = drops_section.find_next("ul")
+                    if npc_list:
+                        npc_links = npc_list.find_all("a")
+                        if npc_links:
+                            npc_name = ", ".join(a.get_text(strip=True) for a in npc_links)
+                        else:
+                            npc_items = npc_list.find_all("li")
+                            npc_name = ", ".join(li.get_text(strip=True) for li in npc_items)
+
+                # Stats
+                stats_div = s2.find("div", class_="item-stats")
+                if stats_div:
+                    item_stats = "\n".join(line.strip() for line in stats_div.stripped_strings)
+
+                # Crafted
+                crafted_section = s2.find("h2", id="Player_crafted") or s2.find("h2", id="Player_crafter")
+                if crafted_section:
+                    ul = crafted_section.find_next("ul")
+                    if ul:
+                        li = ul.find("li")
+                        if li:
+                            crafted_name = li.get_text(" ", strip=True)
+
+                # Quest
+                quest_section = s2.find("h2", id="Related_quests")
+                if quest_section:
+                    quest_list = quest_section.find_next("ul")
+                    if quest_list:
+                        quest_links = quest_list.find_all("a")
+                        if quest_links:
+                            quest_name = ", ".join(a.get_text(strip=True) for a in quest_links)
+                        else:
+                            quest_items = quest_list.find_all("li")
+                            quest_name = ", ".join(li.get_text(strip=True) for li in quest_items)
+
+                # 🧮 Compare with DB
+                changes = {}
+                if zone_name and zone_name != db_item["zone_name"]:
+                    changes["zone_name"] = zone_name
+                if npc_name and npc_name != db_item["npc_name"]:
+                    changes["npc_name"] = npc_name
+                if item_stats and item_stats != db_item["item_stats"]:
+                    changes["item_stats"] = item_stats
+                if crafted_name and crafted_name != db_item["crafted_name"]:
+                    changes["crafted_name"] = crafted_name
+                if quest_name and quest_name != db_item["quest_name"]:
+                    changes["quest_name"] = quest_name
+
+                if changes:
+                    updated_count += 1
+                    changes_log.append(f"🛠️ `{item_name}` → {', '.join(changes.keys())}")
+
+                    # Update DB
+                    set_clause = ", ".join([f"{col} = ${i+2}" for i, col in enumerate(changes.keys())])
+                    values = list(changes.values())
+
+                    async with db_pool.acquire() as conn:
+                        await conn.execute(
+                            f"UPDATE item_database SET {set_clause} WHERE LOWER(item_name) = LOWER($1)",
+                            item_name, *values
+                        )
+
+                await asyncio.sleep(0.7)  # Be nice to the wiki
+
+        msg = (
+            f"✅ Update complete!\n"
+            f"🔍 Checked: `{checked_count}` items\n"
+            f"🛠️ Updated: `{updated_count}` items\n\n"
+        )
+        if changes_log:
+            msg += "\n".join(changes_log[:20])
+            if len(changes_log) > 20:
+                msg += f"\n...and {len(changes_log) - 20} more changes."
+
+        await interaction.followup.send(msg)
+
+    except Exception as e:
+        print(f"❌ Error in update_db: {e}")
+        await interaction.followup.send(f"❌ Error during update: {e}")
 
 
 
