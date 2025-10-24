@@ -1987,7 +1987,7 @@ async def run_update_db(interaction: discord.Interaction):
     try:
         async with db_pool.acquire() as conn:
             db_items = await conn.fetch("""
-                SELECT item_name, zone_name, npc_name, item_stats, crafted_name, quest_name
+                SELECT item_name, zone_name, npc_name, item_stats, crafted_name, quest_name, npc_image, npc_level
                 FROM item_database
             """)
 
@@ -2030,46 +2030,142 @@ async def run_update_db(interaction: discord.Interaction):
 
                 s2 = BeautifulSoup(item_html, "html.parser")
 
-                # extract wiki fields
-                zone_name, npc_name, item_stats, crafted_name, quest_name = "", "", "", "", ""
-
+  # --- Extract NPC and Zone (more tolerant of malformed HTML) ---
+             
+              
+                npc_name, zone_name = "", ""
+                
                 drops_section = s2.find("h2", id="Drops_From")
                 if drops_section:
+                    # The next <p> tag should hold the zone name
                     zone_tag = drops_section.find_next("p")
                     if zone_tag:
                         zone_name = zone_tag.get_text(strip=True)
+                
+                    # Then look for <ul><li> list of NPCs
                     npc_list = drops_section.find_next("ul")
                     if npc_list:
                         npc_links = npc_list.find_all("a")
                         if npc_links:
                             npc_name = ", ".join(a.get_text(strip=True) for a in npc_links)
                         else:
+                            # Fallback: plain text <li>
                             npc_items = npc_list.find_all("li")
                             npc_name = ", ".join(li.get_text(strip=True) for li in npc_items)
 
-                stats_div = s2.find("div", class_="item-stats")
-                if stats_div:
-                    item_stats = "\n".join(line.strip() for line in stats_div.stripped_strings)
 
-                crafted_section = s2.find("h2", id="Player_crafted") or s2.find("h2", id="Player_crafter")
-                if crafted_section:
-                    ul = crafted_section.find_next("ul")
-                    if ul:
-                        li = ul.find("li")
-                        if li:
-                            crafted_name = li.get_text(" ", strip=True)
-
-                quest_section = s2.find("h2", id="Related_quests")
-                if quest_section:
-                    quest_list = quest_section.find_next("ul")
+              
+                # --- Extract Quest (more tolerant of malformed HTML) ---
+                quest_name = ""
+                
+                drops_section = s2.find("h2", id="Related_quests")
+                if drops_section:        
+                    # Then look for <ul><li> list of Quest
+                    quest_list = drops_section.find_next("ul")
                     if quest_list:
                         quest_links = quest_list.find_all("a")
                         if quest_links:
                             quest_name = ", ".join(a.get_text(strip=True) for a in quest_links)
                         else:
+                            # Fallback: plain text <li>
                             quest_items = quest_list.find_all("li")
-                            quest_name = ", ".join(li.get_text(strip=True) for li in quest_items)
+                            quest_name = ", ".join(li.get_text(strip=True) for li in quest_items)            
+    
+               
+                # --- 1️⃣ If npc_name and quest_name are the same, clear npc_name
+                if npc_name.strip().lower() == quest_name.strip().lower() and npc_name:
+                    npc_name = ""                
 
+
+                # --- Fetch NPC details ---
+                npc_image = ""
+                npc_level = ""
+                
+                # Only proceed if npc_name exists
+                if npc_name:
+                    for npc in npc_name.split(","):
+                        npc_clean = npc.strip().replace(" ", "_")
+                        npc_url = f"https://monstersandmemories.miraheze.org/wiki/{npc_clean}"
+                
+                        async with session.get(npc_url, headers={"User-Agent": "Mozilla/5.0"}) as npc_resp:
+                            if npc_resp.status != 200:
+                                print(f"⚠️ Failed to fetch NPC page: {npc_url}")
+                                continue
+                
+                            npc_html = await npc_resp.text()
+                            npc_soup = BeautifulSoup(npc_html, "html.parser")
+                
+                            # --- NPC Image (inside <span typeof="mw:File">) ---
+                            file_span = npc_soup.select_one('span[typeof="mw:File"] img')
+                            if file_span:
+                                src = file_span.get("src", "")
+                                npc_image = f"https:{src}" if src.startswith("//") else src
+                
+                            # --- NPC Level (3rd <td> inside mobStatsBox) ---
+                            mob_stats_table = npc_soup.find("table", class_="mobStatsBox")
+                            if mob_stats_table:
+                                tds = mob_stats_table.find_all("td")
+                                if len(tds) >= 3:
+                                    npc_level = tds[2].get_text(strip=True)
+                
+                            # (Optional) Stop after first NPC to avoid multiple fetches
+                            break
+                
+                
+               
+                
+                # --- Extract Crafted  ---
+    
+    
+                crafted_name = ""
+                
+                # Handle either id="Player_crafted" or id="Player_crafter"
+                crafted_section = None
+                for pid in ("Player_crafted", "Player_crafter"):
+                    crafted_section = s2.find("h2", id=pid)
+                    if crafted_section:
+                        break
+                
+                if crafted_section:
+                    # First <ul> after the heading
+                    ul = crafted_section.find_next("ul")
+                    if ul:
+                        # First <li> inside that <ul>
+                        li = ul.find("li")
+                        if li:
+                            # 1) Prefer the direct text nodes (ignore nested <ul>)
+                            #    This grabs only the text that is DIRECTLY inside the <li>
+                            direct_bits = []
+                            for node in li.contents:
+                                if isinstance(node, NavigableString):
+                                    text = str(node).strip()
+                                    if text:
+                                        direct_bits.append(text)
+                                elif node.name != "ul":
+                                    # keep inline tags like <a>, <b>, etc. but not the nested <ul>
+                                    text = node.get_text(" ", strip=True)
+                                    if text:
+                                        direct_bits.append(text)
+                
+                            if direct_bits:
+                                crafted_name = " ".join(direct_bits)
+                            else:
+                                # 2) Fallback: remove nested <ul>, then read the remaining text
+                                nested_ul = li.find("ul")
+                                if nested_ul:
+                                    nested_ul.extract()
+                                crafted_name = li.get_text(" ", strip=True) or ""
+    
+    
+                
+                # --- Item Stats ---
+                item_stats_div = s2.find("div", class_="item-stats")
+                item_stats = "None listed"
+                if item_stats_div:
+                    lines = [line.strip() for line in item_stats_div.stripped_strings]
+                    item_stats = "\n".join(lines)
+
+                
                 # compare + update
                 changes = {}
                 if zone_name and zone_name != db_item["zone_name"]:
@@ -2082,6 +2178,10 @@ async def run_update_db(interaction: discord.Interaction):
                     changes["crafted_name"] = crafted_name
                 if quest_name and quest_name != db_item["quest_name"]:
                     changes["quest_name"] = quest_name
+                if npc_image and npc_image != db_item["npc_image"]:
+                    changes["npc_image"] = npc_image
+                if npc_level and npc_level != db_item["npc_level"]:
+                    changes["npc_level"] = npc_level
 
                 if changes:
                     updated_count += 1
