@@ -2001,9 +2001,21 @@ async def run_update_db(interaction: discord.Interaction):
         item_links = soup.select("div.mw-category a")
 
         async with aiohttp.ClientSession() as session:
+            
             for link in item_links:
+                # Skip malformed or non-item links
+                if not link.has_attr("href"):
+                    continue
+            
                 item_name = link.text.strip()
-                item_url = f"{base_url}{link['href']}"
+                href = link["href"].strip()
+            
+                # Skip category anchors or non-item wiki links
+                if not href or not href.startswith("/wiki/"):
+                    continue
+            
+                item_url = f"{base_url}{href}"
+
 
                 if item_name.lower() not in db_map:
                     continue  # skip new items
