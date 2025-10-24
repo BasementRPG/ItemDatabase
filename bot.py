@@ -1973,6 +1973,10 @@ async def update_db(interaction: discord.Interaction):
     await interaction.response.send_message("🔍 Starting database update from Wiki... this may take a few minutes.", ephemeral=False)
     await run_update_db(interaction)
 
+
+
+
+
 async def run_update_db(interaction: discord.Interaction):
     base_url = "https://monstersandmemories.miraheze.org"
     category_url = f"{base_url}/wiki/Category:Items"
@@ -1981,7 +1985,6 @@ async def run_update_db(interaction: discord.Interaction):
     changes_log = []
 
     try:
-        # ✅ Get current DB items
         async with db_pool.acquire() as conn:
             db_items = await conn.fetch("""
                 SELECT item_name, zone_name, npc_name, item_stats, crafted_name, quest_name
@@ -1990,7 +1993,6 @@ async def run_update_db(interaction: discord.Interaction):
 
         db_map = {i["item_name"].strip().lower(): i for i in db_items}
 
-        # ✅ Fetch main items page
         async with aiohttp.ClientSession() as session:
             async with session.get(category_url, ssl=False) as resp:
                 html = await resp.text()
@@ -1998,14 +2000,13 @@ async def run_update_db(interaction: discord.Interaction):
         soup = BeautifulSoup(html, "html.parser")
         item_links = soup.select("div.mw-category a")
 
-        # ✅ Check every item link on the page
         async with aiohttp.ClientSession() as session:
             for link in item_links:
                 item_name = link.text.strip()
                 item_url = f"{base_url}{link['href']}"
 
                 if item_name.lower() not in db_map:
-                    continue  # Skip new items — do not add
+                    continue  # skip new items
 
                 db_item = db_map[item_name.lower()]
                 checked_count += 1
@@ -2017,10 +2018,9 @@ async def run_update_db(interaction: discord.Interaction):
 
                 s2 = BeautifulSoup(item_html, "html.parser")
 
-                # 🧾 Extract fields
+                # extract wiki fields
                 zone_name, npc_name, item_stats, crafted_name, quest_name = "", "", "", "", ""
 
-                # Zone/NPC
                 drops_section = s2.find("h2", id="Drops_From")
                 if drops_section:
                     zone_tag = drops_section.find_next("p")
@@ -2035,12 +2035,10 @@ async def run_update_db(interaction: discord.Interaction):
                             npc_items = npc_list.find_all("li")
                             npc_name = ", ".join(li.get_text(strip=True) for li in npc_items)
 
-                # Stats
                 stats_div = s2.find("div", class_="item-stats")
                 if stats_div:
                     item_stats = "\n".join(line.strip() for line in stats_div.stripped_strings)
 
-                # Crafted
                 crafted_section = s2.find("h2", id="Player_crafted") or s2.find("h2", id="Player_crafter")
                 if crafted_section:
                     ul = crafted_section.find_next("ul")
@@ -2049,7 +2047,6 @@ async def run_update_db(interaction: discord.Interaction):
                         if li:
                             crafted_name = li.get_text(" ", strip=True)
 
-                # Quest
                 quest_section = s2.find("h2", id="Related_quests")
                 if quest_section:
                     quest_list = quest_section.find_next("ul")
@@ -2061,7 +2058,7 @@ async def run_update_db(interaction: discord.Interaction):
                             quest_items = quest_list.find_all("li")
                             quest_name = ", ".join(li.get_text(strip=True) for li in quest_items)
 
-                # 🧮 Compare with DB
+                # compare + update
                 changes = {}
                 if zone_name and zone_name != db_item["zone_name"]:
                     changes["zone_name"] = zone_name
@@ -2077,8 +2074,6 @@ async def run_update_db(interaction: discord.Interaction):
                 if changes:
                     updated_count += 1
                     changes_log.append(f"🛠️ `{item_name}` → {', '.join(changes.keys())}")
-
-                    # Update DB
                     set_clause = ", ".join([f"{col} = ${i+2}" for i, col in enumerate(changes.keys())])
                     values = list(changes.values())
 
@@ -2088,7 +2083,7 @@ async def run_update_db(interaction: discord.Interaction):
                             item_name, *values
                         )
 
-                await asyncio.sleep(0.7)  # Be nice to the wiki
+                await asyncio.sleep(0.7)
 
         msg = (
             f"✅ Update complete!\n"
@@ -2103,8 +2098,9 @@ async def run_update_db(interaction: discord.Interaction):
         await interaction.followup.send(msg)
 
     except Exception as e:
-        print(f"❌ Error in update_db: {e}")
-        await interaction.followup.send(f"❌ Error during update: {e}")
+        print(f"❌ Error in run_update_db: {e}")
+        await interaction.followup.send(f"❌ Error: {e}")
+
 
 
 
