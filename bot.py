@@ -2077,6 +2077,7 @@ async def run_update_db(interaction: discord.Interaction):
                     npc_name = ""                
 
 
+                
                 # --- Fetch NPC details ---
                 npc_image = ""
                 npc_level = ""
@@ -2165,6 +2166,7 @@ async def run_update_db(interaction: discord.Interaction):
                     lines = [line.strip() for line in item_stats_div.stripped_strings]
                     item_stats = "\n".join(lines)
 
+
                 
                 # compare + update
                 changes = {}
@@ -2178,11 +2180,26 @@ async def run_update_db(interaction: discord.Interaction):
                     changes["crafted_name"] = crafted_name
                 if quest_name and quest_name != db_item["quest_name"]:
                     changes["quest_name"] = quest_name
-                if npc_image and npc_image != db_item["npc_image"]:
-                    changes["npc_image"] = npc_image
                 if npc_level and npc_level != db_item["npc_level"]:
                     changes["npc_level"] = npc_level
 
+                new_npc_image = ""
+                file_span = s2.select_one('span[typeof="mw:File"] img')
+                if file_span:
+                    src = file_span.get("src", "")
+                    new_npc_image = f"https:{src}" if src.startswith("//") else src
+                
+                # Only update npc_image if the DB one is not from a Discord attachment
+                current_npc_image = db_item.get("npc_image", "")
+                if (
+                    new_npc_image
+                    and "https://cdn.discordapp.com/attachments/" not in (current_npc_image or "")
+                    and new_npc_image != current_npc_image
+                ):
+                    changes["npc_image"] = new_npc_image
+
+
+                
                 if changes:
                     updated_count += 1
                     changes_log.append(f"🛠️ `{item_name}` → {', '.join(changes.keys())}")
