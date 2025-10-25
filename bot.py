@@ -913,11 +913,21 @@ async def run_item_db(interaction: discord.Interaction, slot: str, stat: Optiona
         await interaction.response.defer(thinking=True)
     except discord.InteractionResponded:
         pass
-    await interaction.response.edit_message(
-        content=f"⏳ Searching the database for `{slot}` items{f' with {stat}' if stat else ''}{f' for {classes}' if classes else ''}...",
-        view=None,
-        embeds=[]
-    )
+    try:
+            await interaction.edit_original_response(
+                content=f"⏳ Searching the database for `{slot}` items"
+                        f"{f' with {stat}' if stat else ''}"
+                        f"{f' for {classes}' if classes else ''}...",
+                view=None,
+                embeds=[]
+            )
+        except discord.InteractionResponded:
+            await interaction.followup.send(
+                content=f"⏳ Searching the database for `{slot}` items"
+                        f"{f' with {stat}' if stat else ''}"
+                        f"{f' for {classes}' if classes else ''}...",
+                ephemeral=("dbp" in getattr(interaction.command.name, "", "").lower()),
+            )
 
     try:
         
