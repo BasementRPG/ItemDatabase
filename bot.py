@@ -909,6 +909,10 @@ async def view_item_db(interaction: discord.Interaction):
 
 async def run_item_db(interaction: discord.Interaction, slot: str, stat: Optional[str], classes: Optional[str]):
     # First response to this interaction: replace filter UI with “Searching…”
+    try:
+        await interaction.response.defer(thinking=True)
+    except discord.InteractionResponded:
+        pass
     await interaction.response.edit_message(
         content=f"⏳ Searching the database for `{slot}` items{f' with {stat}' if stat else ''}{f' for {classes}' if classes else ''}...",
         view=None,
@@ -1348,25 +1352,24 @@ class WikiView(discord.ui.View):
                 ephemeral=ephemeral
             )
 
-    def _add_item_dropdown(self):
-        """Add dropdown menu for sending individual items"""
-        current_page_items = self.get_page_items()
+         """Add dropdown menu for sending individual items"""
+    current_page_items = self.get_page_items()
 
-        options = [
-            discord.SelectOption(
-                label=f"{(i.get('item_name') or 'Unknown Item')[:80]}",
-                description=f"{i.get('npc_name') or 'Unknown NPC'} • {i.get('zone_name') or 'Unknown Zone'}",
-                value=str(index)
-            )
-            for index, i in enumerate(current_page_items)
-        ]
-
-        dropdown = discord.ui.Select(
-            placeholder="📜 Send an item privately...",
-            options=options,
-            custom_id="send_item_select"
+    options = [
+        discord.SelectOption(
+            label=f"{(i.get('item_name') or 'Unknown Item')[:80]}",
+            description=f"{i.get('npc_name') or 'Unknown NPC'} • {i.get('zone_name') or 'Unknown Zone'}",
+            value=str(index)
         )
-        self.add_item(dropdown)
+        for index, i in enumerate(current_page_items)
+    ]
+
+    dropdown = discord.ui.Select(
+        placeholder="📜 Send an item privately...",
+        options=options,
+        custom_id="send_item_select"
+    )
+    self.add_item(dropdown)
 
 
         
