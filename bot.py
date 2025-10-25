@@ -1627,7 +1627,7 @@ async def fetch_wiki_items(slot_name: str):
 class WikiSelectView(discord.ui.View):
     def __init__(
         self,
-        source_command: str = "wiki,
+        source_command: str = "wiki",
         on_submit: Optional[Callable[[discord.Interaction, Optional[str], Optional[str], Optional[str]], Awaitable[None]]] = None,
         optional_slot: bool = False, ephemeral: bool = False
     ):
