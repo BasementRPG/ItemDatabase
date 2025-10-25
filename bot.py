@@ -1985,7 +1985,7 @@ async def run_wiki_items(interaction: discord.Interaction, slot: str, stat: Opti
 @bot.tree.command(name="update_db", description="Compare existing DB items with the Wiki and update any changed fields.")
 @app_commands.checks.has_permissions(administrator=True)
 async def update_db(interaction: discord.Interaction):
-    await interaction.response.send_message("🔍 Starting database update from Wiki... this may take a few minutes.", ephemeral=False)
+    await interaction.response.send_message("🔍 Starting database update from Wiki... this may take a few minutes.", ephemeral=True)
     await run_update_db(interaction)
 
 
@@ -2202,7 +2202,7 @@ async def run_update_db(interaction: discord.Interaction):
                 file_span = s2.select_one('span[typeof="mw:File"] img')
                 if file_span:
                     src = file_span.get("src", "")
-                    new_npc_image = f"https:{src}" if src.startswith("//") else src
+                    new_npc_image = npc_image if src.startswith("//") else src
                 
                 # Only update npc_image if the DB one is not from a Discord attachment
                 current_npc_image = db_item.get("npc_image", "")
