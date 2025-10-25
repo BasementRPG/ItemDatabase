@@ -904,7 +904,7 @@ async def view_item_db(interaction: discord.Interaction):
     slot = view.slot
     stat = view.stat
 
-    await view.search_interaction.response.edit_message(
+    await view.search_interaction.edit_original_response(
         content=f"⏳ Searching the database for `{slot}` items{f' with {stat}' if stat else ''}...",
         view=None
     )
