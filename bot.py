@@ -887,14 +887,38 @@ async def show_results(interaction, items, db_pool=None, guild_id=None):
 
 @bot.tree.command(name="view_item_db", description="Search existing items in the database using filters.")
 async def view_item_db(interaction: discord.Interaction):
-    # Step 1: Show filter selection view (reuse your existing WikiSelectView)
    
+    
+    # Convert DB rows into WikiView-compatible format
+    results = [
+        {
+            "item_name": row["item_name"],
+            "item_image": row["item_image"] or "",
+            "npc_image": row["npc_image"] or "",
+            "npc_name": row["npc_name"] or "",
+            "zone_name": row["zone_name"] or "",
+            "item_stats": row["item_stats"] or "",
+            "description": row["description"] or "",
+            "quest_name": row["quest_name"] or "",
+            "crafted_name": row["crafted_name"] or "",
+            "npc_level": row["npc_level"] or "",
+            "source": "Database",
+        }
+        for row in db_rows
+    ]
+    
+    if not results:
+        await interaction.response.send_message("❌ No items found in the database.", ephemeral=True)
+        return
+    
+    # Build and send the view
     results_view = WikiView(results, source_command="db")
-    await interaction.edit_original_response(
-        content=None,
+    await interaction.response.send_message(
+        content=f"📜 Showing {len(results)} database items:",
         embeds=results_view.build_embeds(0),
         view=results_view
     )
+
 
 
     # Wait for user interaction
