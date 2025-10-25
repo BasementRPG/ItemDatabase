@@ -1759,7 +1759,7 @@ class WikiSelectView(discord.ui.View):
             return
     
         # Otherwise, use the explicitly provided handler
-        await self.on_submit(interaction, self.slot, self.stat)
+        await self.on_submit(interaction, self.slot, self.stat, self.classes)
 
 
 
