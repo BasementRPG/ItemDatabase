@@ -889,7 +889,7 @@ async def show_results(interaction, items, db_pool=None, guild_id=None):
 @bot.tree.command(name="view_item_db", description="View items stored in the database with optional filters.")
 async def view_item_db(interaction: discord.Interaction):
     # Show filters and return; the runner will take over on ✅
-    view = WikiSelectView(source_command="db", on_submit=run_item_db)
+    view = WikiSelectView(source_command="db", on_submit=run_item_db, optional_slot=True)
     await interaction.response.send_message(
         "Search the **Database** using the filters below:",
         view=view
@@ -911,7 +911,7 @@ async def run_item_db(interaction: discord.Interaction, slot: str, stat: Optiona
                        item_slot, item_stats, description, quest_name, crafted_name,
                        npc_level, source
                 FROM item_database
-                WHERE LOWER(item_slot) = LOWER($1)
+                WHERE LOWER($1::text IS NULL OR LOWER(item_slot) = LOWER($1)
                 ORDER BY item_name ASC
             """, slot)
 
@@ -1577,6 +1577,7 @@ class WikiSelectView(discord.ui.View):
         super().__init__(timeout=None)
         self.source_command = source_command  # 'wiki' or 'db'
         self.on_submit = on_submit            # callback to run the search
+        self.optional_slot = optional_slot
         self.slot: Optional[str] = None
         self.stat: Optional[str] = None
         self.classes: Optional[str] = None
@@ -1676,7 +1677,7 @@ class WikiSelectView(discord.ui.View):
         await interaction.response.defer()
     
     async def confirm_selection(self, interaction: discord.Interaction):
-        if not self.slot:
+        if not self.optional_slot and not self.slot:
             await interaction.response.send_message("❌ Please select a slot first!", ephemeral=True)
             return
     
