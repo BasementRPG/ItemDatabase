@@ -1331,7 +1331,7 @@ class WikiView(discord.ui.View):
             prompt = "Please select your filters again:"
             ephemeral = False
 
-        new_filter_view = WikiSelectView(source_command=source_command, optional_slot=optional_slot, ephemeral=ephemeral )
+        new_filter_view = WikiSelectView(source_command=source_command, optional_slot=optional_slot)
         
         try:
             # Replace message with a new filter menu
