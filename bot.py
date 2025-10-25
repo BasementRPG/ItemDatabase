@@ -1213,12 +1213,14 @@ async def edit_item_image(
 # -------------------- WikiView Class --------------------
 
 class WikiView(discord.ui.View):
-    def __init__(self, items, source_command: str = "wiki"):
+    def __init__(self, items, source_command = "wiki"):
         super().__init__(timeout=None)
         self.items = items
         self.source_command = source_command
         self.current_page = 0
         self.items_per_page = 5
+ 
+        
         
 
     def build_embeds(self, page_index: int):
@@ -1615,7 +1617,7 @@ async def fetch_wiki_items(slot_name: str):
 
 
 class WikiSelectView(discord.ui.View):
-    def __init__(self):
+    def __init__(self, source_command: str= "wiki"):
         super().__init__(timeout=None)
         self.slot = None
         self.stat = None
