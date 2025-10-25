@@ -899,7 +899,7 @@ async def view_item_db(interaction: discord.Interaction):
 async def run_item_db(interaction: discord.Interaction, slot: str, stat: Optional[str], classes: Optional[str]):
     # First response to this interaction: replace filter UI with “Searching…”
     await interaction.response.edit_message(
-        content=f"⏳ Searching the database for `{slot}` items{f' with {stat}' if stat else ''}...",
+        content=f"⏳ Searching the database for `{slot}` items{f' with {stat}' if stat else ''}{f' for {classes}' if classes else ''}...",
         view=None,
         embeds=[]
     )
@@ -995,7 +995,7 @@ async def run_item_db(interaction: discord.Interaction, slot: str, stat: Optiona
 
         if not results:
             await interaction.edit_original_response(
-                content=f"❌ No database items found for `{slot}`{f' with {stat}' if stat else ''}.",
+                content=f"❌ No database items found for `{slot}`{f' with {stat}' if stat else ''}{f' with {classes}' if classes else ''}.",
                 embeds=[],
                 view=None
             )
@@ -1016,12 +1016,6 @@ async def run_item_db(interaction: discord.Interaction, slot: str, stat: Optiona
             embeds=[],
             view=None
         )
-
-
-
-
-
-
 
 
 
@@ -1690,7 +1684,7 @@ class WikiSelectView(discord.ui.View):
             await interaction.response.send_message("⚠️ No handler attached to this filter.", ephemeral=True)
             return
 
-        await self.on_submit(interaction, self.slot, self.stat)
+        await self.on_submit(interaction, self.slot, self.stat, self.classes)
 
 
 
