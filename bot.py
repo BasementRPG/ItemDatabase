@@ -912,7 +912,7 @@ async def run_item_db(interaction: discord.Interaction, slot: str, stat: Optiona
                        npc_level, source
                 FROM item_database
                 WHERE LOWER($1::text IS NULL OR LOWER(item_slot) = LOWER($1)
-                ORDER BY item_name ASC
+                ORDER BY item_name ASC;
             """, slot)
 
         
