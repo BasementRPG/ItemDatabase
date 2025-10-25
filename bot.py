@@ -885,112 +885,14 @@ async def show_results(interaction, items, db_pool=None, guild_id=None):
 
 #------------VIEW------------
 
-@bot.tree.command(name="view_item_dbp", description="(Private) View items stored in the database with optional filters.")
-async def view_item_dbp(interaction: discord.Interaction):
-    # Launch the filter UI
-    view = WikiSelectView()
+@bot.tree.command(name="view_item_db", description="View items stored in the database with optional filters.")
+async def view_item_db(interaction: discord.Interaction):
+    # Show filters and return; the runner will take over on ✅
+    view = WikiSelectView(source_command="db", on_submit=run_item_db, optional_slot=True)
     await interaction.response.send_message(
-        "Please select the **Slot** and (optionally) a **Stat**, then press ✅ **Search**:",
-        view=view,
-        ephemeral=True  # 👈 PRIVATE
+        "Search the **Database** using the filters below:",
+        view=view,  ephemeral=True"
     )
-
-    await view.wait()
-
-    # If user cancels or times out
-    if not view.value:
-        await interaction.followup.send("❌ Selection timed out or cancelled.", ephemeral=True)
-        return
-
-    slot = view.slot
-    stat = view.stat
-
-    await view.search_interaction.edit_original_response(
-        content=f"⏳ Searching the database for `{slot or 'All Slots'}` items{f' with {stat}' if stat else ''}...",
-        view=None
-    )
-
-    try:
-        # --- Step 1: Pull items from the database ---
-        async with db_pool.acquire() as conn:
-            if slot:
-                db_rows = await conn.fetch("""
-                    SELECT item_name, item_image, npc_image, npc_name, zone_name,
-                           item_slot, item_stats, description, quest_name, crafted_name,
-                           npc_level, source
-                    FROM item_database
-                    WHERE LOWER(item_slot) = LOWER($1)
-                    ORDER BY item_name ASC
-                """, slot)
-            else:
-                db_rows = await conn.fetch("""
-                    SELECT item_name, item_image, npc_image, npc_name, zone_name,
-                           item_slot, item_stats, description, quest_name, crafted_name,
-                           npc_level, source
-                    FROM item_database
-                    ORDER BY item_name ASC
-                """)
-
-        # --- Step 2: Apply stat filtering if needed ---
-        if stat:
-            stat_filter = str(stat).strip().lower()
-            stat_keywords = {
-                "str": [r"\bstr\b", r"\bstrength\b"],
-                "agi": [r"\bagi\b", r"\bagility\b"],
-                "dex": [r"\bdex\b", r"\bdexterity\b"],
-                "int": [r"\bint\b", r"\bintelligence\b"],
-                "sta": [r"\bsta\b", r"\bstamina\b"],
-                "wis": [r"\bwis\b", r"\bwisdom\b"],
-            }
-            patterns = [re.compile(pat, re.IGNORECASE) for pat in stat_keywords.get(stat_filter, [rf"\b{stat_filter}\b"])]
-
-            def matches_stat_block(text: str) -> bool:
-                text = (text or "").replace("\n", " ").replace("\r", " ")
-                return any(p.search(text) for p in patterns)
-
-            db_rows = [r for r in db_rows if matches_stat_block(r.get("item_stats") or "")]
-            print(f"🔍 Filtered {len(db_rows)} items for stat {stat}")
-
-        # --- Step 3: Convert to WikiView-compatible format ---
-        results = [
-            {
-                "item_name": row["item_name"],
-                "item_image": row["item_image"] or "",
-                "npc_image": row["npc_image"] or "",
-                "npc_name": row["npc_name"] or "",
-                "zone_name": row["zone_name"] or "",
-                "item_stats": row["item_stats"] or "",
-                "description": row["description"] or "",
-                "quest_name": row["quest_name"] or "",
-                "crafted_name": row["crafted_name"] or "",
-                "npc_level": row["npc_level"] or "",
-                "source": "Database",
-            }
-            for row in db_rows
-        ]
-
-        if not results:
-            await interaction.edit_original_response(
-                content=f"❌ No database items found for `{slot or 'All Slots'}`{f' with {stat}' if stat else ''}.",
-                embeds=[],
-                view=None
-            )
-            return
-
-        # --- Step 4: Show results (still private) ---
-        results_view = WikiView(results, source_command="dbp")
-        await interaction.edit_original_response(
-            content=None,
-            embeds=results_view.build_embeds(0),
-            view=results_view
-        )
-
-    except Exception as e:
-        print(f"❌ Error in view_item_dbp: {e}")
-        await interaction.followup.send(f"❌ Error searching database: {e}", ephemeral=True)
-
-
-
 
 
 
