@@ -1259,7 +1259,7 @@ class WikiView(discord.ui.View):
             
 
             if item["zone_name"] != "":
-                embed.add_field(name="🗺️ Zone ", value=f"[{item['zone_name']}]", inline=True)
+                embed.add_field(name="🗺️ Zone ", value=f"[{item['zone_name']}]({zone_link})"", inline=True)
             if npc_name != "":
                 embed.add_field(name="👹 Npc", value=f"{npc_name}", inline=True)
             
