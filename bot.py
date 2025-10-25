@@ -2198,14 +2198,7 @@ async def run_update_db(interaction: discord.Interaction):
                 if npc_level and npc_level != db_item["npc_level"]:
                     changes["npc_level"] = npc_level
 
-                current_npc_image = db_item.get("npc_image")
-                if (
-                    new_npc_image
-                    and "https://cdn.discordapp.com/attachments/" not in (current_npc_image)
-                    and new_npc_image != current_npc_image
-                ):
-                    changes["npc_image"] = new_npc_image
-
+                
 
                 
                 if changes:
