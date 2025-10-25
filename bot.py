@@ -970,10 +970,9 @@ async def run_item_db(interaction: discord.Interaction, slot: str, stat: Optiona
             return stat_match and class_match
 
         # Apply filters
-        wiki_items = [i for i in wiki_items if matches_filters(i.get("item_stats" or ""))]
         db_rows = [r for r in db_rows if matches_filters(r.get("item_stats") or "")]
 
-        print(f"🔍 Final filter results — Stat: {stat or 'None'}, Class: {classes or 'None'} | Wiki: {len(wiki_items)}, DB: {len(db_rows)}")
+        print(f"🔍 Final filter results — Stat: {stat or 'None'}, Class: {classes or 'None'} | DB: {len(db_rows)}")
         
 
         results = [
