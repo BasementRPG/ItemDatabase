@@ -885,7 +885,7 @@ async def show_results(interaction, items, db_pool=None, guild_id=None):
 
 #------------VIEW------------
 
-@bot.tree.command(name="view_item_db", description="View items stored in the database with optional filters.")
+@bot.tree.command(name="view_item_dbp", description="View items stored in the database with optional filters.")
 async def view_item_db(interaction: discord.Interaction):
     # Show filters and return; the runner will take over on ✅
     view = WikiSelectView(source_command="db", on_submit=run_item_db, optional_slot=True)
@@ -1247,9 +1247,19 @@ class WikiView(discord.ui.View):
                 color=color,
                 url=f"{item_link}"
             )
+            
+            """
+            #  NPC + Level
+            npc_display = f"{npc_name}\n ({npc_level})" if npc_level else f"{npc_name}"
+
+            # Zone + Area
+            zone_display = zone_name if not zone_area else f"{zone_name}\n {zone_area.title()}"
+            """
+
+            
 
             if item["zone_name"] != "":
-                embed.add_field(name="🗺️ Zone ", value=f"[{item['zone_name']}]({zone_link})", inline=True)
+                embed.add_field(name="🗺️ Zone ", value=f"[{item['zone_name']}]({zone_link}), inline=True)
             if npc_name != "":
                 embed.add_field(name="👹 Npc", value=f"{npc_name}", inline=True)
             
