@@ -1580,6 +1580,7 @@ class WikiSelectView(discord.ui.View):
         self.on_submit = on_submit            # callback to run the search
         self.slot: Optional[str] = None
         self.stat: Optional[str] = None
+        self.classes: Optional[str] = None
 
         # Slot dropdown
         self.slot_select = discord.ui.Select(
