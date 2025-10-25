@@ -79,6 +79,7 @@ class ItemDatabaseModal(discord.ui.Modal, title="Add Item to Database"):
         self.npc_image_url = npc_image_url
         self.item_msg_id = item_msg_id
         self.npc_msg_id = npc_msg_id
+        self.item_stat = item_stat
 
         # Fields
         self.item_name = discord.ui.TextInput(label="Item Name", placeholder="Example: Flowing Black Silk Sash")
@@ -295,7 +296,7 @@ async def add_item_db(interaction: discord.Interaction, item_image: discord.Atta
             guild_id=guild.id,
             added_by=added_by,
             item_image_url=item_msg.attachments[0].url,
-            npc_image_url=npc_msg.attachments[0].url,
+            npc_image_url=npc_msg.attachments[0].url or "",
             item_slot=item_slot,
             item_msg_id=item_msg.id,
             npc_msg_id=npc_msg.id 
@@ -879,16 +880,22 @@ async def show_results(interaction, items, db_pool=None, guild_id=None):
             await interaction.followup.send(content=None, embeds=embeds, view=view)
 
 
+
+
+#------------VIEW------------
             
 
 @bot.tree.command(name="view_item_db", description="Search existing items in the database using filters.")
 async def view_item_db(interaction: discord.Interaction):
     # Step 1: Show filter selection view (reuse your existing WikiSelectView)
-    view = WikiSelectView()
-    await interaction.response.send_message(
-        "Please select the **Slot**, **Stat**, or **Class** filters, then press ✅ **Search**:",
-        view=view
+   
+    results_view = WikiView(results, source_command="db")
+    await interaction.edit_original_response(
+        content=None,
+        embeds=results_view.build_embeds(0),
+        view=results_view
     )
+
 
     # Wait for user interaction
     await view.wait()
@@ -1146,9 +1153,10 @@ async def edit_item_image(
 # -------------------- WikiView Class --------------------
 
 class WikiView(discord.ui.View):
-    def __init__(self, items,):
+    def __init__(self, items, source_command: str = "wiki"):
         super().__init__(timeout=None)
         self.items = items
+        self.source_command = source_command
         self.current_page = 0
         self.items_per_page = 5
         
@@ -1253,12 +1261,24 @@ class WikiView(discord.ui.View):
    # 🔄 Back to Filters Button
     @discord.ui.button(label="🔄 Back to Filters", style=discord.ButtonStyle.danger)
     async def back_to_filters(self, interaction: discord.Interaction, button: discord.ui.Button):
+        await interaction.response.defer()
         new_filter_view = WikiSelectView()
-        await interaction.response.edit_message(
-            content="Please select the **Slot**, and (optionally) **Stat** and **Class**, then press ✅ **Search**:",
+
+        # Decide which command context this came from
+        if self.source_command == "wiki":
+            prompt = "Please select the **Slot**, and (optionally) **Stat**, then press ✅ **Search**:"
+        elif self.source_command == "db":
+            prompt = "Search the **Database** using the same filters below:"
+        else:
+            prompt = "Please select your filters again:"
+
+        # Replace the same message with a fresh filter view
+        await interaction.edit_original_response(
+            content=prompt,
             embeds=[],
             view=new_filter_view
         )
+
 
 
         
@@ -1642,17 +1662,9 @@ class WikiSelectView(discord.ui.View):
             await interaction.response.send_message("❌ Please select a slot first!", ephemeral=True)
             return
     
-        for child in self.children:
-            child.disabled = True
-            
-        await interaction.response.edit_message(
-            content=f"⏳ Searching Wiki and Database for `{self.slot}` items{f' with {self.stat}' if self.stat else ''} {f' for {self.classes}' if self.classes else ''} ...",
-            view=None
-        )
-
-    
-        # Store the interaction for later
-        self.search_interaction = interaction
+        # Defer this component interaction so we can edit this same message later
+        await interaction.response.defer()
+        self.search_interaction = interaction  # pass this into your runner
         self.value = True
         self.stop()
 
@@ -1661,11 +1673,19 @@ class WikiSelectView(discord.ui.View):
 
 @bot.tree.command(name="view_wiki_items", description="View items from the Monsters & Memories Wiki.")
 async def view_wiki_items(interaction: discord.Interaction):
-    view = WikiSelectView()
-    await interaction.response.send_message(
-        "Please select the **Slot** and (optionally) a **Stat** and/or **Class**, then press ✅ **Search**:",
-        view=view
+
+    
+  
+    
+    # --- Step 6: Send combined results to WikiView ---
+    results_view = WikiView(combined_items, source_command="wiki")
+    await interaction.edit_original_response(
+        content=None,
+        embeds=results_view.build_embeds(0),
+        view=results_view
     )
+
+
 
     await view.wait()
 
