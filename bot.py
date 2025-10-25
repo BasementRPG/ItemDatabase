@@ -1757,7 +1757,13 @@ class WikiSelectView(discord.ui.View):
         if not self.optional_slot and not self.slot:
             await interaction.response.send_message("❌ Please select a slot first!", ephemeral=True)
             return
-    
+         # Replace filters message immediately
+        await interaction.response.edit_message(
+            content=f"⏳ Searching {self.source_command.upper()} for `{self.slot}` items"
+                    f"{f' with {self.stat}' if self.stat else ''}..."
+                    f"{f' for {self.classes}' if self.classes else ''}...",
+            view=None
+        )
         # If the handler isn’t attached, fall back to auto-detect based on command
         if self.on_submit is None:
             if hasattr(self, "source_command"):
