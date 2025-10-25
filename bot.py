@@ -1312,12 +1312,17 @@ class WikiView(discord.ui.View):
         if self.source_command == "wiki":
             prompt = "Please select the **Slot**, and (optionally) **Stat**, then press ✅ **Search**:"
             ephemeral = False
+            
         elif self.source_command == "db":
             prompt = "Search the **Database** using the same filters below:"
             ephemeral = False
+            optional_slot=True
+        
         elif self.source_command == "dbp":
             prompt = "Search the **Database (Private)** using the same filters below:"
             ephemeral = True
+            optional_slot=True
+        
         else:
             prompt = "Please select your filters again:"
             ephemeral = False
