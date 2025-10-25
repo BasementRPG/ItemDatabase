@@ -2115,7 +2115,7 @@ async def run_update_db(interaction: discord.Interaction):
                             file_span = npc_soup.select_one('span[typeof="mw:File"] img')
                             if file_span:
                                 src = file_span.get("src", "")
-                                npc_image = f"https:{src}" if src.startswith("//") else src
+                                new_npc_image = f"https:{src}" if src.startswith("//") else src
                 
                             # --- NPC Level (3rd <td> inside mobStatsBox) ---
                             mob_stats_table = npc_soup.find("table", class_="mobStatsBox")
