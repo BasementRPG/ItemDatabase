@@ -1352,29 +1352,6 @@ class WikiView(discord.ui.View):
                 ephemeral=ephemeral
             )
 
-         """Add dropdown menu for sending individual items"""
-    current_page_items = self.get_page_items()
-
-    options = [
-        discord.SelectOption(
-            label=f"{(i.get('item_name') or 'Unknown Item')[:80]}",
-            description=f"{i.get('npc_name') or 'Unknown NPC'} • {i.get('zone_name') or 'Unknown Zone'}",
-            value=str(index)
-        )
-        for index, i in enumerate(current_page_items)
-    ]
-
-    dropdown = discord.ui.Select(
-        placeholder="📜 Send an item privately...",
-        options=options,
-        custom_id="send_item_select"
-    )
-    self.add_item(dropdown)
-
-
-        
-
-
 
 
 # -------------------- Helper Function --------------------
