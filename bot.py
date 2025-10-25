@@ -1993,11 +1993,11 @@ async def update_db(interaction: discord.Interaction):
 
 
 async def run_update_db(interaction: discord.Interaction):
-    base_url = "https://monstersandmemories.miraheze.org"
-    category_url = f"{base_url}/wiki/Category:Items"
+    base_url = "https://monstersandmemories.miraheze.org/wiki"
     updated_count = 0
     checked_count = 0
     changes_log = []
+    failed_items = []
 
     try:
         async with db_pool.acquire() as conn:
@@ -2006,44 +2006,20 @@ async def run_update_db(interaction: discord.Interaction):
                 FROM item_database
             """)
 
-        db_map = {i["item_name"].strip().lower(): i for i in db_items}
-
         async with aiohttp.ClientSession() as session:
-            async with session.get(category_url, ssl=False) as resp:
-                html = await resp.text()
-
-        soup = BeautifulSoup(html, "html.parser")
-        item_links = soup.select("div.mw-category a")
-
-        async with aiohttp.ClientSession() as session:
-            
-            for link in item_links:
-                # Skip malformed or non-item links
-                if not link.has_attr("href"):
-                    continue
-            
-                item_name = link.text.strip()
-                href = link["href"].strip()
-            
-                # Skip category anchors or non-item wiki links
-                if not href or not href.startswith("/wiki/"):
-                    continue
-            
-                item_url = f"{base_url}{href}"
-
-
-                if item_name.lower() not in db_map:
-                    continue  # skip new items
-
-                db_item = db_map[item_name.lower()]
+            for db_item in db_items:
+                item_name = db_item["item_name"].strip()
+                item_url = f"{base_url}/{item_name.replace(' ', '_')}"
                 checked_count += 1
 
                 async with session.get(item_url, ssl=False) as resp:
                     if resp.status != 200:
+                        print(f"⚠️ Missing or invalid page: {item_url}")
+                        failed_items.append(item_name)
                         continue
-                    item_html = await resp.text()
 
-                s2 = BeautifulSoup(item_html, "html.parser")
+                    item_html = await resp.text()
+                    s2 = BeautifulSoup(item_html, "html.parser")
 
   # --- Extract NPC and Zone (more tolerant of malformed HTML) ---
              
@@ -2197,10 +2173,16 @@ async def run_update_db(interaction: discord.Interaction):
                     changes["quest_name"] = quest_name
                 if npc_level and npc_level != db_item["npc_level"]:
                     changes["npc_level"] = npc_level
+               
+                current_npc_image = db_item.get("npc_image", "")
+                if (
+                    new_npc_image
+                    and "https://cdn.discordapp.com/attachments/" not in (current_npc_image or "")
+                    and new_npc_image != current_npc_image
+                ):
+                    changes["npc_image"] = new_npc_image
 
-                
-
-                
+                                
                 if changes:
                     updated_count += 1
                     changes_log.append(f"🛠️ `{item_name}` → {', '.join(changes.keys())}")
