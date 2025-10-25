@@ -1,6 +1,10 @@
 import os
 import math
 import discord
+import re
+import io
+import aiohttp
+import asyncio
 from textwrap import wrap
 from PIL import Image, ImageDraw, ImageFont
 from discord import app_commands, Interaction
@@ -12,14 +16,11 @@ import asyncpg
 from discord.ui import View, Button
 from discord.ui import View, Select
 from discord import SelectOption, Interaction
-import aiohttp
-import asyncio
 from bs4 import BeautifulSoup
 from bs4 import NavigableString
 from playwright.async_api import async_playwright
-from typing import Optional
-import re
-import io
+from typing import Optional, Callable, Awaitable
+
 
 
 active_views = {}
@@ -887,30 +888,23 @@ async def show_results(interaction, items, db_pool=None, guild_id=None):
 
 @bot.tree.command(name="view_item_db", description="View items stored in the database with optional filters.")
 async def view_item_db(interaction: discord.Interaction):
-    # Launch the filter UI first
-    view = WikiSelectView()
+    # Show filters and return; the runner will take over on ✅
+    view = WikiSelectView(source_command="db", on_submit=run_item_db)
     await interaction.response.send_message(
-        "Please select the **Slot** and (optionally) a **Stat**, then press ✅ **Search**:",
+        "Search the **Database** using the filters below:",
         view=view
     )
 
-    await view.wait()
 
-    # If user cancels or times out
-    if not view.value:
-        await interaction.followup.send("❌ Selection timed out or cancelled.", ephemeral=True)
-        return
-
-    slot = view.slot
-    stat = view.stat
-
-    await view.search_interaction.edit_original_response(
+async def run_item_db(interaction: discord.Interaction, slot: str, stat: Optional[str]):
+    # First response to this interaction: replace filter UI with “Searching…”
+    await interaction.response.edit_message(
         content=f"⏳ Searching the database for `{slot}` items{f' with {stat}' if stat else ''}...",
-        view=None
+        view=None,
+        embeds=[]
     )
 
     try:
-        # --- Step 1: Pull items from the database ---
         async with db_pool.acquire() as conn:
             db_rows = await conn.fetch("""
                 SELECT item_name, item_image, npc_image, npc_name, zone_name,
@@ -921,7 +915,7 @@ async def view_item_db(interaction: discord.Interaction):
                 ORDER BY item_name ASC
             """, slot)
 
-        # --- Step 2: Apply stat filtering if needed ---
+        # Optional stat filter
         if stat:
             stat_filter = str(stat).strip().lower()
             stat_keywords = {
@@ -932,16 +926,15 @@ async def view_item_db(interaction: discord.Interaction):
                 "sta": [r"\bsta\b", r"\bstamina\b"],
                 "wis": [r"\bwis\b", r"\bwisdom\b"],
             }
-            patterns = [re.compile(pat, re.IGNORECASE) for pat in stat_keywords.get(stat_filter, [rf"\b{stat_filter}\b"])]
+            patterns = [re.compile(p, re.IGNORECASE) for p in stat_keywords.get(stat_filter, [rf"\b{stat_filter}\b"])]
 
-            def matches_stat_block(text: str) -> bool:
+            def matches(text: str) -> bool:
                 text = (text or "").replace("\n", " ").replace("\r", " ")
                 return any(p.search(text) for p in patterns)
 
-            db_rows = [r for r in db_rows if matches_stat_block(r.get("item_stats") or "")]
+            db_rows = [r for r in db_rows if matches(r.get("item_stats") or "")]
             print(f"🔍 Filtered {len(db_rows)} items for stat {stat}")
 
-        # --- Step 3: Convert to WikiView-compatible format ---
         results = [
             {
                 "item_name": row["item_name"],
@@ -967,8 +960,8 @@ async def view_item_db(interaction: discord.Interaction):
             )
             return
 
-        # --- Step 4: Show results ---
-        results_view = WikiView(results, source_command="db")
+        # Build the results view and replace this same message
+        results_view = WikiView(results, source_command="db", on_submit=run_item_db)
         await interaction.edit_original_response(
             content=None,
             embeds=results_view.build_embeds(0),
@@ -976,86 +969,12 @@ async def view_item_db(interaction: discord.Interaction):
         )
 
     except Exception as e:
-        print(f"❌ Error in view_item_db: {e}")
-        await interaction.followup.send(f"❌ Error searching database: {e}", ephemeral=True)
-
-
-async def run_item_db_search(interaction: discord.Interaction, slot: str, stat: Optional[str], classes: Optional[str]):
-    try:
-        async with db_pool.acquire() as conn:
-            query = """
-                SELECT item_name, item_image, npc_image, npc_name, zone_name,
-                       item_slot, item_stats, description, quest_name,
-                       crafted_name, npc_level
-                FROM item_database
-                WHERE LOWER(item_slot) = LOWER($1)
-                ORDER BY item_name ASC
-            """
-            rows = await conn.fetch(query, slot)
-
-        if not rows:
-            await interaction.edit_original_response(content=f"❌ No results found for `{slot}`.", view=None)
-            return
-
-        # Step 4: Apply optional filters
-        def matches_stat_block(text: str, key: str) -> bool:
-            if not key:
-                return True
-            patterns = [re.compile(pat, re.IGNORECASE) for pat in [
-                rf"\b{key}\b",
-                rf"\b{key[:3]}\b",
-                rf"\b{key.lower()}\b"
-            ]]
-            text = (text or "").replace("\n", " ").replace("\r", " ")
-            return any(p.search(text) for p in patterns)
-
-        def matches_class_block(text: str, key: str) -> bool:
-            if not key:
-                return True
-            key = key.lower()
-            # Also show "ALL" matches when a specific class is chosen
-            patterns = [re.compile(rf"\b{key}\b", re.IGNORECASE), re.compile(r"\ball\b", re.IGNORECASE)]
-            text = (text or "").replace("\n", " ").replace("\r", " ")
-            return any(p.search(text) for p in patterns)
-
-        filtered = [
-            r for r in rows
-            if matches_stat_block(r["item_stats"], stat) and matches_class_block(r["item_stats"], classes)
-        ]
-
-        if not filtered:
-            await interaction.edit_original_response(content="❌ No matching items found for your filters.", view=None)
-            return
-
-        # Step 5: Convert rows to WikiView format
-        combined_items = [
-            {
-                "item_name": row["item_name"],
-                "item_image": row["item_image"] or "",
-                "npc_image": row["npc_image"] or "",
-                "npc_name": row["npc_name"] or "",
-                "zone_name": row["zone_name"] or "",
-                "slot_name": row["item_slot"],
-                "item_stats": row["item_stats"] or "",
-                "wiki_url": None,
-                "description": row["description"] or "",
-                "quest_name": row["quest_name"] or "",
-                "crafted_name": row["crafted_name"] or "",
-                "npc_level": row["npc_level"] or "",
-                "in_database": True,
-            }
-            for row in filtered
-        ]
-
-        # Step 6: Display with WikiView
-        wiki_view = WikiView(combined_items)
-        await interaction.edit_original_response(content=None, embeds=wiki_view.build_embeds(0), view=wiki_view)
-
-    except Exception as e:
-        print(f"❌ Error in view_item_db: {e}")
-        await interaction.followup.send(f"❌ Error searching DB: {e}")
-
-
+        print(f"❌ Error in run_item_db: {e}")
+        await interaction.edit_original_response(
+            content=f"❌ Error searching database: {e}",
+            embeds=[],
+            view=None
+        )
 
 
 
@@ -1213,10 +1132,12 @@ async def edit_item_image(
 # -------------------- WikiView Class --------------------
 
 class WikiView(discord.ui.View):
-    def __init__(self, items, source_command = "wiki"):
+    def __init__(self, items, source_command: str = "wiki",
+                 on_submit: Optional[Callable[[discord.Interaction, str, Optional[str]], Awaitable[None]]] = None):
         super().__init__(timeout=None)
         self.items = items
         self.source_command = source_command
+        self.on_submit = on_submit
         self.current_page = 0
         self.items_per_page = 5
  
@@ -1320,22 +1241,19 @@ class WikiView(discord.ui.View):
         await interaction.response.edit_message(embeds=self.build_embeds(self.current_page), view=self)
 
 
-   # 🔄 Back to Filters Button
     @discord.ui.button(label="🔄 Back to Filters", style=discord.ButtonStyle.danger)
     async def back_to_filters(self, interaction: discord.Interaction, button: discord.ui.Button):
-        await interaction.response.defer()
-        new_filter_view = WikiSelectView()
-
-        # Decide which command context this came from
-        if self.source_command == "wiki":
-            prompt = "Please select the **Slot**, and (optionally) **Stat**, then press ✅ **Search**:"
-        elif self.source_command == "db":
-            prompt = "Search the **Database** using the same filters below:"
-        else:
-            prompt = "Please select your filters again:"
-
-        # Replace the same message with a fresh filter view
-        await interaction.edit_original_response(
+        # Respond by replacing THIS message with the filter view
+        prompt = (
+            "Please select the **Slot**, and (optionally) **Stat**, then press ✅ **Search**:"
+            if self.source_command == "wiki" else
+            "Search the **Database** using the filters below:"
+        )
+        new_filter_view = WikiSelectView(
+            source_command=self.source_command,
+            on_submit=self.on_submit  # pass the same runner back in
+        )
+        await interaction.response.edit_message(
             content=prompt,
             embeds=[],
             view=new_filter_view
@@ -1617,13 +1535,16 @@ async def fetch_wiki_items(slot_name: str):
 
 
 class WikiSelectView(discord.ui.View):
-    def __init__(self, source_command: str= "wiki"):
+    def __init__(
+        self,
+        source_command: str = "wiki",
+        on_submit: Optional[Callable[[discord.Interaction, str, Optional[str]], Awaitable[None]]] = None
+    ):
         super().__init__(timeout=None)
-        self.slot = None
-        self.stat = None
-        self.classes = None
-        self.value = None
-        self.search_interaction = None
+        self.source_command = source_command  # 'wiki' or 'db'
+        self.on_submit = on_submit            # callback to run the search
+        self.slot: Optional[str] = None
+        self.stat: Optional[str] = None
 
         # Slot dropdown
         self.slot_select = discord.ui.Select(
@@ -1724,11 +1645,11 @@ class WikiSelectView(discord.ui.View):
             await interaction.response.send_message("❌ Please select a slot first!", ephemeral=True)
             return
     
-        # Defer this component interaction so we can edit this same message later
-        await interaction.response.defer()
-        self.search_interaction = interaction  # pass this into your runner
-        self.value = True
-        self.stop()
+        if self.on_submit is None:
+            await interaction.response.send_message("⚠️ No handler attached to this filter.", ephemeral=True)
+            return
+
+        await self.on_submit(interaction, self.slot, self.stat)
 
 
 
