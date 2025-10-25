@@ -1734,7 +1734,7 @@ class WikiSelectView(discord.ui.View):
         self.classes = self.classes_select.values[0] if self.classes_select.values else None
         await interaction.response.defer()
     
-    async def confirm_selection(self, interaction: discord.Interaction):
+   
     async def confirm_selection(self, interaction: discord.Interaction):
         if not self.optional_slot and not self.slot:
             await interaction.response.send_message("❌ Please select a slot first!", ephemeral=True)
