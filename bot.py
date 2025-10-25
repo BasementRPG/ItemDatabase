@@ -1003,7 +1003,7 @@ async def run_item_db(interaction: discord.Interaction, slot: str, stat: Optiona
             return
 
         # Build the results view and replace this same message
-        results_view = WikiView(results, source_command="db", on_submit=run_item_db, optional_slot=True)
+        results_view = WikiView(results, source_command="db", on_submit=run_item_db)
         await interaction.edit_original_response(
             content=None,
             embeds=results_view.build_embeds(0),
@@ -1285,9 +1285,11 @@ class WikiView(discord.ui.View):
             if self.source_command == "wiki" else
             "Search the **Database** using the filters below:"
         )
+        optional_slot = True if self.source_command == "db" else False
         new_filter_view = WikiSelectView(
             source_command=self.source_command,
-            on_submit=self.on_submit  # pass the same runner back in
+            on_submit=run_item_db if self.source_command == "db" else run_wiki_items,
+            optional_slot=optional_slot
         )
         await interaction.response.edit_message(
             content=prompt,
