@@ -2079,7 +2079,7 @@ async def run_wiki_items(interaction: discord.Interaction, slot: str, stat: Opti
 
         # --- Step 6: Send combined results to WikiView ---
         view = WikiView(combined_items)
-        await interaction.followup.send(content=None, embeds=view.build_embeds(0), view=view)
+        await interaction.edit_original_response(content=None, embeds=view.build_embeds(0), view=view)
 
 
     except Exception as e:
