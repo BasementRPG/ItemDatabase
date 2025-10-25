@@ -907,7 +907,7 @@ async def view_item_db(interaction: discord.Interaction):
     )
 
 
-async def run_item_db(interaction: discord.Interaction, slot: str, stat: Optional[str], classes: Optional[str]=None):
+async def run_item_db(interaction: discord.Interaction, slot: str, stat: Optional[str], classes: Optional[str]):
     # First response to this interaction: replace filter UI with “Searching…”
     await interaction.response.edit_message(
         content=f"⏳ Searching the database for `{slot}` items{f' with {stat}' if stat else ''}{f' for {classes}' if classes else ''}...",
