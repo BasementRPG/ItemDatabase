@@ -905,15 +905,17 @@ async def run_item_db(interaction: discord.Interaction, slot: str, stat: Optiona
     )
 
     try:
+        
+        query = """
+            SELECT item_name, item_image, npc_image, npc_name, zone_name,
+                   item_slot, item_stats, description, quest_name, crafted_name,
+                   npc_level, source
+            FROM item_database
+            WHERE ($1::text IS NULL OR LOWER(item_slot) = LOWER($1))
+            ORDER BY item_name ASC;
+        """
         async with db_pool.acquire() as conn:
-            db_rows = await conn.fetch("""
-                SELECT item_name, item_image, npc_image, npc_name, zone_name,
-                       item_slot, item_stats, description, quest_name, crafted_name,
-                       npc_level, source
-                FROM item_database
-                WHERE LOWER($1::text IS NULL OR LOWER(item_slot) = LOWER($1)
-                ORDER BY item_name ASC;
-            """, slot)
+            db_rows = await conn.fetch(query, slot)
 
         
          # --- Apply Filters ---
