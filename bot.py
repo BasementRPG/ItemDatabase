@@ -1810,6 +1810,11 @@ async def view_wiki_items(interaction: discord.Interaction):
 
 
 async def run_wiki_items(interaction: discord.Interaction, slot: str, stat: Optional[str], classes: Optional[str]):
+    try:
+        await interaction.response.defer(thinking=True)
+    except discord.InteractionResponded:
+        pass 
+    
     followup = interaction.followup   
     guild_id = interaction.guild.id
 
@@ -2055,7 +2060,7 @@ async def run_wiki_items(interaction: discord.Interaction, slot: str, stat: Opti
 
         # --- Step 6: Send combined results to WikiView ---
         view = WikiView(combined_items)
-        await interaction.edit_original_response(content=None, embeds=view.build_embeds(0), view=view)
+        await interaction.followup.send(content=None, embeds=view.build_embeds(0), view=view)
 
 
     except Exception as e:
