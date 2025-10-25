@@ -1313,22 +1313,25 @@ class WikiView(discord.ui.View):
             prompt = "Please select the **Slot**, and (optionally) **Stat**, then press ✅ **Search**:"
             ephemeral = False
             optional_slot = False
+            source_command = "wiki"
             
         elif self.source_command == "db":
             prompt = "Search the **Database** using the same filters below:"
             ephemeral = False
             optional_slot=True
+            source_command = "db"
         
         elif self.source_command == "dbp":
             prompt = "Search the **Database (Private)** using the same filters below:"
             ephemeral = True
             optional_slot=True
+            source_command = "dbp"
         
         else:
             prompt = "Please select your filters again:"
             ephemeral = False
 
-        new_filter_view = WikiSelectView(source_command=self.source_command, optional_slot=optional_slot )
+        new_filter_view = WikiSelectView(source_command=source_command, optional_slot=optional_slot )
         
         try:
             # Replace message with a new filter menu
