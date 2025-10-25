@@ -2198,13 +2198,6 @@ async def run_update_db(interaction: discord.Interaction):
                 if npc_level and npc_level != db_item["npc_level"]:
                     changes["npc_level"] = npc_level
 
-                new_npc_image = ""
-                file_span = s2.select_one('span[typeof="mw:File"] img')
-                if file_span:
-                    src = file_span.get("src", "")
-                    new_npc_image = db_item[npc_image] if src.startswith("//") else npc_image
-                
-                # Only update npc_image if the DB one is not from a Discord attachment
                 current_npc_image = db_item.get("npc_image", "")
                 if (
                     new_npc_image
