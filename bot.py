@@ -1748,10 +1748,10 @@ class WikiSelectView(discord.ui.View):
                     await run_wiki_items(interaction, self.slot, self.stat)
                     return
                 elif source == "db":
-                    await run_item_db(interaction, self.slot, self.stat, ephemeral=False)
+                    await run_item_db(interaction, self.slot, self.stat)
                     return
                 elif source == "dbp":
-                    await run_item_db(interaction, self.slot, self.stat, ephemeral=True)
+                    await run_item_db(interaction, self.slot, self.stat)
                     return
     
             # still no handler? give warning
