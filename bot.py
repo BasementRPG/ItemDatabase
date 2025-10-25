@@ -1306,12 +1306,13 @@ class WikiView(discord.ui.View):
         await interaction.response.defer()
 
         # Recreate a new filter view
-        new_filter_view = WikiSelectView(source_command=self.source_command, on_submit=self.on_submit )
+        
 
         # Detect which command was the source
         if self.source_command == "wiki":
             prompt = "Please select the **Slot**, and (optionally) **Stat**, then press ✅ **Search**:"
             ephemeral = False
+            optional_slot = False
             
         elif self.source_command == "db":
             prompt = "Search the **Database** using the same filters below:"
@@ -1327,6 +1328,8 @@ class WikiView(discord.ui.View):
             prompt = "Please select your filters again:"
             ephemeral = False
 
+        new_filter_view = WikiSelectView(source_command=self.source_command, optional_slot=optional_slot )
+        
         try:
             # Replace message with a new filter menu
             await interaction.edit_original_response(
@@ -1623,7 +1626,7 @@ class WikiSelectView(discord.ui.View):
         self,
         source_command: str = "wiki",
         on_submit: Optional[Callable[[discord.Interaction, Optional[str], Optional[str], Optional[str]], Awaitable[None]]] = None,
-        optional_slot: bool = False
+        optional_slot = False
     ):
         super().__init__(timeout=None)
         self.source_command = source_command  # 'wiki' or 'db'
@@ -1748,7 +1751,7 @@ async def view_wiki_items(interaction: discord.Interaction):
   
     
     # --- Step 6: Send combined results to WikiView ---
-    results_view = WikiView(combined_items, source_command="wiki")
+    results_view = WikiView(combined_items, source_command="wiki", optional_slot=False)
     await interaction.edit_original_response(
         content=None,
         embeds=results_view.build_embeds(0),
