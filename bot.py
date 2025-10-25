@@ -1786,7 +1786,7 @@ async def view_wiki_items(interaction: discord.Interaction):
     classes = view.classes
 
     # Step 2 — Tell user we’re searching
-    await view.search_interaction.edit_original_response(
+    await view.search_interaction.respond.edit_message(
         content=f"⏳ Searching Wiki and Database for `{slot}` items{f' with {stat}' if stat else ''}...",
         view=None
     )
