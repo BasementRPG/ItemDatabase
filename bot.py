@@ -888,7 +888,7 @@ async def show_results(interaction, items, db_pool=None, guild_id=None):
 @bot.tree.command(name="view_item_dbp", description="View items stored in the database with optional filters.")
 async def view_item_db(interaction: discord.Interaction):
     # Show filters and return; the runner will take over on ✅
-    view = WikiSelectView(source_command="db", on_submit=run_item_db, optional_slot=True)
+    view = WikiSelectView(source_command="dbp", on_submit=run_item_db, optional_slot=True)
     await interaction.response.send_message(
         "Search the **Database** using the filters below:",
         view=view,  ephemeral=True
