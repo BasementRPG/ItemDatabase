@@ -1767,12 +1767,39 @@ class WikiSelectView(discord.ui.View):
 
 @bot.tree.command(name="view_wiki_items", description="View items from the Monsters & Memories Wiki.")
 async def view_wiki_items(interaction: discord.Interaction):
+    # Step 1 — Show filter UI
+    view = WikiSelectView()
+    await interaction.response.send_message(
+        "Please select a **Slot**, optional **Stat** or **Class**, then press ✅ **Search**:",
+        view=view
+    )
 
-    
-  
-    
-    # --- Step 6: Send combined results to WikiView ---
-    results_view = WikiView(source_command="wiki")
+    # Wait for user input
+    await view.wait()
+
+    if not view.value:
+        await interaction.followup.send("❌ Selection timed out or cancelled.", ephemeral=True)
+        return
+
+    slot = view.slot
+    stat = view.stat
+    classes = view.classes
+
+    # Step 2 — Tell user we’re searching
+    await view.search_interaction.edit_original_response(
+        content=f"⏳ Searching Wiki and Database for `{slot}` items{f' with {stat}' if stat else ''}...",
+        view=None
+    )
+
+    # Step 3 — Fetch + filter results
+    combined_items = await run_wiki_items(view.search_interaction, slot, stat, classes)
+
+    if not combined_items:
+        await interaction.followup.send("❌ No items found matching that search.", ephemeral=True)
+        return
+
+    # Step 4 — Display results through WikiView
+    results_view = WikiView(combined_items, source_command="wiki")
     await interaction.edit_original_response(
         content=None,
         embeds=results_view.build_embeds(0),
@@ -1781,27 +1808,9 @@ async def view_wiki_items(interaction: discord.Interaction):
 
 
 
-    await view.wait()
-
-    if not view.value:
-        await interaction.followup.send("❌ Selection timed out or cancelled.", ephemeral=True)
-        return
-    classes = view.classes
-    slot = view.slot
-    stat = view.stat
-
-    # ✅ no send_message or followup here!
-    # just call the runner, which does its own defer safely
-    await run_wiki_items(view.search_interaction, slot, stat, classes)
-
-
 
 async def run_wiki_items(interaction: discord.Interaction, slot: str, stat: Optional[str], classes: Optional[str]):
-    followup = interaction.followup
-
-
-
-    
+    followup = interaction.followup   
     guild_id = interaction.guild.id
 
     try:
