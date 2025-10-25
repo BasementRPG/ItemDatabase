@@ -1572,7 +1572,7 @@ class WikiSelectView(discord.ui.View):
     def __init__(
         self,
         source_command: str = "wiki",
-        on_submit: Optional[Callable[[discord.Interaction, str, Optional[str]], Awaitable[None]]] = None
+        on_submit: Optional[Callable[[discord.Interaction, Optional[str], Optional[str], Optional[str]], Awaitable[None]]] = None, optional_slot: bool = False
     ):
         super().__init__(timeout=None)
         self.source_command = source_command  # 'wiki' or 'db'
