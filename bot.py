@@ -915,7 +915,20 @@ async def run_item_db(interaction: discord.Interaction, slot: str, stat: Optiona
                 ORDER BY item_name ASC
             """, slot)
 
-        # Optional stat filter
+        
+        
+        
+        
+        
+        
+         # --- Apply Filters ---
+        def text_cleanup(text: str) -> str:
+            return (text or "").replace("\n", " ").replace("\r", " ")
+
+        # Prepare regex patterns
+        stat_patterns = []
+        class_patterns = []
+
         if stat:
             stat_filter = str(stat).strip().lower()
             stat_keywords = {
@@ -926,14 +939,47 @@ async def run_item_db(interaction: discord.Interaction, slot: str, stat: Optiona
                 "sta": [r"\bsta\b", r"\bstamina\b"],
                 "wis": [r"\bwis\b", r"\bwisdom\b"],
             }
-            patterns = [re.compile(p, re.IGNORECASE) for p in stat_keywords.get(stat_filter, [rf"\b{stat_filter}\b"])]
+            stat_patterns = [re.compile(pat, re.IGNORECASE) for pat in stat_keywords.get(stat_filter, [rf"\b{stat_filter}\b"])]
 
-            def matches(text: str) -> bool:
-                text = (text or "").replace("\n", " ").replace("\r", " ")
-                return any(p.search(text) for p in patterns)
+        if classes:
+            classes_filter = str(classes).strip().lower()
+            class_keywords = {
+                "arc": [r"\barc\b"],
+                "brd": [r"\bbrd\b"],
+                "bst": [r"\bbst\b"],
+                "clr": [r"\bclr\b"],
+                "dru": [r"\bdru\b"],
+                "ele": [r"\bele\b"],
+                "enc": [r"\benc\b"],
+                "ftr": [r"\bftr\b"],
+                "inq": [r"\binq\b"],
+                "mnk": [r"\bmnk\b"],
+                "nec": [r"\bnec\b"],
+                "pal": [r"\bpal\b"],
+                "rng": [r"\brng\b"],
+                "rog": [r"\brog\b"],
+                "shd": [r"\bshd\b"],
+                "shm": [r"\bshm\b"],
+                "spd": [r"\bspd\b"],
+                "wiz": [r"\bwiz\b"],
+            }
+            # Also include "ALL" automatically
+            class_patterns = [re.compile(pat, re.IGNORECASE) for pat in (class_keywords.get(classes_filter, [rf"\b{classes_filter}\b"]) + [r"\bclass: all\b"])]
 
-            db_rows = [r for r in db_rows if matches(r.get("item_stats") or "")]
-            print(f"🔍 Filtered {len(db_rows)} items for stat {stat}")
+        # Function to check a text block against active filters
+        def matches_filters(text: str) -> bool:
+            text = text_cleanup(text)
+            stat_match = any(p.search(text) for p in stat_patterns) if stat_patterns else True
+            class_match = any(p.search(text) for p in class_patterns) if class_patterns else True
+            # Both must match if both filters active
+            return stat_match and class_match
+
+        # Apply filters
+        wiki_items = [i for i in wiki_items if matches_filters(i.get("item_stats" or ""))]
+        db_rows = [r for r in db_rows if matches_filters(r.get("item_stats") or "")]
+
+        print(f"🔍 Final filter results — Stat: {stat or 'None'}, Class: {classes or 'None'} | Wiki: {len(wiki_items)}, DB: {len(db_rows)}")
+        
 
         results = [
             {
