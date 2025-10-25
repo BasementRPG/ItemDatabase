@@ -896,7 +896,7 @@ async def view_item_db(interaction: discord.Interaction):
     )
 
 
-async def run_item_db(interaction: discord.Interaction, slot: str, stat: Optional[str]):
+async def run_item_db(interaction: discord.Interaction, slot: str, stat: Optional[str], classes: Optional[str]):
     # First response to this interaction: replace filter UI with “Searching…”
     await interaction.response.edit_message(
         content=f"⏳ Searching the database for `{slot}` items{f' with {stat}' if stat else ''}...",
@@ -915,11 +915,6 @@ async def run_item_db(interaction: discord.Interaction, slot: str, stat: Optiona
                 ORDER BY item_name ASC
             """, slot)
 
-        
-        
-        
-        
-        
         
          # --- Apply Filters ---
         def text_cleanup(text: str) -> str:
