@@ -1003,7 +1003,7 @@ async def run_item_db(interaction: discord.Interaction, slot: str, stat: Optiona
             return
 
         # Build the results view and replace this same message
-        results_view = WikiView(results, source_command="db", on_submit=run_item_db)
+        results_view = WikiView(results, source_command="db", on_submit=run_item_db, optional_slot=True)
         await interaction.edit_original_response(
             content=None,
             embeds=results_view.build_embeds(0),
