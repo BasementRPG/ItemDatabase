@@ -2094,7 +2094,7 @@ async def run_update_db(interaction: discord.Interaction):
 
                 
                 # --- Fetch NPC details ---
-                npc_image = ""
+                new_npc_image = ""
                 npc_level = ""
                 
                 # Only proceed if npc_name exists
