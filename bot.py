@@ -1180,7 +1180,7 @@ async def edit_item_image(
 # -------------------- WikiView Class --------------------
 
 class WikiView(discord.ui.View):
-    def __init__(self, items, source_command: str = "wiki",
+    def __init__(self, items, source_command = "wiki",
                  on_submit: Optional[Callable[[discord.Interaction, str, Optional[str]], Awaitable[None]]] = None):
         super().__init__(timeout=None)
         self.items = items
@@ -1331,7 +1331,7 @@ class WikiView(discord.ui.View):
             prompt = "Please select your filters again:"
             ephemeral = False
 
-        new_filter_view = WikiSelectView(source_command=source_command, optional_slot=optional_slot )
+        new_filter_view = WikiSelectView(source_command=source_command, optional_slot=optional_slot, ephemeral=ephemeral )
         
         try:
             # Replace message with a new filter menu
@@ -1627,9 +1627,9 @@ async def fetch_wiki_items(slot_name: str):
 class WikiSelectView(discord.ui.View):
     def __init__(
         self,
-        source_command: str = "wiki",
+        source_command: bool = "wiki,
         on_submit: Optional[Callable[[discord.Interaction, Optional[str], Optional[str], Optional[str]], Awaitable[None]]] = None,
-        optional_slot = False
+        optional_slot: bool = False, ephemeral: bool = False
     ):
         super().__init__(timeout=None)
         self.source_command = source_command  # 'wiki' or 'db'
@@ -1638,6 +1638,7 @@ class WikiSelectView(discord.ui.View):
         self.slot: Optional[str] = None
         self.stat: Optional[str] = None
         self.classes: Optional[str] = None
+        self.ephermeral = ephemeral
 
         # Slot dropdown
         self.slot_select = discord.ui.Select(
@@ -1734,15 +1735,32 @@ class WikiSelectView(discord.ui.View):
         await interaction.response.defer()
     
     async def confirm_selection(self, interaction: discord.Interaction):
+    async def confirm_selection(self, interaction: discord.Interaction):
         if not self.optional_slot and not self.slot:
             await interaction.response.send_message("❌ Please select a slot first!", ephemeral=True)
             return
     
+        # If the handler isn’t attached, fall back to auto-detect based on command
         if self.on_submit is None:
+            if hasattr(self, "source_command"):
+                source = self.source_command
+                if source == "wiki":
+                    await run_wiki_items(interaction, self.slot, self.stat)
+                    return
+                elif source == "db":
+                    await run_item_db(interaction, self.slot, self.stat, ephemeral=False)
+                    return
+                elif source == "dbp":
+                    await run_item_db(interaction, self.slot, self.stat, ephemeral=True)
+                    return
+    
+            # still no handler? give warning
             await interaction.response.send_message("⚠️ No handler attached to this filter.", ephemeral=True)
             return
+    
+        # Otherwise, use the explicitly provided handler
+        await self.on_submit(interaction, self.slot, self.stat)
 
-        await self.on_submit(interaction, self.slot, self.stat, self.classes)
 
 
 
