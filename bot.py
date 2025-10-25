@@ -1772,7 +1772,7 @@ async def view_wiki_items(interaction: discord.Interaction):
   
     
     # --- Step 6: Send combined results to WikiView ---
-    results_view = WikiView(combined_items, source_command="wiki", optional_slot=False)
+    results_view = WikiView(source_command="wiki", optional_slot=False)
     await interaction.edit_original_response(
         content=None,
         embeds=results_view.build_embeds(0),
