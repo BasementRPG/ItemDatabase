@@ -2003,7 +2003,7 @@ async def run_wiki_items(interaction: discord.Interaction, slot: str, stat: Opti
         # ✅ Re-fetch all slot items from DB so the new image URLs are included
         async with db_pool.acquire() as conn:
             refreshed_rows = await conn.fetch("""
-                SELECT item_name, item_image, npc_image, npc_name, zone_name,
+                SELECT item_name, item_image, npc_image, npc_name, zone_name, zone_area,
                        item_slot, item_stats, description, quest_name, crafted_name,
                        npc_level, source
                 FROM item_database
@@ -2083,7 +2083,7 @@ async def run_update_db(interaction: discord.Interaction):
     try:
         async with db_pool.acquire() as conn:
             db_items = await conn.fetch("""
-                SELECT item_name, zone_name, npc_name, item_stats, crafted_name, quest_name, npc_image, npc_level
+                SELECT item_name, zone_name, zone_area, npc_name, item_stats, crafted_name, quest_name, npc_image, npc_level
                 FROM item_database
             """)
 
