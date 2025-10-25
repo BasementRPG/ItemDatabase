@@ -1306,7 +1306,7 @@ class WikiView(discord.ui.View):
         await interaction.response.defer()
 
         # Recreate a new filter view
-        new_filter_view = WikiSelectView(source_command=self.source_command)
+        new_filter_view = WikiSelectView(source_command=self.source_command, on_submit=self.on_submit )
 
         # Detect which command was the source
         if self.source_command == "wiki":
