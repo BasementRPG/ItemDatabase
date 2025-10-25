@@ -2157,7 +2157,10 @@ async def run_update_db(interaction: discord.Interaction):
                     lines = [line.strip() for line in item_stats_div.stripped_strings]
                     item_stats = "\n".join(lines)
 
-
+                # --- 2️⃣ If zone_name contains a number, swap it into npc_name and clear zone_name
+                if any(char.isdigit() for char in zone_name):
+                    npc_name = zone_name
+                    zone_name = ""
                 
                 # compare + update
                 changes = {}
