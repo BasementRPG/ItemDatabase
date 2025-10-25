@@ -1348,7 +1348,25 @@ class WikiView(discord.ui.View):
                 ephemeral=ephemeral
             )
 
+    def _add_item_dropdown(self):
+        """Add dropdown menu for sending individual items"""
+        current_page_items = self.get_page_items()
 
+        options = [
+            discord.SelectOption(
+                label=f"{(i.get('item_name') or 'Unknown Item')[:80]}",
+                description=f"{i.get('npc_name') or 'Unknown NPC'} • {i.get('zone_name') or 'Unknown Zone'}",
+                value=str(index)
+            )
+            for index, i in enumerate(current_page_items)
+        ]
+
+        dropdown = discord.ui.Select(
+            placeholder="📜 Send an item privately...",
+            options=options,
+            custom_id="send_item_select"
+        )
+        self.add_item(dropdown)
 
 
         
@@ -1786,7 +1804,7 @@ async def view_wiki_items(interaction: discord.Interaction):
     classes = view.classes
 
     # Step 2 — Tell user we’re searching
-    await view.search_interaction.respond.edit_message(
+    await interaction.response.edit_message(
         content=f"⏳ Searching Wiki and Database for `{slot}` items{f' with {stat}' if stat else ''}...",
         view=None
     )
