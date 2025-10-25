@@ -1788,7 +1788,7 @@ async def view_wiki_items(interaction: discord.Interaction):
     # Step 1 — Show filter UI
     view = WikiSelectView()
     view.origin_interaction = interaction
-    await interaction.edit_original_response(
+    await interaction.response.send_message(
         "Please select a **Slot**, optional **Stat** or **Class**, then press ✅ **Search**:",
         view=view
     )
@@ -1805,7 +1805,7 @@ async def view_wiki_items(interaction: discord.Interaction):
     classes = view.classes
 
     # Step 2 — Tell user we’re searching
-    await interaction.edit_original_response(
+    await interaction.response.edit_message(
         content=f"⏳ Searching Wiki and Database for `{slot}` items{f' with {stat}' if stat else ''}...",
         view=None
     )
