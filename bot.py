@@ -1787,6 +1787,7 @@ class WikiSelectView(discord.ui.View):
 async def view_wiki_items(interaction: discord.Interaction):
     # Step 1 — Show filter UI
     view = WikiSelectView()
+    view.origin_interaction = interaction
     await interaction.response.send_message(
         "Please select a **Slot**, optional **Stat** or **Class**, then press ✅ **Search**:",
         view=view
