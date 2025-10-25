@@ -978,7 +978,7 @@ async def view_item_dbp(interaction: discord.Interaction):
             return
 
         # --- Step 4: Show results (still private) ---
-        results_view = WikiView(results, source_command="db")
+        results_view = WikiView(results, source_command="dbp")
         await interaction.edit_original_response(
             content=None,
             embeds=results_view.build_embeds(0),
@@ -1347,7 +1347,7 @@ class WikiView(discord.ui.View):
             )
 
             if item["zone_name"] != "":
-                embed.add_field(name="🗺️ Zone ", value=f"[{item['zone_name']}]({zone_link})" f'{ \n {item['zone_area']}'}, inline=True)
+                embed.add_field(name="🗺️ Zone ", value=f"[{item['zone_name']}]({zone_link})", inline=True)
             if npc_name != "":
                 embed.add_field(name="👹 Npc", value=f"{npc_name}", inline=True)
             
@@ -1387,25 +1387,44 @@ class WikiView(discord.ui.View):
         await interaction.response.edit_message(embeds=self.build_embeds(self.current_page), view=self)
 
 
+ 
+    # 🔄 Back to Filters Button
     @discord.ui.button(label="🔄 Back to Filters", style=discord.ButtonStyle.danger)
     async def back_to_filters(self, interaction: discord.Interaction, button: discord.ui.Button):
-        # Respond by replacing THIS message with the filter view
-        prompt = (
-            "Please select the **Slot**, and (optionally) **Stat**, then press ✅ **Search**:"
-            if self.source_command == "wiki" else
-            "Search the **Database** using the filters below:"
-        )
-        optional_slot = True if self.source_command == "db" else False
-        new_filter_view = WikiSelectView(
-            source_command=self.source_command,
-            on_submit=run_item_db if self.source_command == "db" else run_wiki_items,
-            optional_slot=optional_slot
-        )
-        await interaction.response.edit_message(
-            content=prompt,
-            embeds=[],
-            view=new_filter_view
-        )
+        await interaction.response.defer()
+
+        # Recreate a new filter view
+        new_filter_view = WikiSelectView()
+
+        # Detect which command was the source
+        if self.source_command == "wiki":
+            prompt = "Please select the **Slot**, and (optionally) **Stat**, then press ✅ **Search**:"
+            ephemeral = False
+        elif self.source_command == "db":
+            prompt = "Search the **Database** using the same filters below:"
+            ephemeral = False
+        elif self.source_command == "dbp":
+            prompt = "Search the **Database (Private)** using the same filters below:"
+            ephemeral = True
+        else:
+            prompt = "Please select your filters again:"
+            ephemeral = False
+
+        try:
+            # Replace message with a new filter menu
+            await interaction.edit_original_response(
+                content=prompt,
+                embeds=[],
+                view=new_filter_view
+            )
+        except discord.errors.InteractionResponded:
+            # Fallback in case original interaction expired
+            await interaction.followup.send(
+                content=prompt,
+                view=new_filter_view,
+                ephemeral=ephemeral
+            )
+
 
 
 
