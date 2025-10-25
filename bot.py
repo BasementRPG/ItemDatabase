@@ -891,7 +891,7 @@ async def view_item_db(interaction: discord.Interaction):
     view = WikiSelectView(source_command="db", on_submit=run_item_db, optional_slot=True)
     await interaction.response.send_message(
         "Search the **Database** using the filters below:",
-        view=view,  ephemeral=True"
+        view=view,  ephemeral=True
     )
 
 
