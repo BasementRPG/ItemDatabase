@@ -1,0 +1,2225 @@
+import os
+import math
+import discord
+import re
+import io
+import aiohttp
+import asyncio
+from textwrap import wrap
+from PIL import Image, ImageDraw, ImageFont
+from discord import app_commands, Interaction
+from discord.ext import commands
+from discord import app_commands, Attachment
+from discord.ui import Modal, TextInput
+from datetime import datetime
+import asyncpg 
+from discord.ui import View, Button
+from discord.ui import View, Select
+from discord import SelectOption, Interaction
+from bs4 import BeautifulSoup
+from bs4 import NavigableString
+from playwright.async_api import async_playwright
+from typing import Optional, Callable, Awaitable
+
+
+
+active_views = {}
+
+print("discord.py version:", discord.__version__)
+
+TOKEN = os.getenv("DISCORD_TOKEN")
+DATABASE_URL = os.getenv("DATABASE_URL")
+UPLOAD_GUILD_ID = 1424737490064904365
+UPLOAD_CHANNEL_ID = 1429411344465002498
+
+
+RACE_OPTIONS = ["DDF","DEF","DGN","DWF","ELF","GNM","GOB","HFL","HIE","HUM","ORG","TRL"]
+CLASS_OPTIONS = ["ARC", "BRD", "BST", "CLR", "DRU", "ELE", "ENC", "FTR", "INQ", "MNK", "NEC", "PAL", "RNG", "ROG", "SHD", "SHM", "SPB", "WIZ"]
+ITEM_SLOTS = ["Ammo","Back","Chest","Ear","Face","Feet","Finger","Hands","Head","Legs","Neck","Primary","Range","Secondary","Shirt","Shoulders","Waist","Wrist"]
+
+
+intents = discord.Intents.default()
+intents.message_content = True
+intents.guilds = True
+intents.messages = True
+bot = commands.Bot(command_prefix="!", intents=intents)
+db_pool: asyncpg.Pool = None
+
+# ---------- DB Helpers ----------
+
+
+async def ensure_upload_channel(guild: discord.Guild):
+    for ch in guild.text_channels:
+        if ch.name == "guild-bank-upload-log":
+            return ch
+    # create hidden channel
+    overwrites = {
+        guild.default_role: discord.PermissionOverwrite(view_channel=False),
+        guild.me: discord.PermissionOverwrite(view_channel=True, send_messages=True)
+    }
+    return await guild.create_text_channel("guild-bank-upload-log", overwrites=overwrites)
+
+
+
+async def ensure_upload_channel1(guild: discord.Guild):
+    """Ensure the hidden item database upload log exists or create it."""
+    for ch in guild.text_channels:
+        if ch.name == "item-database-upload-log":
+            return ch
+
+    overwrites = {
+        guild.default_role: discord.PermissionOverwrite(view_channel=False),
+        guild.me: discord.PermissionOverwrite(view_channel=True, send_messages=True)
+    }
+    return await guild.create_text_channel("item-database-upload-log", overwrites=overwrites)
+
+
+
+def format_item_name(name: str) -> str:
+    """Capitalize each word except small connectors like 'of' and 'and'."""
+    if not name:
+        return name
+
+    lowercase_words = {"of", "and"}
+
+    words = name.split()
+    formatted = []
+
+    for i, word in enumerate(words):
+        lw = word.lower()
+        if lw in lowercase_words and i != 0:  # keep lowercase if not first word
+            formatted.append(lw)
+        else:
+            formatted.append(word.capitalize())
+
+    return " ".join(formatted)
+
+
+
+class SlotSelect(discord.ui.Select):
+    def __init__(self, parent_view):
+        self.parent_view = parent_view
+        
+        print(f"DEBUG: SlotSelect init - type: {self.parent_view.type}")
+        
+       # Always show all options
+        options = [discord.SelectOption(label=i) for i in ITEM_SLOTS]
+        
+        # ✅ Mark selected slots as default
+        for opt in options:
+            if hasattr(self.parent_view, "slot") and opt.label in (self.parent_view.slot or []):
+                opt.default = True
+
+        # ✅ Multi-select enabled here
+        super().__init__(
+            placeholder="Select Slot(s)",
+            options=options,
+            min_values=1,
+            max_values=len(options)
+        )
+
+    async def callback(self, interaction: discord.Interaction):
+        try:
+            print(f"DEBUG: SlotSelect callback - values: {self.values}")
+            # ✅ Store as a list of slots instead of single string
+            self.parent_view.slot = self.values  
+            
+            # Keep selections highlighted
+            for opt in self.options:
+                opt.default = (opt.value in self.values)
+            
+            await interaction.response.edit_message(view=self.parent_view)
+        except Exception as e:
+            print(f"ERROR in SlotSelect callback: {e}")
+            import traceback
+            traceback.print_exc()
+            try:
+                await interaction.response.send_message(f"Error: {str(e)}", ephemeral=True)
+            except:
+                pass
+
+
+class ClassesSelect(discord.ui.Select):
+    def __init__(self, parent_view):
+        self.parent_view = parent_view
+    
+        # Always show all options
+        options = [discord.SelectOption(label="All")] + [discord.SelectOption(label=c) for c in CLASS_OPTIONS]
+    
+        for opt in options:
+            if self.parent_view.usable_classes and opt.label in self.parent_view.usable_classes:
+                opt.default = True
+        
+        super().__init__(
+            placeholder="Select usable classes (multi)",
+            options=options,
+            min_values=0,
+            max_values=len(options)
+        )
+    
+    async def callback(self, interaction: discord.Interaction):
+        # If All is selected, ignore other selections
+        if "All" in self.values:
+            self.view.usable_classes = ["All"]
+        else:
+            # If other classes selected while All is in previous selection, remove All
+            self.view.usable_classes = self.values
+    
+        # Update the dropdown so selections are visible
+        for option in self.options:
+            option.default = option.label in self.view.usable_classes
+    
+        await interaction.response.edit_message(view=self.view)
+
+    
+class RaceSelect(discord.ui.Select):
+    def __init__(self, parent_view):
+        self.parent_view = parent_view
+    
+        # Always show all options
+        options = [discord.SelectOption(label="All")] + [discord.SelectOption(label=r) for r in RACE_OPTIONS]
+
+        for opt in options:
+            if self.parent_view.usable_race and opt.label in self.parent_view.usable_race:
+                opt.default = True
+        
+        super().__init__(
+            placeholder="Select usable race (multi)",
+            options=options,
+            min_values=0,
+            max_values=len(options)
+        )
+    
+    async def callback(self, interaction: discord.Interaction):
+        # If All is selected, ignore other selections
+        if "All" in self.values:
+            self.view.usable_race = ["All"]
+        else:
+            # If other race selected while All is in previous selection, remove All
+            self.view.usable_race = self.values
+    
+        # Update the dropdown so selections are visible
+        for option in self.options:
+            option.default = option.label in self.view.usable_race
+    
+        await interaction.response.edit_message(view=self.view)
+
+
+
+class SlotRaceClassSelectView(discord.ui.View):
+    def __init__(self, item_image_url, npc_image_url):
+        super().__init__(timeout=None)
+        self.item_image_url = item_image_url
+        self.npc_image_url = npc_image_url
+        self.slot = None
+        self.usable_classes = []
+        self.usable_race = []
+
+        self.add_item(SlotSelect(self))
+        self.add_item(ClassesSelect(self))
+        self.add_item(RaceSelect(self))
+
+    @discord.ui.button(label="✅ Continue", style=discord.ButtonStyle.success)
+    async def confirm(self, interaction: discord.Interaction, button: discord.ui.Button):
+        # Validate selections
+        if not self.slot:
+            await interaction.response.send_message("❌ Please select at least one slot.", ephemeral=True)
+            return
+
+        # Open item info modal
+        await interaction.response.send_modal(
+            ItemDatabaseModal(
+                db_pool=db_pool,
+                guild_id=interaction.guild.id,
+                added_by=str(interaction.user),
+                item_image_url=self.item_image_url,
+                npc_image_url=self.npc_image_url,
+                item_slot=", ".join(self.slot),
+                item_msg_id=None,
+                npc_msg_id=None
+            )
+        )
+
+
+
+
+
+
+class ItemDatabaseModal(discord.ui.Modal, title="Add Item to Database"):
+    def __init__(self, db_pool, guild_id, added_by, item_image_url=None, npc_image_url=None, item_slot=None, item_msg_id=None, npc_msg_id=None):
+        super().__init__(timeout=None)
+        self.db_pool = db_pool
+        self.guild_id = guild_id
+        self.added_by = added_by
+        self.item_image_url = item_image_url
+        self.npc_image_url = npc_image_url
+        self.item_msg_id = item_msg_id
+        self.npc_msg_id = npc_msg_id
+        self.item_stat = item_stat
+
+        # Fields
+        self.item_name = discord.ui.TextInput(label="Item Name", placeholder="Example: Flowing Black Silk Sash")
+        self.zone_field = discord.ui.TextInput(
+            label="Zone Name - Zone Area",
+            placeholder="Eamples: Shaded Dunes - Ashira Camp",
+        )
+        self.npc_name = discord.ui.TextInput(label="NPC Name", placeholder="Example: Fippy Darkpaw")
+
+        self.npc_level = discord.ui.TextInput(
+            label="NPC Level",
+            placeholder="Example: 15 (Numbers Only)",
+            required=False
+        )
+        
+        self.item_slot_field = discord.ui.TextInput(label="Item Slot (Add another slot spaced with a , )", default=item_slot or "")
+
+
+        self.add_item(self.item_name)
+        self.add_item(self.zone_field)
+        self.add_item(self.npc_name)
+        self.add_item(self.npc_level)
+        self.add_item(self.item_slot_field)
+        
+
+
+    async def on_submit(self, interaction: discord.Interaction):
+         # 🧹 Clean and title-case all text inputs
+        item_name = self.item_name.value.strip().title()
+        raw_zone_value = self.zone_field.value.strip()
+        npc_name = self.npc_name.value.strip().title()
+        item_slot = self.item_slot_field.value.strip().title()
+    
+        # 🗺️ Split "Zone - Area"
+        if "-" in raw_zone_value:
+            zone_name, zone_area = map(str.strip, raw_zone_value.split("-", 1))
+            zone_name = zone_name.title()
+            zone_area = zone_area.title()
+        else:
+            zone_name = raw_zone_value.title()
+            zone_area = None
+    
+        # Parse NPC level
+        npc_level_value = None
+        if self.npc_level.value.strip():
+            try:
+                npc_level_value = int(self.npc_level.value.strip())
+            except ValueError:
+                await interaction.response.send_message("⚠️ NPC Level must be a number.", ephemeral=True)
+                return
+    
+        # Insert into DB
+        try:
+            async with self.db_pool.acquire() as conn:
+                await conn.execute("""
+                    INSERT INTO item_database (
+                        guild_id, item_name, zone_name, zone_area,
+                        npc_name, item_slot, npc_level,
+                        item_image, npc_image, item_msg_id, npc_msg_id, added_by, created_at
+                    )
+                    VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,NOW())
+                """,
+                self.guild_id,
+                item_name,
+                zone_name,
+                zone_area,
+                npc_name,
+                item_slot,
+                npc_level_value,
+                self.item_image_url,
+                self.npc_image_url,
+                self.item_msg_id,
+                self.npc_msg_id,                  
+                self.added_by)
+    
+            # Confirmation
+            await interaction.response.send_message(
+                f"✅ `{item_name}` added successfully!",
+                ephemeral=True
+            )
+    
+        except asyncpg.UniqueViolationError:
+            # ⚠️ Already exists — ask if they want to update
+            class ConfirmUpdateView(discord.ui.View):
+                def __init__(self, db_pool, guild_id, item_name, npc_name, zone_name, zone_area,
+                             item_slot, npc_level_value, item_image_url, npc_image_url, item_msg_id, npc_msg_id, added_by):
+                    super().__init__(timeout=30)
+                    self.db_pool = db_pool
+                    self.guild_id = guild_id
+                    self.item_name = item_name
+                    self.npc_name = npc_name
+                    self.zone_name = zone_name
+                    self.zone_area = zone_area
+                    self.item_slot = item_slot
+                    self.npc_level_value = npc_level_value
+                    self.item_image_url = item_image_url
+                    self.npc_image_url = npc_image_url
+                    self.item_msg_id = item_msg_id
+                    self.npc_msg_id = npc_msg_id
+                    self.added_by = added_by
+    
+                @discord.ui.button(label="✅ Update Existing", style=discord.ButtonStyle.green)
+                async def confirm(self, interaction2: discord.Interaction, button: discord.ui.Button):
+                    async with self.db_pool.acquire() as conn:
+                        await conn.execute("""
+                            UPDATE item_database
+                            SET zone_name=$3, zone_area=$4, item_slot=$5,
+                                npc_level=$6, item_image=$7, npc_image=$8, item_msg_id=$9, npc_msg_id=$10,
+                                added_by=$11, updated_at=NOW()
+                            WHERE guild_id=$1 AND item_name=$2 AND npc_name=$12
+                        """,
+                        self.guild_id,
+                        self.item_name,
+                        self.zone_name,
+                        self.zone_area,
+                        self.item_slot,
+                        self.npc_level_value,
+                        self.item_image_url,
+                        self.npc_image_url,
+                        self.item_msg_id,
+                        self.npc_msg_id,
+                        self.added_by,
+                        self.npc_name)
+                    await interaction2.response.edit_message(content=f"✅ `{self.item_name}` updated successfully!", view=None)
+    
+                @discord.ui.button(label="❌ Cancel", style=discord.ButtonStyle.red)
+                async def cancel(self, interaction2: discord.Interaction, button: discord.ui.Button):
+                    await interaction2.response.edit_message(content="❌ Update cancelled.", view=None)
+    
+            view = ConfirmUpdateView(
+                db_pool=self.db_pool,
+                guild_id=self.guild_id,
+                item_name=self.item_name.value.strip(),
+                npc_name=self.npc_name.value.strip(),
+                zone_name=zone_name,
+                zone_area=zone_area,
+                item_slot=self.item_slot_field.value.lower(),
+                npc_level_value=npc_level_value,
+                item_image_url=self.item_image_url,
+                npc_image_url=self.npc_image_url,
+                item_msg_id=self.item_msg_id,
+                npc_msg_id=self.npc_msg_id,
+                added_by=self.added_by
+            )
+    
+            await interaction.response.send_message(
+                f"⚠️ `{self.item_name.value}` from `{self.npc_name.value}` already exists.\nWould you like to update it?",
+                view=view,
+                ephemeral=True
+            )
+
+        return
+
+        
+
+# ---------------- Slash Command ----------------
+
+@bot.tree.command(name="add_item_db", description="Add a new item to the database.")
+@app_commands.describe(item_image="Upload item image", npc_image="Upload NPC image (optional)")
+async def add_item_db(interaction: discord.Interaction, item_image: discord.Attachment, npc_image: discord.Attachment, item_slot: str):
+    """Uploads images and opens modal for item info entry."""
+    if not item_image:
+        await interaction.response.send_message("❌ item image is required.", ephemeral=True)
+        return
+    view = SlotRaceClassSelectView(item_url, npc_url)
+    added_by = str(interaction.user)
+    guild = interaction.guild
+    upload_channel = await ensure_upload_channel1(guild)
+
+    try:
+        item_msg = await upload_channel.send(
+            file=await item_image.to_file(),
+            content=f"📦 Uploaded item image by {interaction.user.mention}"
+        )
+        npc_msg = await upload_channel.send(
+            file=await npc_image.to_file(),
+            content=f"👹 Uploaded NPC image by {interaction.user.mention}"
+        )
+
+    except discord.Forbidden:
+        await interaction.response.send_message("❌ I don't have permission to upload files here.", ephemeral=True)
+        return
+    except Exception as e:
+        await interaction.response.send_message(f"❌ Upload failed: {e}", ephemeral=True)
+        return
+   await interaction.response.send_message("Select slot, race, and class:", view=view, ephemeral=True)
+
+
+
+class EditDatabaseModal(discord.ui.Modal):
+    def __init__(self, item_row, db_pool):
+        super().__init__(title=f"Edit {item_row['item_name']}")
+        self.item_row = item_row
+        self.db_pool = db_pool
+
+        self.item_name = discord.ui.TextInput(
+            label="Item Name",
+            default=item_row['item_name'],
+            max_length=45
+        )
+        self.zone_field = discord.ui.TextInput(
+            label="Zone Name - Area",
+            default=f"{item_row['zone_name']} - {item_row['zone_area'] or ''}"
+        )
+        self.npc_name = discord.ui.TextInput(
+            label="NPC Name",
+            default=item_row['npc_name'],
+            max_length=45
+        )
+        self.npc_level = discord.ui.TextInput(
+            label="NPC Level",
+            default=str(item_row['npc_level'] or ""),
+            required=False
+        )
+        self.item_slot = discord.ui.TextInput(
+            label="Item Slot",
+            default=item_row['item_slot']
+        )
+
+        self.add_item(self.item_name)
+        self.add_item(self.zone_field)
+        self.add_item(self.npc_name)
+        self.add_item(self.npc_level)
+        self.add_item(self.item_slot)
+
+    async def on_submit(self, interaction: discord.Interaction):
+       
+        # 🧹 Normalize values
+        item_name = self.item_name.value.strip().title()
+        npc_name = self.npc_name.value.strip().title()
+        item_slot = self.item_slot.value.strip().title()
+
+        # Split "Zone - Area"
+        raw_zone_value = self.zone_field.value.strip()
+        if "-" in raw_zone_value:
+            zone_name, zone_area = map(str.strip, raw_zone_value.split("-", 1))
+            zone_name = zone_name.title()
+            zone_area = zone_area.title()
+        else:
+            zone_name = raw_zone_value.title()
+            zone_area = None
+
+        # Validate NPC level
+        npc_level_value = None
+        if self.npc_level.value.strip():
+            try:
+                npc_level_value = int(self.npc_level.value.strip())
+            except ValueError:
+                await interaction.response.send_message("⚠️ NPC Level must be a number.", ephemeral=True)
+                return
+
+        # Check for duplicates BEFORE updating
+        async with self.db_pool.acquire() as conn:
+            duplicate = await conn.fetchrow("""
+                SELECT id FROM item_database
+                WHERE guild_id=$1 AND item_name=$2 AND npc_name=$3 AND id != $4
+            """, interaction.guild.id, self.item_name.value.strip(), self.npc_name.value.strip(), self.item_row['id'])
+
+            if duplicate:
+                await interaction.response.send_message(
+                    f"⚠️ `{self.item_name.value}` from `{self.npc_name.value}` already exists in the database.\n"
+                    f"You cannot rename this entry to a duplicate.",
+                    ephemeral=True
+                )
+                return
+
+            # Proceed with update if no duplicates
+            await conn.execute("""
+                UPDATE item_database
+                SET item_name=$1, zone_name=$2, zone_area=$3,
+                    npc_name=$4, npc_level=$5, item_slot=$6,
+                    updated_at=NOW()
+                WHERE id=$7 AND guild_id=$8
+            """,
+            item_name,
+            zone_name,
+            zone_area,
+            npc_name,
+            npc_level_value,
+            item_slot,
+            self.item_row['id'],
+            interaction.guild.id)
+
+        await interaction.response.send_message(f"✅ Updated **{item_name}** successfully!", ephemeral=True)
+
+
+
+@bot.tree.command(name="edit_item_db", description="Edit an existing item in the database by name.")
+@app_commands.describe(item_name="The name of the item to edit.")
+@app_commands.describe(npc_name="The name of the NPC to edit.")
+async def edit_database_item(interaction: discord.Interaction, item_name: str, npc_name: str):
+    async with db_pool.acquire() as conn:
+        item_row = await conn.fetchrow(
+            "SELECT * FROM item_database WHERE guild_id=$1 AND item_name=$2 AND npc_name=$3",
+            interaction.guild.id, item_name, npc_name
+        )
+
+    if not item_row:
+        await interaction.response.send_message("❌ Item not found.", ephemeral=True)
+        return
+
+    await interaction.response.send_modal(EditDatabaseModal(item_row, db_pool))
+
+
+
+
+class ConfirmRemoveItemView(View):
+    def __init__(self, item_name, npc_name, db_pool):
+        super().__init__(timeout=60)
+        self.item_name = item_name
+        self.npc_name = npc_name
+        self.db_pool = db_pool
+
+    @discord.ui.button(label="✅ Confirm", style=discord.ButtonStyle.danger)
+    async def confirm(self, interaction: discord.Interaction, button: Button):
+        try:
+            async with self.db_pool.acquire() as conn:
+                # Fetch message IDs to delete the images
+                row = await conn.fetchrow("""
+                    SELECT item_msg_id, npc_msg_id 
+                    FROM item_database 
+                    WHERE item_name=$1 AND npc_name=$2 AND guild_id=$3
+                """, self.item_name, self.npc_name, interaction.guild_id)
+
+                if not row:
+                    await interaction.response.edit_message(
+                        content=f"❌ Item **{self.item_name} from {self.npc_name}** not found in the database.",
+                        view=None
+                    )
+                    return
+
+                # Delete the uploaded messages
+                upload_channel = await ensure_upload_channel1(interaction.guild)
+                if upload_channel:
+                    for msg_id in [row["item_msg_id"], row["npc_msg_id"]]:
+                        if msg_id:
+                            try:
+                                msg = await upload_channel.fetch_message(msg_id)
+                                await msg.delete()
+                            except discord.NotFound:
+                                pass
+                            except Exception as e:
+                                print(f"⚠️ Failed to delete message {msg_id}: {e}")
+
+                # Remove entry from database
+                await conn.execute("""
+                    DELETE FROM item_database 
+                    WHERE item_name=$1 AND npc_name=$2 AND guild_id=$3
+                """, self.item_name, self.npc_name, interaction.guild_id)
+
+            await interaction.response.edit_message(
+                content=f"🗑️ **{self.item_name}** was successfully removed from the database.",
+                view=None
+            )
+
+        except Exception as e:
+            import traceback
+            traceback.print_exc()
+            await interaction.response.edit_message(
+                content=f"❌ Error while removing **{self.item_name}**: {e}",
+                view=None
+            )
+
+    @discord.ui.button(label="❌ Cancel", style=discord.ButtonStyle.secondary)
+    async def cancel(self, interaction: discord.Interaction, button: Button):
+        await interaction.response.edit_message(
+            content=f"❎ Removal of **{self.item_name}** canceled.",
+            view=None
+        )
+
+
+
+
+
+@bot.tree.command(name="remove_item_db", description="Remove an item from the item database by name.")
+@app_commands.describe(item_name="Name of the item to remove.")
+@app_commands.describe(npc_name="Name of the NPC to remove.")
+async def remove_itemdb(interaction: discord.Interaction, item_name: str, npc_name: str, ):
+    # Ask for confirmation first
+    view = ConfirmRemoveItemView(item_name=item_name, npc_name=npc_name, db_pool=db_pool)
+    await interaction.response.send_message(
+        f"⚠️ Are you sure you want to remove **{item_name}** from the item database?",
+        view=view,
+        ephemeral=True
+    )
+
+
+
+
+
+
+
+#------------VIEW------------
+
+@bot.tree.command(name="view_item_dbp", description="View items stored in the database with optional filters.")
+async def view_item_db(interaction: discord.Interaction):
+    # Show filters and return; the runner will take over on ✅
+    view = WikiSelectView(source_command="dbp", on_submit=run_item_db, optional_slot=True)
+    await interaction.response.send_message(
+        "Search the **Database** using the filters below:",
+        view=view,  ephemeral=True
+    )
+
+
+
+
+@bot.tree.command(name="view_item_db", description="View items stored in the database with optional filters.")
+async def view_item_db(interaction: discord.Interaction):
+    # Show filters and return; the runner will take over on ✅
+    view = WikiSelectView(source_command="db", on_submit=run_item_db, optional_slot=True)
+    await interaction.response.send_message(
+        "Search the **Database** using the filters below:",
+        view=view
+    )
+
+
+async def run_item_db(interaction: discord.Interaction, slot: str, stat: Optional[str], classes: Optional[str]):
+    # First response to this interaction: replace filter UI with “Searching…”
+    try:
+        await interaction.response.defer(thinking=True)
+    except discord.InteractionResponded:
+        pass
+    try:
+        await interaction.edit_original_response(
+            content=f"⏳ Searching the database for `{slot}` items"
+                    f"{f' with {stat}' if stat else ''}"
+                    f"{f' for {classes}' if classes else ''}...",
+            view=None,
+            embeds=[]
+        )
+    except discord.InteractionResponded:
+        await interaction.followup.send(
+            content=f"⏳ Searching the database for `{slot}` items"
+                    f"{f' with {stat}' if stat else ''}"
+                    f"{f' for {classes}' if classes else ''}...",
+            ephemeral=("dbp" in getattr(interaction.command.name, "", "").lower()),
+        )
+
+    try:
+        
+        query = """
+            SELECT item_name, item_image, npc_image, npc_name, zone_name, zone_area,
+                   item_slot, item_stats, description, quest_name, crafted_name,
+                   npc_level, source
+            FROM item_database
+            WHERE ($1::text IS NULL OR LOWER(item_slot) = LOWER($1))
+            ORDER BY item_name ASC;
+        """
+        async with db_pool.acquire() as conn:
+            db_rows = await conn.fetch(query, slot)
+
+        
+         # --- Apply Filters ---
+        def text_cleanup(text: str) -> str:
+            return (text or "").replace("\n", " ").replace("\r", " ")
+
+        # Prepare regex patterns
+        stat_patterns = []
+        class_patterns = []
+
+        if stat:
+            stat_filter = str(stat).strip().lower()
+            stat_keywords = {
+                "str": [r"\bstr\b", r"\bstrength\b"],
+                "agi": [r"\bagi\b", r"\bagility\b"],
+                "dex": [r"\bdex\b", r"\bdexterity\b"],
+                "int": [r"\bint\b", r"\bintelligence\b"],
+                "sta": [r"\bsta\b", r"\bstamina\b"],
+                "wis": [r"\bwis\b", r"\bwisdom\b"],
+            }
+            stat_patterns = [re.compile(pat, re.IGNORECASE) for pat in stat_keywords.get(stat_filter, [rf"\b{stat_filter}\b"])]
+
+        if classes:
+            classes_filter = str(classes).strip().lower()
+            class_keywords = {
+                "arc": [r"\barc\b"],
+                "brd": [r"\bbrd\b"],
+                "bst": [r"\bbst\b"],
+                "clr": [r"\bclr\b"],
+                "dru": [r"\bdru\b"],
+                "ele": [r"\bele\b"],
+                "enc": [r"\benc\b"],
+                "ftr": [r"\bftr\b"],
+                "inq": [r"\binq\b"],
+                "mnk": [r"\bmnk\b"],
+                "nec": [r"\bnec\b"],
+                "pal": [r"\bpal\b"],
+                "rng": [r"\brng\b"],
+                "rog": [r"\brog\b"],
+                "shd": [r"\bshd\b"],
+                "shm": [r"\bshm\b"],
+                "spd": [r"\bspd\b"],
+                "wiz": [r"\bwiz\b"],
+            }
+            # Also include "ALL" automatically
+            class_patterns = [re.compile(pat, re.IGNORECASE) for pat in (class_keywords.get(classes_filter, [rf"\b{classes_filter}\b"]) + [r"\bclass: all\b"])]
+
+        # Function to check a text block against active filters
+        def matches_filters(text: str) -> bool:
+            text = text_cleanup(text)
+            stat_match = any(p.search(text) for p in stat_patterns) if stat_patterns else True
+            class_match = any(p.search(text) for p in class_patterns) if class_patterns else True
+            # Both must match if both filters active
+            return stat_match and class_match
+
+        # Apply filters
+        db_rows = [r for r in db_rows if matches_filters(r.get("item_stats") or "")]
+
+        print(f"🔍 Final filter results — Stat: {stat or 'None'}, Class: {classes or 'None'} | DB: {len(db_rows)}")
+        
+
+        results = [
+            {
+                "item_name": row["item_name"],
+                "item_image": row["item_image"] or "",
+                "npc_image": row["npc_image"] or "",
+                "npc_name": row["npc_name"] or "",
+                "zone_name": row["zone_name"] or "",
+                "zone_area": row["zone_area"] or "",
+                "item_stats": row["item_stats"] or "",
+                "description": row["description"] or "",
+                "quest_name": row["quest_name"] or "",
+                "crafted_name": row["crafted_name"] or "",
+                "npc_level": row["npc_level"] or "",
+                "source": "Database",
+            }
+            for row in db_rows
+        ]
+
+        if not results:
+            await interaction.edit_original_response(
+                content=f"❌ No database items found for `{slot}`{f' with {stat}' if stat else ''}{f' with {classes}' if classes else ''}.",
+                embeds=[],
+                view=None
+            )
+            return
+
+        # Build the results view and replace this same message
+        results_view = WikiView(results, source_command="db", on_submit=run_item_db)
+        await interaction.edit_original_response(
+            content=None,
+            embeds=results_view.build_embeds(0),
+            view=results_view
+        )
+
+    except Exception as e:
+        print(f"❌ Error in run_item_db: {e}")
+        await interaction.edit_original_response(
+            content=f"❌ Error searching database: {e}",
+            embeds=[],
+            view=None
+        )
+
+
+
+@bot.tree.command(
+    name="edit_item_image",
+    description="Upload a new item and/or NPC image for an existing database entry."
+)
+@app_commands.describe(
+    item_name="The exact item name to update",
+    npc_name="The NPC associated with this item",
+    new_item_image="Upload a new image for the item (optional)",
+    new_npc_image="Upload a new image for the NPC (optional)",
+)
+async def edit_item_image(
+    interaction: discord.Interaction,
+    item_name: str,
+    npc_name: str,
+    new_item_image: discord.Attachment = None,
+    new_npc_image: discord.Attachment = None,
+):
+    guild = interaction.guild
+    guild_id = guild.id
+    updated_by = str(interaction.user)
+
+    # --- Validate ---
+    if not new_item_image and not new_npc_image:
+        await interaction.response.send_message(
+            "⚠️ You must upload at least one new image.",
+            ephemeral=True
+        )
+        return
+
+    async with db_pool.acquire() as conn:
+        # --- Fetch existing entry ---
+        existing = await conn.fetchrow(
+            """
+            SELECT item_msg_id, npc_msg_id, item_image, npc_image
+            FROM item_database
+            WHERE guild_id = $1
+              AND LOWER(item_name) = LOWER($2)
+              AND LOWER(npc_name) = LOWER($3)
+            """,
+            guild_id, item_name, npc_name
+        )
+
+        if not existing:
+            await interaction.response.send_message(
+                f"❌ No record found for `{item_name}` (NPC: `{npc_name}`).",
+                ephemeral=True
+            )
+            return
+
+        upload_channel = await ensure_upload_channel1(guild)
+
+        # --- Delete old messages if new replacements exist ---
+        if new_item_image and existing["item_msg_id"]:
+            try:
+                msg = await upload_channel.fetch_message(int(existing["item_msg_id"]))
+                await msg.delete()
+            except discord.NotFound:
+                pass
+            except Exception as e:
+                print(f"⚠️ Could not delete old item message: {e}")
+
+        if new_npc_image and existing["npc_msg_id"]:
+            try:
+                msg = await upload_channel.fetch_message(int(existing["npc_msg_id"]))
+                await msg.delete()
+            except discord.NotFound:
+                pass
+            except Exception as e:
+                print(f"⚠️ Could not delete old NPC message: {e}")
+
+        # --- Upload new images ---
+        new_item_image_url, new_npc_image_url = None, None
+        new_item_msg_id, new_npc_msg_id = None, None
+
+        try:
+            if new_item_image:
+                msg = await upload_channel.send(
+                    file=await new_item_image.to_file(),
+                    content=f"🧾 Updated item image for **{item_name}** by {interaction.user.mention}"
+                )
+                new_item_image_url = msg.attachments[0].url
+                new_item_msg_id = msg.id
+
+            if new_npc_image:
+                msg = await upload_channel.send(
+                    file=await new_npc_image.to_file(),
+                    content=f"👹 Updated NPC image for **{npc_name}** by {interaction.user.mention}"
+                )
+                new_npc_image_url = msg.attachments[0].url
+                new_npc_msg_id = msg.id
+
+        except discord.Forbidden:
+            await interaction.response.send_message("❌ I don’t have permission to upload images.", ephemeral=True)
+            return
+        except Exception as e:
+            await interaction.response.send_message(f"❌ Upload failed: {e}", ephemeral=True)
+            return
+
+        # --- Update database record ---
+        await conn.execute(
+            """
+            UPDATE item_database
+            SET
+                item_image = COALESCE($1, item_image),
+                npc_image = COALESCE($2, npc_image),
+                item_msg_id = COALESCE($3, item_msg_id),
+                npc_msg_id = COALESCE($4, npc_msg_id),
+                updated_by = $5,
+                updated_at = NOW()
+            WHERE guild_id = $6
+              AND LOWER(item_name) = LOWER($7)
+              AND LOWER(npc_name) = LOWER($8)
+            """,
+            new_item_image_url,
+            new_npc_image_url,
+            new_item_msg_id,
+            new_npc_msg_id,
+            updated_by,
+            guild_id,
+            item_name,
+            npc_name
+        )
+
+    # --- Confirmation embed ---
+    embed = discord.Embed(
+        title=f"🖼️ Updated Images for {item_name}",
+        description=f"NPC: **{npc_name}**\n👤 Updated by: {interaction.user.mention}",
+        color=discord.Color.green()
+    )
+
+    if new_item_image_url:
+        embed.add_field(name="📦 Item Image", value=f"[View Updated Item]({new_item_image_url})", inline=False)
+        embed.set_image(url=new_item_image_url)
+
+    if new_npc_image_url:
+        embed.add_field(name="👹 NPC Image", value=f"[View Updated NPC]({new_npc_image_url})", inline=False)
+        if not new_item_image_url:
+            embed.set_image(url=new_npc_image_url)
+
+    await interaction.response.send_message(embed=embed, ephemeral=True)
+
+
+
+
+
+# -------------------- WikiView Class --------------------
+
+class WikiView(discord.ui.View):
+    def __init__(self, items, source_command = "wiki",
+                 on_submit: Optional[Callable[[discord.Interaction, str, Optional[str]], Awaitable[None]]] = None):
+        super().__init__(timeout=None)
+        self.items = items
+        self.source_command = source_command
+        self.on_submit = on_submit
+        self.current_page = 0
+        self.items_per_page = 5
+ 
+        self.item_select_menu = ItemSelectMenu(self)
+        self.add_item(self.item_select_menu)        
+        
+
+    def build_embeds(self, page_index: int):
+        """Builds up to 5 embeds per page."""
+        start = page_index * self.items_per_page
+        end = start + self.items_per_page
+        current_items = self.items[start:end]
+        embeds = []
+        linkback= "https://monstersandmemories.miraheze.org/wiki/"
+  
+        for i, item in enumerate(current_items, start=1):
+            color = discord.Color.blurple()
+             
+
+
+ # --- 2️⃣ If zone_name contains a number, swap it into npc_name and clear zone_name
+            if any(char.isdigit() for char in item["npc_name"]):
+                npc_name=item["npc_name"]
+    
+            else:    
+                npc_string= item["npc_name"]
+                # Split by comma and strip spaces
+                npc_name = [name.strip() for name in npc_string.split(",") if name.strip()]
+                # Build full wiki links
+                linked_npc = []
+                for name in npc_name:
+                    # Replace spaces with underscores for proper wiki URL formatting
+                    npc_url = linkback + name.replace(" ", "_")
+                    linked_npc.append(f"[{name}]({npc_url})")
+                # Join with newlines for vertical display in embed
+                npc_name = " \n ".join(linked_npc)
+
+
+
+
+            item_link =f"{linkback}{item['item_name'].replace(' ', '_')}"
+            zone_link = f"{linkback}{item['zone_name'].replace(' ', '_')}"
+            
+            quest_link = f"{linkback}{item['quest_name'].replace(' ', '_')}"
+            
+            crafted_name = item["crafted_name"]
+
+            
+            crafted_index = crafted_name.find('(')
+            if crafted_index != -1:
+                crafted_name = crafted_name[:crafted_index]
+            else:
+                # If no space is found, the original string is returned
+                crafted_name = crafted_name
+            crafted_link = f"{linkback}{crafted_name}"
+
+            
+            embed = discord.Embed(
+                title=item["item_name"],
+                color=color,
+                url=f"{item_link}"
+            )
+            
+            """
+            #  NPC + Level
+            npc_display = f"{npc_name}\n ({npc_level})" if npc_level else f"{npc_name}"
+
+            # Zone + Area
+            zone_display = zone_name if not zone_area else f"{zone_name}\n {zone_area.title()}"
+            """
+            level = item["npc_level"]
+            level_number = re.search(r'\d', level)
+            if level_number:
+                npc_level = f"Level: ~{level[level_number.start():]}"
+            else:
+                npc_level=""
+
+            if item["zone_name"] != "":
+                embed.add_field(name="🗺️ Zone ", value=f"[{item['zone_name']}]({zone_link})" f"\n{item['zone_area']}", inline=True)
+            if npc_name != "":
+                embed.add_field(name="👹 Npc", value=f"{npc_name}" f"\n{npc_level}", inline=True)
+            
+            if item["item_image"] == "":
+                embed.add_field(name="⚔️ Item Stats", value=item["item_stats"], inline=False)
+            if item["item_image"] != "":
+                embed.set_image(url=item["item_image"])
+            if item["npc_image"] != "":
+                embed.set_thumbnail(url=item["npc_image"])            
+            if item["quest_name"] != "":
+                embed.add_field(name="🧩 Related Quest", value=f"[{item['quest_name']}]({quest_link})", inline=False)
+            if item["crafted_name"] != "":
+                embed.add_field(name="⚒️ Crafted Item", value=f"[{crafted_name}]({crafted_link})", inline=False)    
+            embed.set_footer(
+                text=f"Page {page_index + 1}/{self.total_pages()} - Total Results: {len(self.items)}"
+            )
+            embeds.append(embed)
+
+        return embeds
+
+    def total_pages(self):
+        return (len(self.items) + self.items_per_page - 1) // self.items_per_page
+    
+    
+
+
+
+
+
+
+    @discord.ui.button(label="⬅️ Previous", style=discord.ButtonStyle.secondary)
+    async def prev_page(self, interaction: discord.Interaction, button: discord.ui.Button):
+        self.current_page = (self.current_page - 1) % self.total_pages()
+        self.item_select_menu.options = self.item_select_menu._build_options()
+        await interaction.response.edit_message(embeds=self.build_embeds(self.current_page), view=self)
+
+
+
+
+    @discord.ui.button(label="➡️ Next", style=discord.ButtonStyle.primary)
+    async def next_page(self, interaction: discord.Interaction, button: discord.ui.Button):
+        self.current_page = (self.current_page + 1) % self.total_pages()
+        self.item_select_menu.options = self.item_select_menu._build_options()
+        await interaction.response.edit_message(embeds=self.build_embeds(self.current_page), view=self)
+
+
+ 
+    # 🔄 Back to Filters Button
+    @discord.ui.button(label="🔄 Back to Filters", style=discord.ButtonStyle.danger)
+    async def back_to_filters(self, interaction: discord.Interaction, button: discord.ui.Button):
+        await interaction.response.defer()
+
+        # Recreate a new filter view
+        
+
+        # Detect which command was the source
+        if self.source_command == "wiki":
+            prompt = "Please select the **Slot**, and (optionally) **Stat**, then press ✅ **Search**:"
+            ephemeral = False
+            optional_slot = False
+            source_command = "wiki"
+            
+        elif self.source_command == "db":
+            prompt = "Search the **Database** using the same filters below:"
+            ephemeral = False
+            optional_slot=True
+            source_command = "db"
+        
+        elif self.source_command == "dbp":
+            prompt = "Search the **Database (Private)** using the same filters below:"
+            ephemeral = True
+            optional_slot=True
+            source_command = "dbp"
+        
+        else:
+            prompt = "Please select your filters again:"
+            ephemeral = False
+
+        new_filter_view = WikiSelectView(source_command=source_command, optional_slot=optional_slot)
+        
+        try:
+            # Replace message with a new filter menu
+            await interaction.edit_original_response(
+                content=prompt,
+                embeds=[],
+                view=new_filter_view
+            )
+        except discord.errors.InteractionResponded:
+            # Fallback in case original interaction expired
+            await interaction.followup.send(
+                content=prompt,
+                view=new_filter_view,
+                ephemeral=ephemeral
+            )
+
+
+
+# -------------------- Helper Function --------------------
+
+
+wiki_cache = {}
+
+async def fetch_wiki_items(slot_name: str):
+    """Scrape the Monsters & Memories Wiki for a specific item slot.
+       Uses Playwright first (for JS-rendered pages), falls back to aiohttp if that fails.
+    """
+    base_url = "https://monstersandmemories.miraheze.org"
+    category_url = f"{base_url}/wiki/Category:{slot_name}"
+    items = []
+
+    # ✅ Cache check
+    if slot_name in wiki_cache:
+        print(f"📦 Using cached results for {slot_name}")
+        return wiki_cache[slot_name]
+
+    print(f"🌐 Fetching {category_url} ...")
+
+    # ✅ Ensure Chromium exists
+    chromium_path = "/root/.cache/ms-playwright/chromium-1140/chrome-linux/chrome"
+    if not os.path.exists(chromium_path):
+        print("⚙️ Playwright Chromium not found — installing it...")
+        os.system("python -m playwright install-deps && python -m playwright install chromium")
+
+    # -----------------------------
+    # 🧠 Try Playwright first
+    # -----------------------------
+    try:
+        async with async_playwright() as p:
+            browser = await p.chromium.launch(headless=True, args=["--no-sandbox"])
+            page = await browser.new_page()
+
+            await page.goto(category_url, timeout=60000)
+            await asyncio.sleep(1.5)
+            html = await page.content()
+            await browser.close()
+
+        soup = BeautifulSoup(html, "html.parser")
+
+    except Exception as e:
+        print(f"⚠️ Playwright failed: {e}")
+        print("🔁 Retrying with aiohttp fallback...")
+
+        headers = {
+            "User-Agent": (
+                "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+                "AppleWebKit/537.36 (KHTML, like Gecko) "
+                "Chrome/120.0.0.0 Safari/537.36"
+            ),
+            "Accept-Language": "en-US,en;q=0.9",
+        }
+
+        async with aiohttp.ClientSession() as session:
+            async with session.get(category_url, headers=headers, ssl=False) as resp:
+                if resp.status != 200:
+                    print(f"❌ Fallback request failed ({resp.status})")
+                    return []
+                html = await resp.text()
+
+        soup = BeautifulSoup(html, "html.parser")
+
+    # -----------------------------
+    # 🔎 Parse item links
+    # -----------------------------
+    links = soup.select("div.mw-category a")
+
+    async with aiohttp.ClientSession() as session:
+        for link in links[:25]:
+            item_url = f"{base_url}{link['href']}"
+            item_name = link.text.strip()
+
+            try:
+                async with session.get(item_url, ssl=False) as resp:
+                    if resp.status != 200:
+                        continue
+                    page_html = await resp.text()
+
+                s2 = BeautifulSoup(page_html, "html.parser")
+
+                # --- Item Name ---
+                title = s2.find("h1", id="firstHeading")
+                item_name = title.text.strip() if title else name
+    
+                # --- Image ---
+                image_url = None
+                img_tag = s2.select_one(".infobox img, .pi-image img, .mainPageInnerBox img")
+                if img_tag:
+                    src = img_tag.get("src", "")
+                    image_url = f"https:{src}" if src.startswith("//") else src
+    
+         
+       
+          
+                # --- Extract NPC and Zone (more tolerant of malformed HTML) ---
+             
+              
+                npc_name, zone_name = "", ""
+                
+                drops_section = s2.find("h2", id="Drops_From")
+                if drops_section:
+                    # The next <p> tag should hold the zone name
+                    zone_tag = drops_section.find_next("p")
+                    if zone_tag:
+                        zone_name = zone_tag.get_text(strip=True)
+                
+                    # Then look for <ul><li> list of NPCs
+                    npc_list = drops_section.find_next("ul")
+                    if npc_list:
+                        npc_links = npc_list.find_all("a")
+                        if npc_links:
+                            npc_name = ", ".join(a.get_text(strip=True) for a in npc_links)
+                        else:
+                            # Fallback: plain text <li>
+                            npc_items = npc_list.find_all("li")
+                            npc_name = ", ".join(li.get_text(strip=True) for li in npc_items)
+
+
+              
+                # --- Extract Quest (more tolerant of malformed HTML) ---
+                quest_name = ""
+                
+                drops_section = s2.find("h2", id="Related_quests")
+                if drops_section:        
+                    # Then look for <ul><li> list of Quest
+                    quest_list = drops_section.find_next("ul")
+                    if quest_list:
+                        quest_links = quest_list.find_all("a")
+                        if quest_links:
+                            quest_name = ", ".join(a.get_text(strip=True) for a in quest_links)
+                        else:
+                            # Fallback: plain text <li>
+                            quest_items = quest_list.find_all("li")
+                            quest_name = ", ".join(li.get_text(strip=True) for li in quest_items)            
+    
+               
+                # --- 1️⃣ If npc_name and quest_name are the same, clear npc_name
+                if npc_name.strip().lower() == quest_name.strip().lower() and npc_name:
+                    npc_name = ""                
+
+
+                # --- Fetch NPC details ---
+                npc_image = ""
+                npc_level = ""
+                
+                # Only proceed if npc_name exists
+                if npc_name:
+                    for npc in npc_name.split(","):
+                        npc_clean = npc.strip().replace(" ", "_")
+                        npc_url = f"https://monstersandmemories.miraheze.org/wiki/{npc_clean}"
+                
+                        async with session.get(npc_url, headers={"User-Agent": "Mozilla/5.0"}) as npc_resp:
+                            if npc_resp.status != 200:
+                                print(f"⚠️ Failed to fetch NPC page: {npc_url}")
+                                continue
+                
+                            npc_html = await npc_resp.text()
+                            npc_soup = BeautifulSoup(npc_html, "html.parser")
+                
+                            # --- NPC Image (inside <span typeof="mw:File">) ---
+                            file_span = npc_soup.select_one('span[typeof="mw:File"] img')
+                            if file_span:
+                                src = file_span.get("src", "")
+                                npc_image = f"https:{src}" if src.startswith("//") else src
+                
+                            # --- NPC Level (3rd <td> inside mobStatsBox) ---
+                            mob_stats_table = npc_soup.find("table", class_="mobStatsBox")
+                            if mob_stats_table:
+                                tds = mob_stats_table.find_all("td")
+                                if len(tds) >= 3:
+                                    npc_level = tds[2].get_text(strip=True)
+                
+                            # (Optional) Stop after first NPC to avoid multiple fetches
+                            break
+                
+                
+               
+                
+                # --- Extract Crafted  ---
+    
+    
+                crafted_name = ""
+                
+                # Handle either id="Player_crafted" or id="Player_crafter"
+                crafted_section = None
+                for pid in ("Player_crafted", "Player_crafter"):
+                    crafted_section = s2.find("h2", id=pid)
+                    if crafted_section:
+                        break
+                
+                if crafted_section:
+                    # First <ul> after the heading
+                    ul = crafted_section.find_next("ul")
+                    if ul:
+                        # First <li> inside that <ul>
+                        li = ul.find("li")
+                        if li:
+                            # 1) Prefer the direct text nodes (ignore nested <ul>)
+                            #    This grabs only the text that is DIRECTLY inside the <li>
+                            direct_bits = []
+                            for node in li.contents:
+                                if isinstance(node, NavigableString):
+                                    text = str(node).strip()
+                                    if text:
+                                        direct_bits.append(text)
+                                elif node.name != "ul":
+                                    # keep inline tags like <a>, <b>, etc. but not the nested <ul>
+                                    text = node.get_text(" ", strip=True)
+                                    if text:
+                                        direct_bits.append(text)
+                
+                            if direct_bits:
+                                crafted_name = " ".join(direct_bits)
+                            else:
+                                # 2) Fallback: remove nested <ul>, then read the remaining text
+                                nested_ul = li.find("ul")
+                                if nested_ul:
+                                    nested_ul.extract()
+                                crafted_name = li.get_text(" ", strip=True) or ""
+    
+    
+                
+                # --- Item Stats ---
+                item_stats_div = s2.find("div", class_="item-stats")
+                item_stats = "None listed"
+                if item_stats_div:
+                    lines = [line.strip() for line in item_stats_div.stripped_strings]
+                    item_stats = "\n".join(lines)
+    
+                # --- Description ---
+                desc_tag = s2.select_one("div.mw-parser-output > p")
+                description = desc_tag.text.strip() if desc_tag else "No description available."
+    
+                def clean_case(s):
+                    if not s or s == "Unknown":
+                        return "Unknown"
+                    return " ".join(word.capitalize() for word in s.split())
+    
+                items.append({
+                    "item_name": format_item_name(item_name),
+                    "item_image": image_url,
+                    "npc_name": npc_name,
+                    "zone_name": zone_name,
+                    "slot_name": slot_name,
+                    "item_stats": item_stats,
+                    "wiki_url": item_url,
+                    "description": description,
+                    "quest_name": quest_name,
+                    "crafted_name": crafted_name,
+                    "npc_level": npc_level,
+                    "npc_image": npc_image,
+                    
+                    "source": "Wiki"
+                })
+                
+
+                await asyncio.sleep(1.0)  # polite delay
+
+            except Exception as e:
+                print(f"⚠️ Failed to parse {item_url}: {e}")
+                continue
+
+    wiki_cache[slot_name] = items
+    return items
+
+
+
+class WikiSelectView(discord.ui.View):
+    def __init__(
+        self,
+        source_command: str = "wiki",
+        on_submit: Optional[Callable[[discord.Interaction, Optional[str], Optional[str], Optional[str]], Awaitable[None]]] = None,
+        optional_slot: bool = False, ephemeral: bool = False
+    ):
+        super().__init__(timeout=None)
+        self.source_command = source_command  # 'wiki' or 'db'
+        self.on_submit = on_submit            # callback to run the search
+        self.optional_slot = optional_slot
+        self.slot: Optional[str] = None
+        self.stat: Optional[str] = None
+        self.classes: Optional[str] = None
+        self.ephermeral = ephemeral
+
+        # Slot dropdown
+        self.slot_select = discord.ui.Select(
+            placeholder="🎒 Select item slot...",
+            min_values=1,
+            max_values=1,
+            options=[
+                discord.SelectOption(label="Ammo", value="Ammo"),
+                discord.SelectOption(label="Back", value="Back"),
+                discord.SelectOption(label="Chest", value="Chest"),
+                discord.SelectOption(label="Ear", value="Ear"),
+                discord.SelectOption(label="Feet", value="Feet"),
+                discord.SelectOption(label="Finger", value="Finger"),
+                discord.SelectOption(label="Hands", value="Hands"),
+                discord.SelectOption(label="Head", value="Head"),
+                discord.SelectOption(label="Legs", value="Legs"),
+                discord.SelectOption(label="Neck", value="Neck"),
+                discord.SelectOption(label="Primary", value="Primary"),
+                discord.SelectOption(label="Primary 2h", value="Primary 2h"),
+                discord.SelectOption(label="Range", value="Range"),
+                discord.SelectOption(label="Secondary", value="Secondary"),
+                discord.SelectOption(label="Shirt", value="Shirt"),
+                discord.SelectOption(label="Shoulders", value="Shoulders"),
+                discord.SelectOption(label="Waist", value="Waist"),
+                discord.SelectOption(label="Wrist", value="Wrist"),
+            ]
+        )
+        self.slot_select.callback = self.select_slot
+        self.add_item(self.slot_select)
+
+        # Stat dropdown
+        self.stat_select = discord.ui.Select(
+            placeholder="⚔️ Filter by stat (optional)...",
+            min_values=0,
+            max_values=1,
+            options=[
+                discord.SelectOption(label="AGI", value="AGI"),
+                discord.SelectOption(label="DEX", value="DEX"),
+                discord.SelectOption(label="INT", value="INT"),
+                discord.SelectOption(label="STA", value="STA"),
+                discord.SelectOption(label="STR", value="STR"),
+                discord.SelectOption(label="WIS", value="WIS"),
+            ]
+        )
+        self.stat_select.callback = self.select_stat
+        self.add_item(self.stat_select)
+        
+        # Classes dropdown
+        self.classes_select = discord.ui.Select(
+            placeholder="🧙 Filter by class (optional)...",
+            min_values=0,
+            max_values=1,
+            options=[
+                discord.SelectOption(label="ARC", value="ARC"),
+                discord.SelectOption(label="BRD", value="BRD"),
+                discord.SelectOption(label="BST", value="BST"),
+                discord.SelectOption(label="CLR", value="CLR"),
+                discord.SelectOption(label="DRU", value="DRU"),
+                discord.SelectOption(label="ELE", value="ELE"),
+                discord.SelectOption(label="ENC", value="ENC"),
+                discord.SelectOption(label="FTR", value="FTR"),
+                discord.SelectOption(label="INQ", value="INQ"),
+                discord.SelectOption(label="MNK", value="MNK"),
+                discord.SelectOption(label="NEC", value="NEC"),
+                discord.SelectOption(label="PAL", value="PAL"),
+                discord.SelectOption(label="RNG", value="RNG"),
+                discord.SelectOption(label="ROG", value="ROG"),
+                discord.SelectOption(label="SHD", value="SHD"),
+                discord.SelectOption(label="SHM", value="SHM"),
+                discord.SelectOption(label="SPB", value="SPB"),
+                discord.SelectOption(label="WIZ", value="WIZ"),
+            ]
+        )
+        self.classes_select.callback = self.select_classes
+        self.add_item(self.classes_select)
+
+        # Confirm button
+        confirm_button = discord.ui.Button(label="✅ Search", style=discord.ButtonStyle.green)
+        confirm_button.callback = self.confirm_selection
+        self.add_item(confirm_button)
+
+        self.value = None
+
+    async def select_slot(self, interaction: discord.Interaction):
+        self.slot = self.slot_select.values[0]
+        await interaction.response.defer()
+
+    async def select_stat(self, interaction: discord.Interaction):
+        self.stat = self.stat_select.values[0] if self.stat_select.values else None
+        await interaction.response.defer()
+        
+    async def select_classes(self, interaction: discord.Interaction):
+        self.classes = self.classes_select.values[0] if self.classes_select.values else None
+        await interaction.response.defer()
+    
+   
+    async def confirm_selection(self, interaction: discord.Interaction):
+        if not self.optional_slot and not self.slot:
+            await interaction.response.send_message("❌ Please select a slot first!", ephemeral=True)
+            return
+         # Replace filters message immediately
+        await interaction.response.edit_message(
+            content=f"⏳ Searching {self.source_command.upper()} for `{self.slot}` items"
+                    f"{f' with {self.stat}' if self.stat else ''}..."
+                    f"{f' for {self.classes}' if self.classes else ''}...",
+            view=None
+        )
+        # If the handler isn’t attached, fall back to auto-detect based on command
+        if self.on_submit is None:
+            if hasattr(self, "source_command"):
+                source = self.source_command
+                if source == "wiki":
+                    await run_wiki_items(interaction, self.slot, self.stat, self.classes)
+                    return
+                elif source == "db":
+                    await run_item_db(interaction, self.slot, self.stat, self.classes)
+                    return
+                elif source == "dbp":
+                    await run_item_db(interaction, self.slot, self.stat, self.classes)
+                    return
+    
+            # still no handler? give warning
+            await interaction.response.send_message("⚠️ No handler attached to this filter.", ephemeral=True)
+            return
+    
+        # Otherwise, use the explicitly provided handler
+        await self.on_submit(interaction, self.slot, self.stat, self.classes)
+
+
+
+
+
+@bot.tree.command(name="view_wiki_items", description="View items from the Monsters & Memories Wiki.")
+async def view_wiki_items(interaction: discord.Interaction):
+    # Step 1 — Show filter UI
+    view = WikiSelectView()
+    view.origin_interaction = interaction
+    await interaction.response.send_message(
+        "Please select a **Slot**, optional **Stat** or **Class**, then press ✅ **Search**:",
+        view=view
+    )
+
+    # Wait for user input
+    await view.wait()
+
+    if not view.value:
+        await interaction.followup.send("❌ Selection timed out or cancelled.", ephemeral=True)
+        return
+
+    slot = view.slot
+    stat = view.stat
+    classes = view.classes
+
+    # Step 2 — Tell user we’re searching
+    await interaction.response.edit_message(
+        content=f"⏳ Searching Wiki and Database for `{slot}` items{f' with {stat}' if stat else ''}...",
+        view=None
+    )
+
+    # Step 3 — Fetch + filter results
+    combined_items = await run_wiki_items(view.search_interaction, slot, stat, classes)
+
+    if not combined_items:
+        await interaction.followup.send("❌ No items found matching that search.", ephemeral=True)
+        return
+
+    # Step 4 — Display results through WikiView
+    results_view = WikiView(combined_items, source_command="wiki")
+    await interaction.edit_original_response(
+        content=None,
+        embeds=results_view.build_embeds(0),
+        view=results_view
+    )
+
+
+
+
+async def run_wiki_items(interaction: discord.Interaction, slot: str, stat: Optional[str], classes: Optional[str]):
+    try:
+        await interaction.response.defer(thinking=True)
+    except discord.InteractionResponded:
+        pass 
+    
+    followup = interaction.followup   
+    guild_id = interaction.guild.id
+
+    try:
+        # --- Step 1: Pull Wiki items first ---
+        print(f"🌐 Fetching Wiki items for slot: {slot}")
+        wiki_items = await fetch_wiki_items(slot)
+        if not wiki_items:
+            print("⚠️ No wiki items returned.")
+            wiki_items = []
+
+        # --- Step 2: Pull DB items for this slot ---
+        async with db_pool.acquire() as conn:
+            db_rows = await conn.fetch("""
+                SELECT item_name, item_image, item_slot, npc_name, zone_name, item_stats,
+                       description, quest_name, crafted_name, npc_image, npc_level
+                FROM item_database
+                WHERE LOWER(item_slot) = LOWER($1)
+            """, slot)
+        
+        
+        # --- Apply Filters ---
+        def text_cleanup(text: str) -> str:
+            return (text or "").replace("\n", " ").replace("\r", " ")
+
+        # Prepare regex patterns
+        stat_patterns = []
+        class_patterns = []
+
+        if stat:
+            stat_filter = str(stat).strip().lower()
+            stat_keywords = {
+                "str": [r"\bstr\b", r"\bstrength\b"],
+                "agi": [r"\bagi\b", r"\bagility\b"],
+                "dex": [r"\bdex\b", r"\bdexterity\b"],
+                "int": [r"\bint\b", r"\bintelligence\b"],
+                "sta": [r"\bsta\b", r"\bstamina\b"],
+                "wis": [r"\bwis\b", r"\bwisdom\b"],
+            }
+            stat_patterns = [re.compile(pat, re.IGNORECASE) for pat in stat_keywords.get(stat_filter, [rf"\b{stat_filter}\b"])]
+
+        if classes:
+            classes_filter = str(classes).strip().lower()
+            class_keywords = {
+                "arc": [r"\barc\b"],
+                "brd": [r"\bbrd\b"],
+                "bst": [r"\bbst\b"],
+                "clr": [r"\bclr\b"],
+                "dru": [r"\bdru\b"],
+                "ele": [r"\bele\b"],
+                "enc": [r"\benc\b"],
+                "ftr": [r"\bftr\b"],
+                "inq": [r"\binq\b"],
+                "mnk": [r"\bmnk\b"],
+                "nec": [r"\bnec\b"],
+                "pal": [r"\bpal\b"],
+                "rng": [r"\brng\b"],
+                "rog": [r"\brog\b"],
+                "shd": [r"\bshd\b"],
+                "shm": [r"\bshm\b"],
+                "spd": [r"\bspd\b"],
+                "wiz": [r"\bwiz\b"],
+            }
+            # Also include "ALL" automatically
+            class_patterns = [re.compile(pat, re.IGNORECASE) for pat in (class_keywords.get(classes_filter, [rf"\b{classes_filter}\b"]) + [r"\bclass: all\b"])]
+
+        # Function to check a text block against active filters
+        def matches_filters(text: str) -> bool:
+            text = text_cleanup(text)
+            stat_match = any(p.search(text) for p in stat_patterns) if stat_patterns else True
+            class_match = any(p.search(text) for p in class_patterns) if class_patterns else True
+            # Both must match if both filters active
+            return stat_match and class_match
+
+        # Apply filters
+        wiki_items = [i for i in wiki_items if matches_filters(i.get("item_stats" or ""))]
+        db_rows = [r for r in db_rows if matches_filters(r.get("item_stats") or "")]
+
+        print(f"🔍 Final filter results — Stat: {stat or 'None'}, Class: {classes or 'None'} | Wiki: {len(wiki_items)}, DB: {len(db_rows)}")
+
+        
+        def normalize_name(name):
+            return name.strip().lower().replace("’", "'").replace("‘", "'").replace("`", "'")
+
+        db_item_names = {normalize_name(row["item_name"]) for row in db_rows}
+
+        # --- Step 3: Identify wiki items not yet in DB ---
+        new_wiki_items = []
+        for item in wiki_items:
+            if normalize_name(item["item_name"]) not in db_item_names:
+                new_wiki_items.append(item)
+
+        # --- Step 4: Insert missing wiki items into DB ---
+        if new_wiki_items:
+            print(f"🟢 Found {len(new_wiki_items)} new wiki items — inserting...")
+                        
+            async with db_pool.acquire() as conn:
+                for item in new_wiki_items:
+                    npc_name = item.get("npc_name") or ""
+                    quest_name = item.get("quest_name") or ""
+                    zone_name = item.get("zone_name") or ""
+
+                    # --- 1️⃣ If npc_name and quest_name are the same, clear npc_name
+                    if npc_name.strip().lower() == quest_name.strip().lower() and npc_name:
+                        npc_name = ""
+            
+                    # --- 2️⃣ If zone_name contains a number, swap it into npc_name and clear zone_name
+                    if any(char.isdigit() for char in zone_name):
+                        npc_name = zone_name
+                        zone_name = ""
+
+                    
+                    await conn.execute("""
+                        INSERT INTO item_database (
+                            item_name, item_slot, item_image, npc_image, npc_name, zone_name, zone_area,
+                            item_stats, description, crafted_name, quest_name, npc_level,
+                            added_by, source
+                        ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,'Wiki')
+                        ON CONFLICT (item_name) DO NOTHING
+                    """,
+                    item["item_name"],
+                    slot,
+                    item.get("item_image") or "",
+                    item.get("npc_image") or "",                   
+                    npc_name,
+                    zone_name,
+                    item.get("zone_area") or "",
+                    item.get("item_stats") or "",
+                    item.get("description") or "",
+                    item.get("crafted_name") or "",
+                    item.get("quest_name") or "",
+                    item.get("npc_level") or "",
+                    interaction.user.name
+                    )
+            print(f"✅ Inserted {len(new_wiki_items)} wiki items into DB.")
+    
+            # 🖼️ Now that all inserts are safely committed
+            for item in new_wiki_items:
+                img_width, img_height = 700, 300
+                text_color = (255, 255, 255)
+            
+                image = Image.open("assets/backgrounds/itembg.png").convert("RGBA")
+                draw = ImageDraw.Draw(image)
+                
+
+                def draw_wrapped_text(draw, text, font, position, max_width, line_height, fill=(255,255,255), spacing=3):
+                    lines = []
+                    for line in text.split("\n"):
+                        lines.extend(wrap(line, width=max_width))
+                    y = position[1]
+                    for line in lines:
+                        draw.text((position[0], y), line, font=font, fill=fill)
+                        y += line_height + spacing
+
+                try:
+                    font_title = ImageFont.truetype("assets/WinthorpeScB.ttf", 28)
+                    font_stats = ImageFont.truetype("assets/Winthorpe.ttf", 16)
+                except:
+                    font_title = ImageFont.load_default()
+                    font_stats = ImageFont.load_default()
+            
+                title = item["item_name"]
+                stats = item.get("item_stats", "None listed")
+                                
+                                              
+                # Title and stat spacing
+                draw.text((40, 3), title, font=font_title, fill="white")
+                draw_wrapped_text(draw, stats, font_stats, (110, 55), max_width=70, line_height=18, spacing=5, fill=text_color )
+            
+                buffer = io.BytesIO()
+                image.save(buffer, format="PNG")
+                buffer.seek(0)
+                guild = bot.get_guild(UPLOAD_GUILD_ID)
+                upload_channel = guild.get_channel(UPLOAD_CHANNEL_ID)
+                if upload_channel:
+                    msg = await upload_channel.send(
+                        content=f"📦 Generated image for `{title}` (Wiki Import)",
+                        file=discord.File(buffer, filename=f"{title.replace(' ', '_')}.png")
+                    )
+                    image_url =msg.attachments[0].url
+                    async with db_pool.acquire() as conn:
+                        await conn.execute("""
+                            UPDATE item_database
+                            SET item_image = $1,
+                                item_msg_id = $2
+                            WHERE item_name = $3
+                        """, msg.attachments[0].url, msg.id, item["item_name"])
+                    print(f"✅ Updated DB with image for {title}: {image_url}")
+
+        # --- Step 5: Combine DB + Wiki items for display ---
+        # ✅ Re-fetch all slot items from DB so the new image URLs are included
+        async with db_pool.acquire() as conn:
+            refreshed_rows = await conn.fetch("""
+                SELECT item_name, item_image, npc_image, npc_name, zone_name, zone_area,
+                       item_slot, item_stats, description, quest_name, crafted_name,
+                       npc_level, source
+                FROM item_database
+                WHERE LOWER(item_slot) = LOWER($1)
+                ORDER BY item_name ASC
+            """, slot)
+       
+ 
+        # After fetching refreshed_rows
+        if stat or classes:
+            refreshed_rows = [r for r in refreshed_rows if matches_filters(r.get("item_stats") or "")]
+
+        
+        
+        
+        
+        # --- Convert into WikiView-compatible format ---
+        
+        combined_items = [
+            {
+                "item_name": row["item_name"],
+                "item_image": row["item_image"] or "",
+                "npc_image": row["npc_image"] or "",
+                "npc_name": row["npc_name"] or "",
+                "zone_name": row["zone_name"] or "",
+                "zone_area": row["zone_area"] or "",
+                "slot_name": row["item_slot"],
+                "item_stats": row["item_stats"] or "",
+                "wiki_url": None,
+                "description": row["description"] or "",
+                "quest_name": row["quest_name"] or "",
+                "crafted_name": row["crafted_name"] or "",
+                "npc_level": row["npc_level"] or "",
+                "source": row["source"],
+                "in_database": True,
+            }
+            for row in refreshed_rows
+        ]
+
+    
+        
+        if not combined_items:
+            await interaction.edit_original_response(
+                content=f"❌ No items found for `{slot}` in the database or wiki.",
+                embeds=[], view=None
+            )
+            return
+
+
+        # --- Step 6: Send combined results to WikiView ---
+        view = WikiView(combined_items)
+        await interaction.edit_original_response(content=None, embeds=view.build_embeds(0), view=view)
+
+
+    except Exception as e:
+        print(f"❌ Critical error in view_wiki_items: {e}")
+        await interaction.followup.send(f"❌ Error running command: {e}")
+
+
+#--------SEND TO CHANNEL-------
+
+class ItemSelectMenu(discord.ui.Select):
+    def __init__(self, parent_view):
+        self.parent_view = parent_view
+        options = self._build_options()
+        super().__init__(
+            placeholder="🔍 View details for an item...",
+            min_values=1,
+            max_values=1,
+            options=options
+        )
+
+    def _build_options(self):
+        """Generate dropdown options for the current page's items."""
+        start = self.parent_view.current_page * self.parent_view.items_per_page
+        end = start + self.parent_view.items_per_page
+        current_items = self.parent_view.items[start:end]
+
+        return [
+            discord.SelectOption(
+                label=item["item_name"][:100],
+                description=(item.get("zone_name") or "Unknown Zone")[:80],
+                value=str(start + i)
+            )
+            for i, item in enumerate(current_items)
+        ]
+
+    async def callback(self, interaction: discord.Interaction):
+        """Show ephemeral item details when selected."""
+        idx = int(self.values[0])
+        item = self.parent_view.items[idx]
+        linkback= "https://monstersandmemories.miraheze.org/wiki/"
+        item_link =f"{linkback}{item['item_name'].replace(' ', '_')}"
+        zone_link = f"{linkback}{item['zone_name'].replace(' ', '_')}"
+        quest_link = f"{linkback}{item['quest_name'].replace(' ', '_')}"
+        crafted_name = item["crafted_name"]
+        crafted_index = crafted_name.find('(')
+        if any(char.isdigit() for char in item["npc_name"]):
+            npc_name=item["npc_name"]
+    
+        else:    
+            npc_string= item["npc_name"]
+            # Split by comma and strip spaces
+            npc_name = [name.strip() for name in npc_string.split(",") if name.strip()]
+            # Build full wiki links
+            linked_npc = []
+            for name in npc_name:
+                # Replace spaces with underscores for proper wiki URL formatting
+                npc_url = linkback + name.replace(" ", "_")
+                linked_npc.append(f"[{name}]({npc_url})")
+            # Join with newlines for vertical display in embed
+            npc_name = " \n ".join(linked_npc)
+
+        if crafted_index != -1:
+            crafted_name = crafted_name[:crafted_index]
+        else:
+            # If no space is found, the original string is returned
+            crafted_name = crafted_name
+        crafted_link = f"{linkback}{crafted_name}"
+        level = item["npc_level"]
+        level_number = re.search(r'\d', level)
+        if level_number:
+            npc_level = f"Level: ~{level[level_number.start():]}"
+        else:
+            npc_level=""
+        
+
+        embed = discord.Embed(
+            title=item["item_name"],
+            url=f"{item_link}",
+            color=discord.Color.red()
+        )
+
+        if item["zone_name"] != "":
+            embed.add_field(name="🗺️ Zone ", value=f"[{item['zone_name']}]({zone_link})" f"\n{item['zone_area']}", inline=True)
+        if npc_name != "":
+            embed.add_field(name="👹 Npc", value=f"{npc_name}" f"\n{npc_level}", inline=True)
+            
+        if item["item_image"] == "":
+            embed.add_field(name="⚔️ Item Stats", value=item["item_stats"], inline=False)
+        if item["item_image"] != "":
+            embed.set_image(url=item["item_image"])
+        if item["npc_image"] != "":
+            embed.set_thumbnail(url=item["npc_image"])            
+        if item["quest_name"] != "":
+            embed.add_field(name="🧩 Related Quest", value=f"[{item['quest_name']}]({quest_link})", inline=False)
+        if item["crafted_name"] != "":
+            embed.add_field(name="⚒️ Crafted Item", value=f"[{crafted_name}]({crafted_link})", inline=False)  
+
+        await interaction.response.send_message(embed=embed, ephemeral=True)
+
+
+
+
+
+
+@bot.tree.command(name="update_db", description="Compare existing DB items with the Wiki and update any changed fields.")
+@app_commands.checks.has_permissions(administrator=True)
+async def update_db(interaction: discord.Interaction):
+    await interaction.response.send_message("🔍 Starting database update from Wiki... this may take a few minutes.", ephemeral=True)
+    await run_update_db(interaction)
+
+
+
+
+
+async def run_update_db(interaction: discord.Interaction):
+    base_url = "https://monstersandmemories.miraheze.org/wiki"
+    updated_count = 0
+    checked_count = 0
+    changes_log = []
+    failed_items = []
+
+    try:
+        async with db_pool.acquire() as conn:
+            db_items = await conn.fetch("""
+                SELECT item_name, zone_name, zone_area, npc_name, item_stats, crafted_name, quest_name, npc_image, npc_level
+                FROM item_database
+            """)
+
+        async with aiohttp.ClientSession() as session:
+            for db_item in db_items:
+                item_name = db_item["item_name"].strip()
+                item_url = f"{base_url}/{item_name.replace(' ', '_')}"
+                checked_count += 1
+
+                async with session.get(item_url, ssl=False) as resp:
+                    if resp.status != 200:
+                        print(f"⚠️ Missing or invalid page: {item_url}")
+                        failed_items.append(item_name)
+                        continue
+
+                    item_html = await resp.text()
+                    s2 = BeautifulSoup(item_html, "html.parser")
+
+  # --- Extract NPC and Zone (more tolerant of malformed HTML) ---
+             
+              
+                npc_name, zone_name = "", ""
+                
+                drops_section = s2.find("h2", id="Drops_From")
+                if drops_section:
+                    # The next <p> tag should hold the zone name
+                    zone_tag = drops_section.find_next("p")
+                    if zone_tag:
+                        zone_name = zone_tag.get_text(strip=True)
+                
+                    # Then look for <ul><li> list of NPCs
+                    npc_list = drops_section.find_next("ul")
+                    if npc_list:
+                        npc_links = npc_list.find_all("a")
+                        if npc_links:
+                            npc_name = ", ".join(a.get_text(strip=True) for a in npc_links)
+                        else:
+                            # Fallback: plain text <li>
+                            npc_items = npc_list.find_all("li")
+                            npc_name = ", ".join(li.get_text(strip=True) for li in npc_items)
+
+
+              
+                # --- Extract Quest (more tolerant of malformed HTML) ---
+                quest_name = ""
+                
+                drops_section = s2.find("h2", id="Related_quests")
+                if drops_section:        
+                    # Then look for <ul><li> list of Quest
+                    quest_list = drops_section.find_next("ul")
+                    if quest_list:
+                        quest_links = quest_list.find_all("a")
+                        if quest_links:
+                            quest_name = ", ".join(a.get_text(strip=True) for a in quest_links)
+                        else:
+                            # Fallback: plain text <li>
+                            quest_items = quest_list.find_all("li")
+                            quest_name = ", ".join(li.get_text(strip=True) for li in quest_items)            
+    
+               
+                # --- 1️⃣ If npc_name and quest_name are the same, clear npc_name
+                if npc_name.strip().lower() == quest_name.strip().lower() and npc_name:
+                    npc_name = ""                
+
+
+                
+                # --- Fetch NPC details ---
+                new_npc_image = ""
+                npc_level = ""
+                
+                # Only proceed if npc_name exists
+                if npc_name:
+                    for npc in npc_name.split(","):
+                        npc_clean = npc.strip().replace(" ", "_")
+                        npc_url = f"https://monstersandmemories.miraheze.org/wiki/{npc_clean}"
+                
+                        async with session.get(npc_url, headers={"User-Agent": "Mozilla/5.0"}) as npc_resp:
+                            if npc_resp.status != 200:
+                                print(f"⚠️ Failed to fetch NPC page: {npc_url}")
+                                continue
+                
+                            npc_html = await npc_resp.text()
+                            npc_soup = BeautifulSoup(npc_html, "html.parser")
+                
+                            # --- NPC Image (inside <span typeof="mw:File">) ---
+                            file_span = npc_soup.select_one('span[typeof="mw:File"] img')
+                            if file_span:
+                                src = file_span.get("src", "")
+                                new_npc_image = f"https:{src}" if src.startswith("//") else src
+                
+                            # --- NPC Level (3rd <td> inside mobStatsBox) ---
+                            mob_stats_table = npc_soup.find("table", class_="mobStatsBox")
+                            if mob_stats_table:
+                                tds = mob_stats_table.find_all("td")
+                                if len(tds) >= 3:
+                                    npc_level = tds[2].get_text(strip=True)
+                
+                            # (Optional) Stop after first NPC to avoid multiple fetches
+                            break
+                
+                
+               
+                
+                # --- Extract Crafted  ---
+    
+    
+                crafted_name = ""
+                
+                # Handle either id="Player_crafted" or id="Player_crafter"
+                crafted_section = None
+                for pid in ("Player_crafted", "Player_crafter"):
+                    crafted_section = s2.find("h2", id=pid)
+                    if crafted_section:
+                        break
+                
+                if crafted_section:
+                    # First <ul> after the heading
+                    ul = crafted_section.find_next("ul")
+                    if ul:
+                        # First <li> inside that <ul>
+                        li = ul.find("li")
+                        if li:
+                            # 1) Prefer the direct text nodes (ignore nested <ul>)
+                            #    This grabs only the text that is DIRECTLY inside the <li>
+                            direct_bits = []
+                            for node in li.contents:
+                                if isinstance(node, NavigableString):
+                                    text = str(node).strip()
+                                    if text:
+                                        direct_bits.append(text)
+                                elif node.name != "ul":
+                                    # keep inline tags like <a>, <b>, etc. but not the nested <ul>
+                                    text = node.get_text(" ", strip=True)
+                                    if text:
+                                        direct_bits.append(text)
+                
+                            if direct_bits:
+                                crafted_name = " ".join(direct_bits)
+                            else:
+                                # 2) Fallback: remove nested <ul>, then read the remaining text
+                                nested_ul = li.find("ul")
+                                if nested_ul:
+                                    nested_ul.extract()
+                                crafted_name = li.get_text(" ", strip=True) or ""
+    
+    
+                
+                # --- Item Stats ---
+                item_stats_div = s2.find("div", class_="item-stats")
+                item_stats = "None listed"
+                if item_stats_div:
+                    lines = [line.strip() for line in item_stats_div.stripped_strings]
+                    item_stats = "\n".join(lines)
+
+                # --- 2️⃣ If zone_name contains a number, swap it into npc_name and clear zone_name
+                if any(char.isdigit() for char in zone_name):
+                    npc_name = zone_name
+                    zone_name = ""
+                
+                # compare + update
+                changes = {}
+                if zone_name and zone_name != db_item["zone_name"]:
+                    changes["zone_name"] = zone_name
+                if npc_name and npc_name != db_item["npc_name"]:
+                    changes["npc_name"] = npc_name
+                if item_stats and item_stats != db_item["item_stats"]:
+                    changes["item_stats"] = item_stats
+                if crafted_name and crafted_name != db_item["crafted_name"]:
+                    changes["crafted_name"] = crafted_name
+                if quest_name and quest_name != db_item["quest_name"]:
+                    changes["quest_name"] = quest_name
+                if npc_level and npc_level != db_item["npc_level"]:
+                    changes["npc_level"] = npc_level
+               
+                current_npc_image = db_item.get("npc_image", "")
+                if (
+                    new_npc_image
+                    and "https://cdn.discordapp.com/attachments/" not in (current_npc_image or "")
+                    and new_npc_image != current_npc_image
+                ):
+                    changes["npc_image"] = new_npc_image
+
+                                
+                if changes:
+                    updated_count += 1
+                    changes_log.append(f"🛠️ `{item_name}` → {', '.join(changes.keys())}")
+                    set_clause = ", ".join([f"{col} = ${i+2}" for i, col in enumerate(changes.keys())])
+                    values = list(changes.values())
+
+                    async with db_pool.acquire() as conn:
+                        await conn.execute(
+                            f"UPDATE item_database SET {set_clause} WHERE LOWER(item_name) = LOWER($1)",
+                            item_name, *values
+                        )
+
+                await asyncio.sleep(0.7)
+
+        msg = (
+            f"✅ Update complete!\n"
+            f"🔍 Checked: `{checked_count}` items\n"
+            f"🛠️ Updated: `{updated_count}` items\n\n"
+        )
+        if changes_log:
+            msg += "\n".join(changes_log[:20])
+            if len(changes_log) > 20:
+                msg += f"\n...and {len(changes_log) - 20} more changes."
+
+        await interaction.followup.send(msg, ephemeral=True)
+
+    except Exception as e:
+        print(f"❌ Error in run_update_db: {e}")
+        await interaction.followup.send(f"❌ Error: {e}", ephemeral=True)
+
+
+
+
+
+
+
+# ---------------- Bot Setup ----------------
+
+@bot.event
+async def on_ready():
+    global db_pool
+    if db_pool is None:
+        db_pool = await asyncpg.create_pool(DATABASE_URL)
+    
+    try:
+        synced = await bot.tree.sync()
+        print(f"Logged in as {bot.user}")
+        print(f"Synced {len(synced)} command(s)")
+        for cmd in synced:
+            print(f"  - {cmd.name}")
+    except Exception as e:
+        print(f"Error syncing commands: {e}")
+        import traceback
+        traceback.print_exc()
+
+@bot.event
+async def on_error(event, *args, **kwargs):
+    import traceback
+    traceback.print_exc()
+
+
+bot.run(TOKEN)
