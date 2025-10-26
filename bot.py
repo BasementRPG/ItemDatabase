@@ -2095,6 +2095,7 @@ async def run_wiki_items(interaction: discord.Interaction, slot: str, stat: Opti
         await interaction.followup.send(f"❌ Error running command: {e}")
 
 
+#--------SEND TO CHANNEL-------
 
 class ItemSelectMenu(discord.ui.Select):
     def __init__(self, parent_view):
@@ -2132,14 +2133,78 @@ class ItemSelectMenu(discord.ui.Select):
             description=item.get("description", "No description available."),
             color=discord.Color.gold()
         )
-        if item.get("item_image"):
-            embed.set_image(url=item["item_image"])
-        if item.get("zone_name"):
-            embed.add_field(name="🗺️ Zone", value=item["zone_name"], inline=True)
-        if item.get("npc_name"):
-            embed.add_field(name="👹 NPC", value=item["npc_name"], inline=True)
-        if item.get("item_stats"):
-            embed.add_field(name="⚔️ Stats", value=item["item_stats"], inline=False)
+         if any(char.isdigit() for char in item["npc_name"]):
+                npc_name=item["npc_name"]
+    
+            else:    
+                npc_string= item["npc_name"]
+                # Split by comma and strip spaces
+                npc_name = [name.strip() for name in npc_string.split(",") if name.strip()]
+                # Build full wiki links
+                linked_npc = []
+                for name in npc_name:
+                    # Replace spaces with underscores for proper wiki URL formatting
+                    npc_url = linkback + name.replace(" ", "_")
+                    linked_npc.append(f"[{name}]({npc_url})")
+                # Join with newlines for vertical display in embed
+                npc_name = " \n ".join(linked_npc)
+
+
+
+
+            item_link =f"{linkback}{item['item_name'].replace(' ', '_')}"
+            zone_link = f"{linkback}{item['zone_name'].replace(' ', '_')}"
+            
+            quest_link = f"{linkback}{item['quest_name'].replace(' ', '_')}"
+            
+            crafted_name = item["crafted_name"]
+
+            
+            crafted_index = crafted_name.find('(')
+            if crafted_index != -1:
+                crafted_name = crafted_name[:crafted_index]
+            else:
+                # If no space is found, the original string is returned
+                crafted_name = crafted_name
+            crafted_link = f"{linkback}{crafted_name}"
+
+            
+            embed = discord.Embed(
+                title=item["item_name"],
+                color=color,
+                url=f"{item_link}"
+            )
+            
+            """
+            #  NPC + Level
+            npc_display = f"{npc_name}\n ({npc_level})" if npc_level else f"{npc_name}"
+
+            # Zone + Area
+            zone_display = zone_name if not zone_area else f"{zone_name}\n {zone_area.title()}"
+            """
+            level = item["npc_level"]
+            level_number = re.search(r'\d', level)
+            if level_number:
+                npc_level = level[level_number.start():]
+            else:
+                npc_level=""
+
+            if item["zone_name"] != "":
+                embed.add_field(name="🗺️ Zone ", value=f"[{item['zone_name']}]({zone_link})" f"\n{item['zone_area']}", inline=True)
+            if npc_name != "":
+                embed.add_field(name="👹 Npc", value=f"{npc_name}" f"\n{npc_level}", inline=True)
+            
+            if item["item_image"] == "":
+                embed.add_field(name="⚔️ Item Stats", value=item["item_stats"], inline=False)
+            if item["item_image"] != "":
+                embed.set_image(url=item["item_image"])
+            if item["npc_image"] != "":
+                embed.set_thumbnail(url=item["npc_image"])            
+            if item["quest_name"] != "":
+                embed.add_field(name="🧩 Related Quest", value=f"[{item['quest_name']}]({quest_link})", inline=False)
+            if item["crafted_name"] != "":
+                embed.add_field(name="⚒️ Crafted Item", value=f"[{crafted_name}]({crafted_link})", inline=False)    
+
 
         await interaction.response.send_message(embed=embed, ephemeral=True)
 
