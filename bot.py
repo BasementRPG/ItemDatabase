@@ -441,7 +441,7 @@ async def add_item_db(interaction: discord.Interaction, item_image: discord.Atta
     except Exception as e:
         await interaction.response.send_message(f"❌ Upload failed: {e}", ephemeral=True)
         return
-   await interaction.response.send_message("Select slot, race, and class:", view=view, ephemeral=True)
+    await interaction.response.send_message("Select slot, race, and class:", view=view, ephemeral=True)
 
 
 
