@@ -1203,7 +1203,8 @@ class WikiView(discord.ui.View):
         self.current_page = 0
         self.items_per_page = 5
  
-        
+        self.item_select_menu = ItemSelectMenu(self)
+        self.add_item(self.item_select_menu)        
         
 
     def build_embeds(self, page_index: int):
@@ -1273,9 +1274,9 @@ class WikiView(discord.ui.View):
             
 
             if item["zone_name"] != "":
-                embed.add_field(name="🗺️ Zone ", value=f"[{item['zone_name']}]({zone_link})"  f"{item['zone_area']}", inline=True)
+                embed.add_field(name="🗺️ Zone ", value=f"[{item['zone_name']}]({zone_link})" f"\n{item['zone_area']}", inline=True)
             if npc_name != "":
-                embed.add_field(name="👹 Npc", value=f"{npc_name}", inline=True)
+                embed.add_field(name="👹 Npc", value=f"{npc_name}" f"\n{item['npc_level']}", inline=True)
             
             if item["item_image"] == "":
                 embed.add_field(name="⚔️ Item Stats", value=item["item_stats"], inline=False)
@@ -2089,6 +2090,52 @@ async def run_wiki_items(interaction: discord.Interaction, slot: str, stat: Opti
 
 
 
+class ItemSelectMenu(discord.ui.Select):
+    def __init__(self, parent_view):
+        self.parent_view = parent_view  # reference to WikiView
+        options = self._build_options()
+        super().__init__(
+            placeholder="🔍 View details for an item...",
+            min_values=1,
+            max_values=1,
+            options=options
+        )
+
+    def _build_options(self):
+        """Generate dropdown options for the current page items."""
+        start = self.parent_view.current_page * self.parent_view.items_per_page
+        end = start + self.parent_view.items_per_page
+        current_items = self.parent_view.items[start:end]
+
+        return [
+            discord.SelectOption(
+                label=item["item_name"][:100],
+                description=(item.get("zone_name") or "Unknown Zone")[:80],
+                value=str(start + i)
+            )
+            for i, item in enumerate(current_items)
+        ]
+
+    async def callback(self, interaction: discord.Interaction):
+        """Send ephemeral item details when selected."""
+        idx = int(self.values[0])
+        item = self.parent_view.items[idx]
+
+        embed = discord.Embed(
+            title=item["item_name"],
+            description=item.get("description", "No description available."),
+            color=discord.Color.gold()
+        )
+        if item.get("item_image"):
+            embed.set_image(url=item["item_image"])
+        if item.get("zone_name"):
+            embed.add_field(name="🗺️ Zone", value=item["zone_name"], inline=True)
+        if item.get("npc_name"):
+            embed.add_field(name="👹 NPC", value=item["npc_name"], inline=True)
+        if item.get("item_stats"):
+            embed.add_field(name="⚔️ Stats", value=item["item_stats"], inline=False)
+
+        await interaction.response.send_message(embed=embed, ephemeral=True)
 
 
 
