@@ -68,6 +68,26 @@ async def ensure_upload_channel1(guild: discord.Guild):
 
 
 
+def format_item_name(name: str) -> str:
+    """Capitalize each word except small connectors like 'of' and 'and'."""
+    if not name:
+        return name
+
+    lowercase_words = {"of", "and"}
+
+    words = name.split()
+    formatted = []
+
+    for i, word in enumerate(words):
+        lw = word.lower()
+        if lw in lowercase_words and i != 0:  # keep lowercase if not first word
+            formatted.append(lw)
+        else:
+            formatted.append(word.capitalize())
+
+    return " ".join(formatted)
+
+
 
 
 class ItemDatabaseModal(discord.ui.Modal, title="Add Item to Database"):
@@ -1243,7 +1263,7 @@ async def fetch_wiki_items(slot_name: str):
                     return " ".join(word.capitalize() for word in s.split())
     
                 items.append({
-                    "item_name": clean_case(item_name),
+                    "item_name": format_item_name(item_name),
                     "item_image": image_url,
                     "npc_name": npc_name,
                     "zone_name": zone_name,
