@@ -1606,7 +1606,7 @@ async def run_wiki_items(interaction: discord.Interaction, slot: str, stat: Opti
                             item_name, item_slot, item_image, npc_image, npc_name, zone_name, zone_area,
                             item_stats, description, crafted_name, quest_name, npc_level,
                             added_by, source
-                        ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13'Wiki')
+                        ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,'Wiki')
                         ON CONFLICT (item_name) DO NOTHING
                     """,
                     item["item_name"],
