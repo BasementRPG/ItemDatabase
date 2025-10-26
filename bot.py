@@ -2133,6 +2133,22 @@ class ItemSelectMenu(discord.ui.Select):
         quest_link = f"{linkback}{item['quest_name'].replace(' ', '_')}"
         crafted_name = item["crafted_name"]
         crafted_index = crafted_name.find('(')
+        if any(char.isdigit() for char in item["npc_name"]):
+            npc_name=item["npc_name"]
+    
+        else:    
+            npc_string= item["npc_name"]
+            # Split by comma and strip spaces
+            npc_name = [name.strip() for name in npc_string.split(",") if name.strip()]
+            # Build full wiki links
+            linked_npc = []
+            for name in npc_name:
+                # Replace spaces with underscores for proper wiki URL formatting
+                npc_url = linkback + name.replace(" ", "_")
+                linked_npc.append(f"[{name}]({npc_url})")
+            # Join with newlines for vertical display in embed
+            npc_name = " \n ".join(linked_npc)
+
         if crafted_index != -1:
             crafted_name = crafted_name[:crafted_index]
         else:
@@ -2170,11 +2186,6 @@ class ItemSelectMenu(discord.ui.Select):
             embed.add_field(name="⚒️ Crafted Item", value=f"[{crafted_name}]({crafted_link})", inline=False)  
 
         await interaction.response.send_message(embed=embed, ephemeral=True)
-
-
-
-
-
 
 
 
