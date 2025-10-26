@@ -2127,11 +2127,30 @@ class ItemSelectMenu(discord.ui.Select):
         """Show ephemeral item details when selected."""
         idx = int(self.values[0])
         item = self.parent_view.items[idx]
+        linkback= "https://monstersandmemories.miraheze.org/wiki/"
+        item_link =f"{linkback}{item['item_name'].replace(' ', '_')}"
+        zone_link = f"{linkback}{item['zone_name'].replace(' ', '_')}"
+        quest_link = f"{linkback}{item['quest_name'].replace(' ', '_')}"
+        crafted_name = item["crafted_name"]
+        crafted_index = crafted_name.find('(')
+        if crafted_index != -1:
+            crafted_name = crafted_name[:crafted_index]
+        else:
+            # If no space is found, the original string is returned
+            crafted_name = crafted_name
+        crafted_link = f"{linkback}{crafted_name}"
+        level = item["npc_level"]
+        level_number = re.search(r'\d', level)
+        if level_number:
+            npc_level = f"Level: ~{level[level_number.start():]}"
+        else:
+            npc_level=""
+        
 
         embed = discord.Embed(
             title=item["item_name"],
-            description=item.get("description", "No description available."),
-            color=discord.Color.gold()
+            url=f"{item_link}",
+            color=discord.Color.red()
         )
 
         # Optional: Add wiki link
@@ -2139,13 +2158,21 @@ class ItemSelectMenu(discord.ui.Select):
         embed.add_field(name="🔗 Wiki Page", value=f"[View on Wiki]({wiki_url})", inline=False)
 
         if item.get("item_image"):
+        if item["zone_name"] != "":
+            embed.add_field(name="🗺️ Zone ", value=f"[{item['zone_name']}]({zone_link})" f"\n{item['zone_area']}", inline=True)
+        if npc_name != "":
+            embed.add_field(name="👹 Npc", value=f"{npc_name}" f"\n{npc_level}", inline=True)
+            
+        if item["item_image"] == "":
+            embed.add_field(name="⚔️ Item Stats", value=item["item_stats"], inline=False)
+        if item["item_image"] != "":
             embed.set_image(url=item["item_image"])
-        if item.get("zone_name"):
-            embed.add_field(name="🗺️ Zone", value=item["zone_name"], inline=True)
-        if item.get("npc_name"):
-            embed.add_field(name="👹 NPC", value=item["npc_name"], inline=True)
-        if item.get("item_stats"):
-            embed.add_field(name="⚔️ Stats", value=item["item_stats"], inline=False)
+        if item["npc_image"] != "":
+            embed.set_thumbnail(url=item["npc_image"])            
+        if item["quest_name"] != "":
+            embed.add_field(name="🧩 Related Quest", value=f"[{item['quest_name']}]({quest_link})", inline=False)
+        if item["crafted_name"] != "":
+            embed.add_field(name="⚒️ Crafted Item", value=f"[{crafted_name}]({crafted_link})", inline=False)  
 
         await interaction.response.send_message(embed=embed, ephemeral=True)
 
