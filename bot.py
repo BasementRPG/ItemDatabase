@@ -1270,13 +1270,17 @@ class WikiView(discord.ui.View):
             # Zone + Area
             zone_display = zone_name if not zone_area else f"{zone_name}\n {zone_area.title()}"
             """
-
-            
+            level = {item['npc_level']}
+            level_number = re.search(r'\d, level)
+                if level_number:
+                    npc_level=text[match.start():]
+                else:
+                    npc_level=""
 
             if item["zone_name"] != "":
                 embed.add_field(name="🗺️ Zone ", value=f"[{item['zone_name']}]({zone_link})" f"\n{item['zone_area']}", inline=True)
             if npc_name != "":
-                embed.add_field(name="👹 Npc", value=f"{npc_name}" f"\n{item['npc_level']}", inline=True)
+                embed.add_field(name="👹 Npc", value=f"{npc_name}" f"\n{npc_level}", inline=True)
             
             if item["item_image"] == "":
                 embed.add_field(name="⚔️ Item Stats", value=item["item_stats"], inline=False)
@@ -1308,6 +1312,7 @@ class WikiView(discord.ui.View):
     @discord.ui.button(label="⬅️ Previous", style=discord.ButtonStyle.secondary)
     async def prev_page(self, interaction: discord.Interaction, button: discord.ui.Button):
         self.current_page = (self.current_page - 1) % self.total_pages()
+        self.item_select_menu.options = self.item_select_menu._build_options()
         await interaction.response.edit_message(embeds=self.build_embeds(self.current_page), view=self)
 
 
@@ -1316,6 +1321,7 @@ class WikiView(discord.ui.View):
     @discord.ui.button(label="➡️ Next", style=discord.ButtonStyle.primary)
     async def next_page(self, interaction: discord.Interaction, button: discord.ui.Button):
         self.current_page = (self.current_page + 1) % self.total_pages()
+        self.item_select_menu.options = self.item_select_menu._build_options()
         await interaction.response.edit_message(embeds=self.build_embeds(self.current_page), view=self)
 
 
