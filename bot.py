@@ -207,10 +207,16 @@ class RaceSelect(discord.ui.Select):
 
 
 class SlotRaceClassSelectView(discord.ui.View):
-    def __init__(self, item_image_url, npc_image_url):
+    def __init__(self, db_pool, guild_id, added_by, item_image_url, npc_image_url, item_msg_id, npc_msg_id):
         super().__init__(timeout=None)
+        self.db_pool = db_pool
+        self.guild_id = guild_id
+        self.added_by = added_by
         self.item_image_url = item_image_url
         self.npc_image_url = npc_image_url
+        self.item_msg_id = item_msg_id
+        self.npc_msg_id = npc_msg_id
+
         self.slot = None
         self.usable_classes = []
         self.usable_race = []
@@ -221,22 +227,22 @@ class SlotRaceClassSelectView(discord.ui.View):
 
     @discord.ui.button(label="✅ Continue", style=discord.ButtonStyle.success)
     async def confirm(self, interaction: discord.Interaction, button: discord.ui.Button):
-        # Validate selections
         if not self.slot:
             await interaction.response.send_message("❌ Please select at least one slot.", ephemeral=True)
             return
 
-        # Open item info modal
+        item_slot = ", ".join(self.slot)
+
         await interaction.response.send_modal(
             ItemDatabaseModal(
-                db_pool=db_pool,
-                guild_id=interaction.guild.id,
-                added_by=str(interaction.user),
+                db_pool=self.db_pool,
+                guild_id=self.guild_id,
+                added_by=self.added_by,
                 item_image_url=self.item_image_url,
                 npc_image_url=self.npc_image_url,
-                item_slot=", ".join(self.slot),
-                item_msg_id=None,
-                npc_msg_id=None
+                item_slot=item_slot,
+                item_msg_id=self.item_msg_id,
+                npc_msg_id=self.npc_msg_id
             )
         )
 
@@ -414,26 +420,33 @@ class ItemDatabaseModal(discord.ui.Modal, title="Add Item to Database"):
 # ---------------- Slash Command ----------------
 
 @bot.tree.command(name="add_item_db", description="Add a new item to the database.")
-@app_commands.describe(item_image="Upload item image", npc_image="Upload NPC image (optional)")
-async def add_item_db(interaction: discord.Interaction, item_image: discord.Attachment, npc_image: discord.Attachment, item_slot: str):
-    """Uploads images and opens modal for item info entry."""
+@app_commands.describe(
+    item_image="Upload item image",
+    npc_image="Upload NPC image (optional)"
+)
+async def add_item_db(interaction: discord.Interaction, item_image: discord.Attachment, npc_image: Optional[discord.Attachment] = None):
+    """Uploads images and opens dropdown view for slot/race/class before modal."""
     if not item_image:
-        await interaction.response.send_message("❌ item image is required.", ephemeral=True)
+        await interaction.response.send_message("❌ Item image is required.", ephemeral=True)
         return
-    view = SlotRaceClassSelectView(item_url, npc_url)
+
     added_by = str(interaction.user)
     guild = interaction.guild
     upload_channel = await ensure_upload_channel1(guild)
 
     try:
+        # Upload images to the designated channel
         item_msg = await upload_channel.send(
             file=await item_image.to_file(),
             content=f"📦 Uploaded item image by {interaction.user.mention}"
         )
-        npc_msg = await upload_channel.send(
-            file=await npc_image.to_file(),
-            content=f"👹 Uploaded NPC image by {interaction.user.mention}"
-        )
+
+        npc_msg = None
+        if npc_image:
+            npc_msg = await upload_channel.send(
+                file=await npc_image.to_file(),
+                content=f"👹 Uploaded NPC image by {interaction.user.mention}"
+            )
 
     except discord.Forbidden:
         await interaction.response.send_message("❌ I don't have permission to upload files here.", ephemeral=True)
@@ -441,8 +454,29 @@ async def add_item_db(interaction: discord.Interaction, item_image: discord.Atta
     except Exception as e:
         await interaction.response.send_message(f"❌ Upload failed: {e}", ephemeral=True)
         return
-    await interaction.response.send_message("Select slot, race, and class:", view=view, ephemeral=True)
 
+    # Extract URLs and message IDs for later
+    item_url = item_msg.attachments[0].url
+    npc_url = npc_msg.attachments[0].url if npc_msg else ""
+    item_msg_id = item_msg.id
+    npc_msg_id = npc_msg.id if npc_msg else None
+
+    # Launch Slot/Race/Class view
+    view = SlotRaceClassSelectView(
+        db_pool=db_pool,
+        guild_id=guild.id,
+        added_by=added_by,
+        item_image_url=item_url,
+        npc_image_url=npc_url,
+        item_msg_id=item_msg_id,
+        npc_msg_id=npc_msg_id
+    )
+
+    await interaction.response.send_message(
+        "Select the **Slot**, **Race**, and **Class** for this item:",
+        view=view,
+        ephemeral=True
+    )
 
 
 class EditDatabaseModal(discord.ui.Modal):
