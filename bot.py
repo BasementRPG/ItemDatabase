@@ -1272,10 +1272,10 @@ class WikiView(discord.ui.View):
             """
             level = {item['npc_level']}
             level_number = re.search(r'\d', level)
-                if level_number:
-                    npc_level=text[match.start():]
-                else:
-                    npc_level=""
+            if level_number:
+                npc_level=text[match.start():]
+            else:
+                npc_level=""
 
             if item["zone_name"] != "":
                 embed.add_field(name="🗺️ Zone ", value=f"[{item['zone_name']}]({zone_link})" f"\n{item['zone_area']}", inline=True)
