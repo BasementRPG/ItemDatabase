@@ -2153,11 +2153,6 @@ class ItemSelectMenu(discord.ui.Select):
             color=discord.Color.red()
         )
 
-        # Optional: Add wiki link
-        wiki_url = f"https://monstersandmemories.miraheze.org/wiki/{item['item_name'].replace(' ', '_')}"
-        embed.add_field(name="🔗 Wiki Page", value=f"[View on Wiki]({wiki_url})", inline=False)
-
-        if item.get("item_image"):
         if item["zone_name"] != "":
             embed.add_field(name="🗺️ Zone ", value=f"[{item['zone_name']}]({zone_link})" f"\n{item['zone_area']}", inline=True)
         if npc_name != "":
