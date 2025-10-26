@@ -1270,7 +1270,7 @@ class WikiView(discord.ui.View):
             # Zone + Area
             zone_display = zone_name if not zone_area else f"{zone_name}\n {zone_area.title()}"
             """
-            level = {item['npc_level']}
+            level = item["npc_level"]
             level_number = re.search(r'\d', level)
             if level_number:
                 npc_level=text[match.start():]
