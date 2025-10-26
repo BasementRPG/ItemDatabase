@@ -1273,7 +1273,7 @@ class WikiView(discord.ui.View):
             
 
             if item["zone_name"] != "":
-                embed.add_field(name="🗺️ Zone ", value=f"[{item['zone_name']}]({zone_link}) {item['zone_area'}", inline=True)
+                embed.add_field(name="🗺️ Zone ", value=f"[{item['zone_name']}]({zone_link})"  f"{item['zone_area'}", inline=True)
             if npc_name != "":
                 embed.add_field(name="👹 Npc", value=f"{npc_name}", inline=True)
             
@@ -2086,6 +2086,17 @@ async def run_wiki_items(interaction: discord.Interaction, slot: str, stat: Opti
     except Exception as e:
         print(f"❌ Critical error in view_wiki_items: {e}")
         await interaction.followup.send(f"❌ Error running command: {e}")
+
+
+
+
+
+
+
+
+
+
+
 
 
 @bot.tree.command(name="update_db", description="Compare existing DB items with the Wiki and update any changed fields.")
