@@ -2120,20 +2120,8 @@ class ItemSelectMenu(discord.ui.Select):
                 description=(item.get("zone_name") or "Unknown Zone")[:80],
                 value=str(start + i)
             )
-            for i, item in enumerate(current_items)
-        ]
-
-    async def callback(self, interaction: discord.Interaction):
-        """Send ephemeral item details when selected."""
-        idx = int(self.values[0])
-        item = self.parent_view.items[idx]
-
-        embed = discord.Embed(
-            title=item["item_name"],
-            description=item.get("description", "No description available."),
-            color=discord.Color.gold()
-        )
-        if any(char.isdigit() for char in item["npc_name"]):
+            If zone_name contains a number, swap it into npc_name and clear zone_name
+            if any(char.isdigit() for char in item["npc_name"]):
                 npc_name=item["npc_name"]
     
             else:    
@@ -2185,7 +2173,7 @@ class ItemSelectMenu(discord.ui.Select):
             level = item["npc_level"]
             level_number = re.search(r'\d', level)
             if level_number:
-                npc_level = level[level_number.start():]
+                npc_level = f"Level: ~{level[level_number.start():]}"
             else:
                 npc_level=""
 
