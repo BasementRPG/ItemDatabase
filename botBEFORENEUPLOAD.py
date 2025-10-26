@@ -33,6 +33,11 @@ UPLOAD_GUILD_ID = 1424737490064904365
 UPLOAD_CHANNEL_ID = 1429411344465002498
 
 
+RACE_OPTIONS = ["DDF","DEF","DGN","DWF","ELF","GNM","GOB","HFL","HIE","HUM","ORG","TRL"]
+CLASS_OPTIONS = ["ARC", "BRD", "BST", "CLR", "DRU", "ELE", "ENC", "FTR", "INQ", "MNK", "NEC", "PAL", "RNG", "ROG", "SHD", "SHM", "SPB", "WIZ"]
+ITEM_SLOTS = ["Ammo","Back","Chest","Ear","Face","Feet","Finger","Hands","Head","Legs","Neck","Primary","Range","Secondary","Shirt","Shoulders","Waist","Wrist"]
+
+
 intents = discord.Intents.default()
 intents.message_content = True
 intents.guilds = True
@@ -88,6 +93,118 @@ def format_item_name(name: str) -> str:
             formatted.append(word.capitalize())
 
     return " ".join(formatted)
+
+
+
+class SlotSelect(discord.ui.Select):
+    def __init__(self, parent_view):
+        self.parent_view = parent_view
+        
+        print(f"DEBUG: SlotSelect init - type: {self.parent_view.type}")
+        
+       # Always show all options
+        options = [discord.SelectOption(label=i) for i in ITEM_SLOTS]
+        
+        # ✅ Mark selected slots as default
+        for opt in options:
+            if hasattr(self.parent_view, "slot") and opt.label in (self.parent_view.slot or []):
+                opt.default = True
+
+        # ✅ Multi-select enabled here
+        super().__init__(
+            placeholder="Select Slot(s)",
+            options=options,
+            min_values=1,
+            max_values=len(options)
+        )
+
+    async def callback(self, interaction: discord.Interaction):
+        try:
+            print(f"DEBUG: SlotSelect callback - values: {self.values}")
+            # ✅ Store as a list of slots instead of single string
+            self.parent_view.slot = self.values  
+            
+            # Keep selections highlighted
+            for opt in self.options:
+                opt.default = (opt.value in self.values)
+            
+            await interaction.response.edit_message(view=self.parent_view)
+        except Exception as e:
+            print(f"ERROR in SlotSelect callback: {e}")
+            import traceback
+            traceback.print_exc()
+            try:
+                await interaction.response.send_message(f"Error: {str(e)}", ephemeral=True)
+            except:
+                pass
+
+
+class ClassesSelect(discord.ui.Select):
+    def __init__(self, parent_view):
+        self.parent_view = parent_view
+    
+        # Always show all options
+        options = [discord.SelectOption(label="All")] + [discord.SelectOption(label=c) for c in CLASS_OPTIONS]
+    
+        for opt in options:
+            if self.parent_view.usable_classes and opt.label in self.parent_view.usable_classes:
+                opt.default = True
+        
+        super().__init__(
+            placeholder="Select usable classes (multi)",
+            options=options,
+            min_values=0,
+            max_values=len(options)
+        )
+    
+    async def callback(self, interaction: discord.Interaction):
+        # If All is selected, ignore other selections
+        if "All" in self.values:
+            self.view.usable_classes = ["All"]
+        else:
+            # If other classes selected while All is in previous selection, remove All
+            self.view.usable_classes = self.values
+    
+        # Update the dropdown so selections are visible
+        for option in self.options:
+            option.default = option.label in self.view.usable_classes
+    
+        await interaction.response.edit_message(view=self.view)
+
+    
+class RaceSelect(discord.ui.Select):
+    def __init__(self, parent_view):
+        self.parent_view = parent_view
+    
+        # Always show all options
+        options = [discord.SelectOption(label="All")] + [discord.SelectOption(label=r) for r in RACE_OPTIONS]
+
+        for opt in options:
+            if self.parent_view.usable_race and opt.label in self.parent_view.usable_race:
+                opt.default = True
+        
+        super().__init__(
+            placeholder="Select usable race (multi)",
+            options=options,
+            min_values=0,
+            max_values=len(options)
+        )
+    
+    async def callback(self, interaction: discord.Interaction):
+        # If All is selected, ignore other selections
+        if "All" in self.values:
+            self.view.usable_race = ["All"]
+        else:
+            # If other race selected while All is in previous selection, remove All
+            self.view.usable_race = self.values
+    
+        # Update the dropdown so selections are visible
+        for option in self.options:
+            option.default = option.label in self.view.usable_race
+    
+        await interaction.response.edit_message(view=self.view)
+
+
 
 
 
