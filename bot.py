@@ -1273,7 +1273,7 @@ class WikiView(discord.ui.View):
             level = item["npc_level"]
             level_number = re.search(r'\d', level)
             if level_number:
-                npc_level = level[level_number.start():]
+                npc_level = f"Level: ~{level[level_number.start():]}"
             else:
                 npc_level=""
 
@@ -2133,7 +2133,7 @@ class ItemSelectMenu(discord.ui.Select):
             description=item.get("description", "No description available."),
             color=discord.Color.gold()
         )
-         if any(char.isdigit() for char in item["npc_name"]):
+        if any(char.isdigit() for char in item["npc_name"]):
                 npc_name=item["npc_name"]
     
             else:    
