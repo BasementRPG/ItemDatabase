@@ -29,6 +29,8 @@ print("discord.py version:", discord.__version__)
 
 TOKEN = os.getenv("DISCORD_TOKEN")
 DATABASE_URL = os.getenv("DATABASE_URL")
+UPLOAD_GUILD_ID = 1424737490064904365
+UPLOAD_CHANNEL_ID = 1429411344465002498
 
 
 intents = discord.Intents.default()
@@ -1661,8 +1663,8 @@ async def run_wiki_items(interaction: discord.Interaction, slot: str, stat: Opti
                 buffer = io.BytesIO()
                 image.save(buffer, format="PNG")
                 buffer.seek(0)
-            
-                upload_channel = discord.utils.get(interaction.guild.text_channels, name="item-database-upload-log")
+                guild = bot.get_guild(UPLOAD_GUILD_ID)
+                upload_channel = guild.get_channel(UPLOAD_CHANNEL_ID)
                 if upload_channel:
                     msg = await upload_channel.send(
                         content=f"📦 Generated image for `{title}` (Wiki Import)",
