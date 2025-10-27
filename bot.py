@@ -862,9 +862,6 @@ async def run_item_db(
             ephemeral=ephemeral
         )
 
-    except Exception as e:
-        print(f"❌ Error in run_item_db: {e}")
-        await interaction.followup.send(f"❌ Error searching database: {e}", ephemeral=True)
 
 
 # --- Search button that opens a modal ---
