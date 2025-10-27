@@ -268,6 +268,7 @@ class ItemDatabaseModal(discord.ui.Modal, title="Add Item to Database"):
         self.item_msg_id = item_msg_id
         self.npc_msg_id = npc_msg_id
         self.item_stats = item_stats or ""
+        self.item_slot = item_slot
 
         # Fields
         self.item_name = discord.ui.TextInput(label="Item Name", placeholder="Example: Flowing Black Silk Sash")
@@ -297,7 +298,6 @@ class ItemDatabaseModal(discord.ui.Modal, title="Add Item to Database"):
         raw_zone_value = self.zone_field.value.strip()
         npc_name = self.npc_name.value.strip().title()
         npc_level = self.npc_level.value.strip().title()
-        item_slot = self.item_slot_field.value.strip().title()
     
         # 🗺️ Split "Zone - Area"
         if "-" in raw_zone_value:
@@ -325,7 +325,7 @@ class ItemDatabaseModal(discord.ui.Modal, title="Add Item to Database"):
                 zone_name,
                 zone_area,
                 npc_name,
-                item_slot,
+                self.item_slot,
                 npc_level,
                 self.item_image_url,
                 self.npc_image_url,
