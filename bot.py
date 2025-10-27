@@ -30,7 +30,7 @@ print("discord.py version:", discord.__version__)
 TOKEN = os.getenv("DISCORD_TOKEN")
 DATABASE_URL = os.getenv("DATABASE_URL")
 UPLOAD_GUILD_ID = 1424737490064904365
-UPLOAD_CHANNEL_ID = item-database-upload-log
+UPLOAD_CHANNEL_ID == "item-database-upload-log"
 
 
 RACE_OPTIONS = ["DDF","DEF","DGN","DWF","ELF","GNM","GOB","HFL","HIE","HUM","ORG","TRL"]
