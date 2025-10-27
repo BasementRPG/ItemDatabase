@@ -36,7 +36,7 @@ UPLOAD_CHANNEL_ID = 1429411344465002498
 RACE_OPTIONS = ["DDF","DEF","DGN","DWF","ELF","GNM","GOB","HFL","HIE","HUM","ORG","TRL"]
 CLASS_OPTIONS = ["ARC", "BRD", "BST", "CLR", "DRU", "ELE", "ENC", "FTR", "INQ", "MNK", "NEC", "PAL", "RNG", "ROG", "SHD", "SHM", "SPB", "WIZ"]
 ITEM_SLOTS = ["Ammo","Back","Chest","Ear","Face","Feet","Finger","Hands","Head","Legs","Neck","Primary","Range","Secondary","Shirt","Shoulders","Waist","Wrist"]
-ITEM_STATS = ["AGI","CHA","DEX","INT","STA","STR","WIS","HP","Mana","","SV Cold","SV Corruption","SV Disease","SV Electricity","SV Fire","SV Holy","SV Magi","SV Poison"]
+ITEM_STATS = ["AGI","CHA","DEX","INT","STA","STR","WIS","HP","Mana","SV Cold","SV Corruption","SV Disease","SV Electricity","SV Fire","SV Holy","SV Magi","SV Poison"]
 
 intents = discord.Intents.default()
 intents.message_content = True
@@ -201,7 +201,7 @@ class StatSelect(discord.ui.Select):
 
 
 
-class SlotRaceClassSelectView(discord.ui.View):
+class SlotStatClassSelectView(discord.ui.View):
     def __init__(self, db_pool, guild_id, added_by, item_image_url, npc_image_url, item_msg_id, npc_msg_id):
         super().__init__(timeout=None)
         self.db_pool = db_pool
@@ -469,8 +469,8 @@ async def add_item_db(interaction: discord.Interaction, item_image: discord.Atta
     item_msg_id = item_msg.id
     npc_msg_id = npc_msg.id if npc_msg else None
 
-    # Launch Slot/Race/Class view
-    view = SlotRaceClassSelectView(
+    # Launch Slot/Stat/Class view
+    view = SlotStatClassSelectView(
         db_pool=db_pool,
         guild_id=guild.id,
         added_by=added_by,
