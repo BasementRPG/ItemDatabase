@@ -745,52 +745,51 @@ async def run_item_db(
     slot: Optional[str],
     stat: Optional[str],
     classes: Optional[str],
-    search_query: Optional[str] = None,
-    ephemeral: bool = False
+    search_query: Optional[str],  
 ):
-    """Handles searching items in the database with optional filters and search term."""
     try:
-        await interaction.response.defer(thinking=True, ephemeral=ephemeral)
+        await interaction.response.defer(thinking=True)
     except discord.InteractionResponded:
         pass
 
-    try:
-        guild_id = str(interaction.guild.id)
+    # Replace the filter UI
+    await interaction.edit_original_response(
+        content=f"⏳ Searching the database{f' for `{slot}`' if slot else ''}"
+                f"{f' with {stat}' if stat else ''}{f' for {classes}' if classes else ''}"
+                f"{f' matching `{search_query}`' if search_query else ''}...",
+        view=None,
+        embeds=[]
+    )
 
-        # --- Step 1: Build base query ---
-        query = """
-            SELECT item_name, item_image, npc_image, npc_name, zone_name, zone_area,
-                   item_slot, item_stats, description, quest_name, crafted_name,
-                   npc_level, source
-            FROM item_database
-            WHERE guild_id = $1
-        """
-        params = [guild_id]
-        param_index = 2
+    # Build WHERE based on optional search + slot
+    where_clauses = []
+    params = []
 
-        # --- Step 2: Apply slot filter if provided ---
-        if slot:
-            query += f" AND LOWER(item_slot) = LOWER(${param_index})"
-            params.append(slot)
-            param_index += 1
+    # Search across item_name, npc_name, zone_name with ILIKE
+    if search_query:
+        where_clauses.append("(item_name ILIKE $%d OR npc_name ILIKE $%d OR zone_name ILIKE $%d)" % (len(params)+1, len(params)+2, len(params)+3))
+        params.extend([f"%{search_query}%", f"%{search_query}%", f"%{search_query}%"])
 
-        # --- Step 3: Add search term if provided ---
-        if search_query:
-            query += f"""
-                AND (
-                    LOWER(item_name) LIKE LOWER(${param_index})
-                    OR LOWER(zone_name) LIKE LOWER(${param_index})
-                    OR LOWER(npc_name) LIKE LOWER(${param_index})
-                )
-            """
-            params.append(f"%{search_query}%")
-            param_index += 1
+    if slot:
+        where_clauses.append("LOWER(item_slot) = LOWER($%d)" % (len(params)+1))
+        params.append(slot)
 
-        # --- Step 4: Finish the query ---
-        query += " ORDER BY item_name ASC;"
+    # Only this guild and global entries
+    where_clauses.append("(guild_id = $%d OR guild_id = '')" % (len(params)+1))
+    params.append(str(interaction.guild.id))
 
-        async with db_pool.acquire() as conn:
-            db_rows = await conn.fetch(query, *params)
+    where_sql = " WHERE " + " AND ".join(where_clauses) if where_clauses else ""
+    query = f"""
+        SELECT item_name, item_image, npc_image, npc_name, zone_name, zone_area,
+               item_slot, item_stats, description, quest_name, crafted_name,
+               npc_level, source
+        FROM item_database
+        {where_sql}
+        ORDER BY item_name ASC;
+    """
+
+    async with db_pool.acquire() as conn:
+        db_rows = await conn.fetch(query, *params)
 
         # --- Step 5: Apply stat and class filters (regex-based) ---
         def text_cleanup(text: str) -> str:
@@ -868,20 +867,37 @@ async def run_item_db(
         await interaction.followup.send(f"❌ Error searching database: {e}", ephemeral=True)
 
 
-
-
-class SearchBarInput(discord.ui.TextInput):
-    def __init__(self, parent_view):
-        super().__init__(
-            label="🔍 Search",
-            placeholder="Search item, NPC, or zone name...",
-            required=False,
-            style=discord.TextStyle.short
-        )
+# --- Search button that opens a modal ---
+class SearchButton(discord.ui.Button):
+    def __init__(self, parent_view: "WikiSelectView"):
+        super().__init__(label="🔍 Enter Search Term", style=discord.ButtonStyle.primary)
         self.parent_view = parent_view
 
     async def callback(self, interaction: discord.Interaction):
-        self.parent_view.search_query = self.value
+        await interaction.response.send_modal(SearchModal(self.parent_view))
+
+
+# --- Modal with a single text input (the "search bar") ---
+class SearchModal(discord.ui.Modal, title="Search Database"):
+    def __init__(self, parent_view: "WikiSelectView"):
+        super().__init__(timeout=None)
+        self.parent_view = parent_view
+
+        self.query = discord.ui.TextInput(
+            label="Search",
+            placeholder="Enter partial item, NPC, or zone name",
+            required=False,
+            style=discord.TextStyle.short
+        )
+        self.add_item(self.query)
+
+    async def on_submit(self, interaction: discord.Interaction):
+        # stash the query back on the filter view
+        self.parent_view.search_query = (self.query.value or "").strip()
+        await interaction.response.send_message(
+            f"✅ Search set to: `{self.parent_view.search_query or '— (cleared) —'}`",
+            ephemeral=True
+        )
 
 
 
