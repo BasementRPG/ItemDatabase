@@ -371,7 +371,7 @@ class ItemDatabaseModal(discord.ui.Modal, title="Add Item to Database"):
 
     
             # Confirmation
-            await interaction.response.send_message(
+            await interaction.response.edit_message(
                 f"✅ `{item_name}` added successfully!",
                 ephemeral=True
             )
@@ -723,7 +723,7 @@ async def view_item_db(interaction: discord.Interaction):
     # Show filters and return; the runner will take over on ✅
     view = WikiSelectView(source_command="dbp", on_submit=run_item_db, optional_slot=True)
     await interaction.response.send_message(
-        "Search the **Database** using the filters below:",
+        "Search the **Database** (Private) using the filters below:",
         view=view,  ephemeral=True
     )
 
@@ -1169,19 +1169,19 @@ class WikiView(discord.ui.View):
 
         # Detect which command was the source
         if self.source_command == "wiki":
-            prompt = "Please select the **Slot**, and (optionally) **Stat**, then press ✅ **Search**:"
+            prompt = "Please select the **Slot**, and (optionally) **Stat** and/or **Class**, then press ✅ **Search**:"
             ephemeral = False
             optional_slot = False
             source_command = "wiki"
             
         elif self.source_command == "db":
-            prompt = "Search the **Database** using the same filters below:"
+            prompt = "Search the **Database** using filters below:"
             ephemeral = False
             optional_slot=True
             source_command = "db"
         
         elif self.source_command == "dbp":
-            prompt = "Search the **Database (Private)** using the same filters below:"
+            prompt = "Search the **Database (Private)** using filters below:"
             ephemeral = True
             optional_slot=True
             source_command = "dbp"
