@@ -218,7 +218,7 @@ class SlotRaceClassSelectView(discord.ui.View):
 
         self.add_item(SlotSelect(self))
         self.add_item(ClassesSelect(self))
-        self.add_item(RaceSelect(self))
+        self.add_item(StatSelect(self))
 
     @discord.ui.button(label="✅ Submit new it", style=discord.ButtonStyle.success)
     async def confirm(self, interaction: discord.Interaction, button: discord.ui.Button):
