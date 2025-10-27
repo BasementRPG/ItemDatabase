@@ -214,7 +214,7 @@ class SlotRaceClassSelectView(discord.ui.View):
 
         self.slot = None
         self.usable_classes = []
-        self.usable_race = []
+        self.all_stats = []
 
         self.add_item(SlotSelect(self))
         self.add_item(ClassesSelect(self))
