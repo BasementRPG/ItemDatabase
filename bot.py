@@ -856,11 +856,11 @@ async def run_item_db(
         ]
 
         results_view = WikiView(results, source_command=source_command)
-        await interaction.followup.send(
+        await interaction.response.edit_message(
             content=None,
             embeds=results_view.build_embeds(0),
             view=results_view,
-            
+           
         )
 
 
