@@ -282,13 +282,13 @@ class SlotStatClassSelectView(discord.ui.View):
             )
         )
     @discord.ui.button(label="❌ Cancel", style=discord.ButtonStyle.danger)
-        async def cancel(self, interaction: discord.Interaction, button: discord.ui.Button):
-            await self._delete_uploads(interaction)
-            # Disable components to prevent further interaction
-            for child in self.children:
-                child.disabled = True
-            await interaction.response.edit_message(content="❌ Upload cancelled and images deleted.", view=None)
-            self.stop()
+    async def cancel(self, interaction: discord.Interaction, button: discord.ui.Button):
+        await self._delete_uploads(interaction)
+        # Disable components to prevent further interaction
+        for child in self.children:
+            child.disabled = True
+        await interaction.response.edit_message(content="❌ Upload cancelled and images deleted.", view=None)
+        self.stop()
 
 
 class ItemDatabaseModal(discord.ui.Modal, title="Add Item to Database"):
