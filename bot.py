@@ -202,8 +202,8 @@ class StatSelect(discord.ui.Select):
 
 
 class SlotStatClassSelectView(discord.ui.View):
-    def __init__(self, db_pool, guild_id, added_by, item_image_url, npc_image_url, item_msg_id, npc_msg_id):
-        super().__init__(timeout=None)
+    def __init__(self, db_pool, guild_id, added_by, item_image_url, npc_image_url, item_msg_id, npc_msg_id, upload_channel_id):
+        super().__init__(timeout=900)
         self.db_pool = db_pool
         self.guild_id = guild_id
         self.added_by = added_by
@@ -211,14 +211,47 @@ class SlotStatClassSelectView(discord.ui.View):
         self.npc_image_url = npc_image_url
         self.item_msg_id = item_msg_id
         self.npc_msg_id = npc_msg_id
+        self.upload_channel_id = upload_channel_id
 
         self.slot = None
         self.usable_classes = []
         self.all_stats = []
 
+        self._finalized = False
+        
         self.add_item(SlotSelect(self))
         self.add_item(ClassesSelect(self))
         self.add_item(StatSelect(self))
+
+    async def _delete_uploads(self, interaction: discord.Interaction):
+        """Best-effort delete of uploaded messages."""
+        try:
+            channel = interaction.client.get_channel(self.upload_channel_id) or await interaction.client.fetch_channel(self.upload_channel_id)
+            if self.item_msg_id:
+                try:
+                    msg = await channel.fetch_message(self.item_msg_id)
+                    await msg.delete()
+                except Exception:
+                    pass
+            if self.npc_msg_id:
+                try:
+                    msg = await channel.fetch_message(self.npc_msg_id)
+                    await msg.delete()
+                except Exception:
+                    pass
+        except Exception:
+            pass
+
+     async def on_timeout(self):
+        # If user never completed the flow, delete the uploads
+        if not self._finalized:
+            # We don't have an interaction here to reply, just best-effort delete
+            try:
+                # You can’t access an interaction here; fetch bot + channel by ID via bot object if you store it.
+                # If you have `bot` global, you can use it here similarly to _delete_uploads.
+                pass
+            except Exception:
+                pass
 
     @discord.ui.button(label="✅ Submit new it", style=discord.ButtonStyle.success)
     async def confirm(self, interaction: discord.Interaction, button: discord.ui.Button):
@@ -248,12 +281,14 @@ class SlotStatClassSelectView(discord.ui.View):
                 item_stats=item_stats  # 🔹 pass this new field
             )
         )
-
-
-
-
-
-
+    @discord.ui.button(label="❌ Cancel", style=discord.ButtonStyle.danger)
+        async def cancel(self, interaction: discord.Interaction, button: discord.ui.Button):
+            await self._delete_uploads(interaction)
+            # Disable components to prevent further interaction
+            for child in self.children:
+                child.disabled = True
+            await interaction.response.edit_message(content="❌ Upload cancelled and images deleted.", view=None)
+            self.stop()
 
 
 class ItemDatabaseModal(discord.ui.Modal, title="Add Item to Database"):
@@ -465,13 +500,14 @@ async def add_item_db(interaction: discord.Interaction, item_image: discord.Atta
         guild_id=guild.id,
         added_by=added_by,
         item_image_url=item_url,
-        npc_image_url=npc_url,
+        npc_image_url=npc_url if npc_msg else None,
         item_msg_id=item_msg_id,
-        npc_msg_id=npc_msg_id
+        npc_msg_id=npc_msg_id if npc_msg else None,
+        upload_channel_id=upload_channel.id
     )
 
     await interaction.response.send_message(
-        "Select the **Slot**, **Race**, and **Class** for this item:",
+        "Select the **Slot**, **Classes**, and **Stats** for this item:",
         view=view,
         ephemeral=True
     )
