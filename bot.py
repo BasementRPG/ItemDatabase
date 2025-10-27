@@ -242,7 +242,7 @@ class SlotStatClassSelectView(discord.ui.View):
         except Exception:
             pass
 
-     async def on_timeout(self):
+    async def on_timeout(self):
         # If user never completed the flow, delete the uploads
         if not self._finalized:
             # We don't have an interaction here to reply, just best-effort delete
