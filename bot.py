@@ -854,7 +854,7 @@ async def run_item_db(
             for row in db_rows
         ]
 
-        results_view = WikiView(results, source_command="dbp" if ephemeral else "db")
+        results_view = WikiView(results, source_command=source_command)
         await interaction.followup.send(
             content=None,
             embeds=results_view.build_embeds(0),
