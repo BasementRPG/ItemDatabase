@@ -776,7 +776,7 @@ async def run_item_db(
 
     # Only this guild and global entries
     where_clauses.append("(guild_id = $%d OR guild_id IS NULL)" % (len(params)+1))
-    params.append(str(interaction.guild.id))
+    params.append(interaction.guild.id)
 
     where_sql = " WHERE " + " AND ".join(where_clauses) if where_clauses else ""
     query = f"""
