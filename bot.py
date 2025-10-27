@@ -272,25 +272,22 @@ class ItemDatabaseModal(discord.ui.Modal, title="Add Item to Database"):
         # Fields
         self.item_name = discord.ui.TextInput(label="Item Name", placeholder="Example: Flowing Black Silk Sash")
         self.zone_field = discord.ui.TextInput(
-            label="Zone Name - Zone Area",
+            label="Zone Name - Zone Area (Optional)",
             placeholder="Eamples: Shaded Dunes - Ashira Camp",
         )
         self.npc_name = discord.ui.TextInput(label="NPC Name", placeholder="Example: Fippy Darkpaw")
 
         self.npc_level = discord.ui.TextInput(
             label="NPC Level",
-            placeholder="Example: 15 (Numbers Only)",
+            placeholder="Example: 15-17 (Estimate/Optional)",
             required=False
         )
         
-        self.item_slot_field = discord.ui.TextInput(label="Item Slot (Add another slot spaced with a , )", default=item_slot or "")
-
 
         self.add_item(self.item_name)
         self.add_item(self.zone_field)
         self.add_item(self.npc_name)
         self.add_item(self.npc_level)
-        self.add_item(self.item_slot_field)
         
 
 
@@ -299,6 +296,7 @@ class ItemDatabaseModal(discord.ui.Modal, title="Add Item to Database"):
         item_name = self.item_name.value.strip().title()
         raw_zone_value = self.zone_field.value.strip()
         npc_name = self.npc_name.value.strip().title()
+        npc_level = self.npc_level.value.strip().title()
         item_slot = self.item_slot_field.value.strip().title()
     
         # 🗺️ Split "Zone - Area"
@@ -310,14 +308,6 @@ class ItemDatabaseModal(discord.ui.Modal, title="Add Item to Database"):
             zone_name = raw_zone_value.title()
             zone_area = None
     
-        # Parse NPC level
-        npc_level_value = None
-        if self.npc_level.value.strip():
-            try:
-                npc_level_value = int(self.npc_level.value.strip())
-            except ValueError:
-                await interaction.response.send_message("⚠️ NPC Level must be a number.", ephemeral=True)
-                return
     
         # Insert into DB
         try:
@@ -325,7 +315,7 @@ class ItemDatabaseModal(discord.ui.Modal, title="Add Item to Database"):
                 await conn.execute("""
                     INSERT INTO item_database (
                         guild_id, item_name, zone_name, zone_area,
-                        npc_name, item_slot, item_level, item_image, npc_image,
+                        npc_name, item_slot, npc_level, item_image, npc_image,
                         item_msg_id, npc_msg_id, item_stats, added_by, created_at
                     )
                     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,NOW())
@@ -336,7 +326,7 @@ class ItemDatabaseModal(discord.ui.Modal, title="Add Item to Database"):
                 zone_area,
                 npc_name,
                 item_slot,
-                npc_level_value,
+                npc_level,
                 self.item_image_url,
                 self.npc_image_url,
                 self.item_msg_id,
