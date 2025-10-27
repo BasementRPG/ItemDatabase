@@ -1518,7 +1518,7 @@ class WikiSelectView(discord.ui.View):
         self.ephermeral = ephemeral
 
         if self.show_search:
-            self.add_item(SearchBarInput(self))
+            self.add_item(SearchButton(self))
         # Slot dropdown
         self.slot_select = discord.ui.Select(
             placeholder="🎒 Select item slot...",
