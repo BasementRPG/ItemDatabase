@@ -371,7 +371,7 @@ class ItemDatabaseModal(discord.ui.Modal, title="Add Item to Database"):
 
     
             # Confirmation
-            await interaction.response.edit_message(
+            await interaction..edit_original_response(
                 f"✅ `{item_name}` added successfully!",
                 ephemeral=True
             )
