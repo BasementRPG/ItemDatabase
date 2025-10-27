@@ -860,7 +860,7 @@ async def run_item_db(
             content=None,
             embeds=results_view.build_embeds(0),
             view=results_view,
-            ephemeral=ephemeral
+            
         )
 
 
