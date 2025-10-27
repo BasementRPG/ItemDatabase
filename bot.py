@@ -745,7 +745,8 @@ async def run_item_db(
     slot: Optional[str],
     stat: Optional[str],
     classes: Optional[str],
-    search_query: Optional[str],  
+    search_query: Optional[str],
+    source_command="db"
 ):
     try:
         await interaction.response.defer(thinking=True)
