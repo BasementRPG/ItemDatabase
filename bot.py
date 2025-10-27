@@ -36,7 +36,7 @@ UPLOAD_CHANNEL_ID = 1429411344465002498
 RACE_OPTIONS = ["DDF","DEF","DGN","DWF","ELF","GNM","GOB","HFL","HIE","HUM","ORG","TRL"]
 CLASS_OPTIONS = ["ARC", "BRD", "BST", "CLR", "DRU", "ELE", "ENC", "FTR", "INQ", "MNK", "NEC", "PAL", "RNG", "ROG", "SHD", "SHM", "SPB", "WIZ"]
 ITEM_SLOTS = ["Ammo","Back","Chest","Ear","Face","Feet","Finger","Hands","Head","Legs","Neck","Primary","Range","Secondary","Shirt","Shoulders","Waist","Wrist"]
-
+ITEM_STATS = ["AGI","CHA","DEX","INT","STA","STR","WIS","HP","Mana","","SV Cold","SV Corruption","SV Disease","SV Electricity","SV Fire","SV Holy","SV Magi","SV Poison"]
 
 intents = discord.Intents.default()
 intents.message_content = True
@@ -171,35 +171,31 @@ class ClassesSelect(discord.ui.Select):
         await interaction.response.edit_message(view=self.view)
 
     
-class RaceSelect(discord.ui.Select):
+class StatSelect(discord.ui.Select):
     def __init__(self, parent_view):
         self.parent_view = parent_view
     
         # Always show all options
-        options = [discord.SelectOption(label="All")] + [discord.SelectOption(label=r) for r in RACE_OPTIONS]
+        options = [discord.SelectOption(label=s) for s in STAT_OPTIONS]
 
         for opt in options:
-            if self.parent_view.usable_race and opt.label in self.parent_view.usable_race:
+            if self.parent_view.all_stats and opt.label in self.parent_view.all_stats:
                 opt.default = True
         
         super().__init__(
-            placeholder="Select usable race (multi)",
+            placeholder="Select all stats (multi)",
             options=options,
             min_values=0,
             max_values=len(options)
         )
     
     async def callback(self, interaction: discord.Interaction):
-        # If All is selected, ignore other selections
-        if "All" in self.values:
-            self.view.usable_race = ["All"]
-        else:
-            # If other race selected while All is in previous selection, remove All
-            self.view.usable_race = self.values
+
+        self.view.all_stats= self.values
     
         # Update the dropdown so selections are visible
         for option in self.options:
-            option.default = option.label in self.view.usable_race
+            option.default = option.label in self.view.all_stats
     
         await interaction.response.edit_message(view=self.view)
 
@@ -224,14 +220,21 @@ class SlotRaceClassSelectView(discord.ui.View):
         self.add_item(ClassesSelect(self))
         self.add_item(RaceSelect(self))
 
-    @discord.ui.button(label="✅ Continue", style=discord.ButtonStyle.success)
+    @discord.ui.button(label="✅ Submit new it", style=discord.ButtonStyle.success)
     async def confirm(self, interaction: discord.Interaction, button: discord.ui.Button):
         if not self.slot:
             await interaction.response.send_message("❌ Please select at least one slot.", ephemeral=True)
             return
 
         item_slot = ", ".join(self.slot)
-
+        item_stats = ""
+        
+        # Combine classes + stats
+        if self.usable_classes:
+            item_stats += f"Classes: {', '.join(self.usable_classes)}"
+        if hasattr(self, "all_stats") and self.all_stats:
+            item_stats += f"\nStats: {', '.join(self.all_stats)}"
+        
         await interaction.response.send_modal(
             ItemDatabaseModal(
                 db_pool=self.db_pool,
@@ -241,7 +244,8 @@ class SlotRaceClassSelectView(discord.ui.View):
                 npc_image_url=self.npc_image_url,
                 item_slot=item_slot,
                 item_msg_id=self.item_msg_id,
-                npc_msg_id=self.npc_msg_id
+                npc_msg_id=self.npc_msg_id,
+                item_stats=item_stats  # 🔹 pass this new field
             )
         )
 
@@ -250,8 +254,11 @@ class SlotRaceClassSelectView(discord.ui.View):
 
 
 
+
+
 class ItemDatabaseModal(discord.ui.Modal, title="Add Item to Database"):
-    def __init__(self, db_pool, guild_id, added_by, item_image_url=None, npc_image_url=None, item_slot=None, item_msg_id=None, npc_msg_id=None):
+    def __init__(self, db_pool, guild_id, added_by, item_image_url=None, npc_image_url=None, item_slot=None, item_msg_id=None, npc_msg_id=None, item_stats=None):
+
         super().__init__(timeout=None)
         self.db_pool = db_pool
         self.guild_id = guild_id
@@ -260,7 +267,7 @@ class ItemDatabaseModal(discord.ui.Modal, title="Add Item to Database"):
         self.npc_image_url = npc_image_url
         self.item_msg_id = item_msg_id
         self.npc_msg_id = npc_msg_id
-        self.item_stat = item_stat
+        self.item_stats = item_stats or ""
 
         # Fields
         self.item_name = discord.ui.TextInput(label="Item Name", placeholder="Example: Flowing Black Silk Sash")
@@ -318,10 +325,10 @@ class ItemDatabaseModal(discord.ui.Modal, title="Add Item to Database"):
                 await conn.execute("""
                     INSERT INTO item_database (
                         guild_id, item_name, zone_name, zone_area,
-                        npc_name, item_slot, npc_level,
-                        item_image, npc_image, item_msg_id, npc_msg_id, added_by, created_at
+                        npc_name, item_slot, item_level, item_image, npc_image,
+                        item_msg_id, npc_msg_id, item_stats, added_by, created_at
                     )
-                    VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,NOW())
+                    VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,NOW())
                 """,
                 self.guild_id,
                 item_name,
@@ -333,8 +340,10 @@ class ItemDatabaseModal(discord.ui.Modal, title="Add Item to Database"):
                 self.item_image_url,
                 self.npc_image_url,
                 self.item_msg_id,
-                self.npc_msg_id,                  
+                self.npc_msg_id,
+                self.item_stats, 
                 self.added_by)
+
     
             # Confirmation
             await interaction.response.send_message(
