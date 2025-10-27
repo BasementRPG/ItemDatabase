@@ -30,7 +30,7 @@ print("discord.py version:", discord.__version__)
 TOKEN = os.getenv("DISCORD_TOKEN")
 DATABASE_URL = os.getenv("DATABASE_URL")
 UPLOAD_GUILD_ID = 1424737490064904365
-UPLOAD_CHANNEL_ID == "item-database-upload-log"
+UPLOAD_CHANNEL_ID = 1432472242029334600
 
 
 RACE_OPTIONS = ["DDF","DEF","DGN","DWF","ELF","GNM","GOB","HFL","HIE","HUM","ORG","TRL"]
@@ -721,7 +721,7 @@ async def remove_itemdb(interaction: discord.Interaction, item_name: str, npc_na
 @bot.tree.command(name="view_item_dbp", description="View items stored in the database with optional filters.")
 async def view_item_db(interaction: discord.Interaction):
     # Show filters and return; the runner will take over on ✅
-    view = WikiSelectView(source_command="dbp", on_submit=run_item_db, optional_slot=True)
+    view = WikiSelectView(source_command="dbp", on_submit=run_item_db, optional_slot=True, show_search=True)
     await interaction.response.send_message(
         "Search the **Database** (Private) using the filters below:",
         view=view,  ephemeral=True
@@ -733,57 +733,70 @@ async def view_item_db(interaction: discord.Interaction):
 @bot.tree.command(name="view_item_db", description="View items stored in the database with optional filters.")
 async def view_item_db(interaction: discord.Interaction):
     # Show filters and return; the runner will take over on ✅
-    view = WikiSelectView(source_command="db", on_submit=run_item_db, optional_slot=True)
+    view = WikiSelectView(source_command="db", on_submit=run_item_db, optional_slot=True, show_search=True)
     await interaction.response.send_message(
         "Search the **Database** using the filters below:",
         view=view
     )
 
 
-async def run_item_db(interaction: discord.Interaction, slot: str, stat: Optional[str], classes: Optional[str]):
-    # First response to this interaction: replace filter UI with “Searching…”
+async def run_item_db(
+    interaction: discord.Interaction,
+    slot: Optional[str],
+    stat: Optional[str],
+    classes: Optional[str],
+    search_query: Optional[str] = None,
+    ephemeral: bool = False
+):
+    """Handles searching items in the database with optional filters and search term."""
     try:
-        await interaction.response.defer(thinking=True)
+        await interaction.response.defer(thinking=True, ephemeral=ephemeral)
     except discord.InteractionResponded:
         pass
-    try:
-        await interaction.edit_original_response(
-            content=f"⏳ Searching the database for `{slot}` items"
-                    f"{f' with {stat}' if stat else ''}"
-                    f"{f' for {classes}' if classes else ''}...",
-            view=None,
-            embeds=[]
-        )
-    except discord.InteractionResponded:
-        await interaction.followup.send(
-            content=f"⏳ Searching the database for `{slot}` items"
-                    f"{f' with {stat}' if stat else ''}"
-                    f"{f' for {classes}' if classes else ''}...",
-            ephemeral=("dbp" in getattr(interaction.command.name, "", "").lower()),
-        )
 
     try:
-        
+        guild_id = str(interaction.guild.id)
+
+        # --- Step 1: Build base query ---
         query = """
             SELECT item_name, item_image, npc_image, npc_name, zone_name, zone_area,
                    item_slot, item_stats, description, quest_name, crafted_name,
                    npc_level, source
             FROM item_database
-            WHERE ($1::text IS NULL OR LOWER(item_slot) = LOWER($1))
-            ORDER BY item_name ASC;
+            WHERE guild_id = $1
         """
-        async with db_pool.acquire() as conn:
-            db_rows = await conn.fetch(query, slot)
+        params = [guild_id]
+        param_index = 2
 
-        
-         # --- Apply Filters ---
+        # --- Step 2: Apply slot filter if provided ---
+        if slot:
+            query += f" AND LOWER(item_slot) = LOWER(${param_index})"
+            params.append(slot)
+            param_index += 1
+
+        # --- Step 3: Add search term if provided ---
+        if search_query:
+            query += f"""
+                AND (
+                    LOWER(item_name) LIKE LOWER(${param_index})
+                    OR LOWER(zone_name) LIKE LOWER(${param_index})
+                    OR LOWER(npc_name) LIKE LOWER(${param_index})
+                )
+            """
+            params.append(f"%{search_query}%")
+            param_index += 1
+
+        # --- Step 4: Finish the query ---
+        query += " ORDER BY item_name ASC;"
+
+        async with db_pool.acquire() as conn:
+            db_rows = await conn.fetch(query, *params)
+
+        # --- Step 5: Apply stat and class filters (regex-based) ---
         def text_cleanup(text: str) -> str:
             return (text or "").replace("\n", " ").replace("\r", " ")
 
-        # Prepare regex patterns
         stat_patterns = []
-        class_patterns = []
-
         if stat:
             stat_filter = str(stat).strip().lower()
             stat_keywords = {
@@ -794,47 +807,36 @@ async def run_item_db(interaction: discord.Interaction, slot: str, stat: Optiona
                 "sta": [r"\bsta\b", r"\bstamina\b"],
                 "wis": [r"\bwis\b", r"\bwisdom\b"],
             }
-            stat_patterns = [re.compile(pat, re.IGNORECASE) for pat in stat_keywords.get(stat_filter, [rf"\b{stat_filter}\b"])]
+            stat_patterns = [re.compile(pat, re.IGNORECASE)
+                             for pat in stat_keywords.get(stat_filter, [rf"\b{stat_filter}\b"])]
 
+        class_patterns = []
         if classes:
             classes_filter = str(classes).strip().lower()
             class_keywords = {
-                "arc": [r"\barc\b"],
-                "brd": [r"\bbrd\b"],
-                "bst": [r"\bbst\b"],
-                "clr": [r"\bclr\b"],
-                "dru": [r"\bdru\b"],
-                "ele": [r"\bele\b"],
-                "enc": [r"\benc\b"],
-                "ftr": [r"\bftr\b"],
-                "inq": [r"\binq\b"],
-                "mnk": [r"\bmnk\b"],
-                "nec": [r"\bnec\b"],
-                "pal": [r"\bpal\b"],
-                "rng": [r"\brng\b"],
-                "rog": [r"\brog\b"],
-                "shd": [r"\bshd\b"],
-                "shm": [r"\bshm\b"],
-                "spd": [r"\bspd\b"],
-                "wiz": [r"\bwiz\b"],
+                "arc": [r"\barc\b"], "brd": [r"\bbrd\b"], "bst": [r"\bbst\b"],
+                "clr": [r"\bclr\b"], "dru": [r"\bdru\b"], "ele": [r"\bele\b"],
+                "enc": [r"\benc\b"], "ftr": [r"\bftr\b"], "inq": [r"\binq\b"],
+                "mnk": [r"\bmnk\b"], "nec": [r"\bnec\b"], "pal": [r"\bpal\b"],
+                "rng": [r"\brng\b"], "rog": [r"\brog\b"], "shd": [r"\bshd\b"],
+                "shm": [r"\bshm\b"], "spd": [r"\bspd\b"], "wiz": [r"\bwiz\b"],
             }
-            # Also include "ALL" automatically
-            class_patterns = [re.compile(pat, re.IGNORECASE) for pat in (class_keywords.get(classes_filter, [rf"\b{classes_filter}\b"]) + [r"\bclass: all\b"])]
+            class_patterns = [re.compile(pat, re.IGNORECASE)
+                              for pat in (class_keywords.get(classes_filter, [rf"\b{classes_filter}\b"]) + [r"\bclass: all\b"])]
 
-        # Function to check a text block against active filters
         def matches_filters(text: str) -> bool:
             text = text_cleanup(text)
             stat_match = any(p.search(text) for p in stat_patterns) if stat_patterns else True
             class_match = any(p.search(text) for p in class_patterns) if class_patterns else True
-            # Both must match if both filters active
             return stat_match and class_match
 
-        # Apply filters
         db_rows = [r for r in db_rows if matches_filters(r.get("item_stats") or "")]
 
-        print(f"🔍 Final filter results — Stat: {stat or 'None'}, Class: {classes or 'None'} | DB: {len(db_rows)}")
-        
+        if not db_rows:
+            await interaction.followup.send("❌ No items found matching your search and filters.", ephemeral=ephemeral)
+            return
 
+        # --- Step 6: Format and display results ---
         results = [
             {
                 "item_name": row["item_name"],
@@ -853,29 +855,36 @@ async def run_item_db(interaction: discord.Interaction, slot: str, stat: Optiona
             for row in db_rows
         ]
 
-        if not results:
-            await interaction.edit_original_response(
-                content=f"❌ No database items found for `{slot}`{f' with {stat}' if stat else ''}{f' with {classes}' if classes else ''}.",
-                embeds=[],
-                view=None
-            )
-            return
-
-        # Build the results view and replace this same message
-        results_view = WikiView(results, source_command="db", on_submit=run_item_db)
-        await interaction.edit_original_response(
+        results_view = WikiView(results, source_command="dbp" if ephemeral else "db")
+        await interaction.followup.send(
             content=None,
             embeds=results_view.build_embeds(0),
-            view=results_view
+            view=results_view,
+            ephemeral=ephemeral
         )
 
     except Exception as e:
         print(f"❌ Error in run_item_db: {e}")
-        await interaction.edit_original_response(
-            content=f"❌ Error searching database: {e}",
-            embeds=[],
-            view=None
+        await interaction.followup.send(f"❌ Error searching database: {e}", ephemeral=True)
+
+
+
+
+class SearchBarInput(discord.ui.TextInput):
+    def __init__(self, parent_view):
+        super().__init__(
+            label="🔍 Search",
+            placeholder="Search item, NPC, or zone name...",
+            required=False,
+            style=discord.TextStyle.short
         )
+        self.parent_view = parent_view
+
+    async def callback(self, interaction: discord.Interaction):
+        self.parent_view.search_query = self.value
+
+
+
 
 
 
@@ -1482,17 +1491,20 @@ class WikiSelectView(discord.ui.View):
         self,
         source_command: str = "wiki",
         on_submit: Optional[Callable[[discord.Interaction, Optional[str], Optional[str], Optional[str]], Awaitable[None]]] = None,
-        optional_slot: bool = False, ephemeral: bool = False
+        optional_slot: bool = False, ephemeral: bool = False, initial_results=None, show_search=False
     ):
         super().__init__(timeout=None)
         self.source_command = source_command  # 'wiki' or 'db'
         self.on_submit = on_submit            # callback to run the search
         self.optional_slot = optional_slot
+        self.search_query = None
         self.slot: Optional[str] = None
         self.stat: Optional[str] = None
         self.classes: Optional[str] = None
         self.ephermeral = ephemeral
 
+        if self.show_search:
+            self.add_item(SearchBarInput(self))
         # Slot dropdown
         self.slot_select = discord.ui.Select(
             placeholder="🎒 Select item slot...",
@@ -1599,6 +1611,12 @@ class WikiSelectView(discord.ui.View):
                     f"{f' for {self.classes}' if self.classes else ''}...",
             view=None
         )
+        search_query = self.search_query or ""
+        if self.source_command in ("db", "dbp"):
+            await run_item_db(interaction, self.slot, self.stat, self.classes, search_query)
+        
+
+        
         # If the handler isn’t attached, fall back to auto-detect based on command
         if self.on_submit is None:
             if hasattr(self, "source_command"):
@@ -1627,7 +1645,7 @@ class WikiSelectView(discord.ui.View):
 @bot.tree.command(name="view_wiki_items", description="View items from the Monsters & Memories Wiki.")
 async def view_wiki_items(interaction: discord.Interaction):
     # Step 1 — Show filter UI
-    view = WikiSelectView()
+    view = WikiSelectView(source_command="wiki", optional_slot=False, show_search=False)
     view.origin_interaction = interaction
     await interaction.response.send_message(
         "Please select a **Slot**, optional **Stat** or **Class**, then press ✅ **Search**:",
