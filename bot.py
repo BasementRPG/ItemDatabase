@@ -176,7 +176,7 @@ class StatSelect(discord.ui.Select):
         self.parent_view = parent_view
     
         # Always show all options
-        options = [discord.SelectOption(label=s) for s in STAT_OPTIONS]
+        options = [discord.SelectOption(label=s) for s in ITEM_STATS]
 
         for opt in options:
             if self.parent_view.all_stats and opt.label in self.parent_view.all_stats:
