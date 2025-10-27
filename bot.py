@@ -100,8 +100,7 @@ class SlotSelect(discord.ui.Select):
     def __init__(self, parent_view):
         self.parent_view = parent_view
         
-        print(f"DEBUG: SlotSelect init - type: {self.parent_view.type}")
-        
+             
        # Always show all options
         options = [discord.SelectOption(label=i) for i in ITEM_SLOTS]
         
