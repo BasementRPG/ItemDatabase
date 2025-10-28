@@ -1074,8 +1074,8 @@ class WikiView(discord.ui.View):
         for i, item in enumerate(current_items, start=1):
             color = discord.Color.blurple()
              
-        zone_name = format_item_name(zone_name)
-        item_name = format_item_name(item_name)
+            zone_name = format_item_name(zone_name)
+            item_name = format_item_name(item_name)
 
  # --- 2️⃣ If zone_name contains a number, swap it into npc_name and clear zone_name
             if any(char.isdigit() for char in item["npc_name"]):
