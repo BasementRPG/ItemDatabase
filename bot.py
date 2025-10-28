@@ -1598,7 +1598,7 @@ class WikiSelectView(discord.ui.View):
                 discord.SelectOption(label="WIZ", value="WIZ"),
             ]
         )
-         if self.show_search:
+        if self.show_search:
             self.add_item(SearchButton(self))
         # Confirm button
         confirm_button = discord.ui.Button(label="✅ Search", style=discord.ButtonStyle.green)
