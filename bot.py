@@ -1181,52 +1181,52 @@ class WikiView(discord.ui.View):
 
 
  
-  @discord.ui.button(label="🔄 Back to Filters", style=discord.ButtonStyle.danger)
-async def back_to_filters(self, interaction: discord.Interaction, button: discord.ui.Button):
-    # 1) Disable the current view so users can’t keep clicking “Next/Prev”
-    for child in self.children:
-        child.disabled = True
-    try:
-        await interaction.response.edit_message(view=self)  # visually shows disabled controls
-    except discord.InteractionResponded:
-        pass
-
-    # 2) Decide context (wiki / db / dbp)
-    source = getattr(self, "source_command", "wiki")
-    optional_slot = (source != "wiki")
-    ephemeral = (source == "dbp")
-
-    if source == "wiki":
-        prompt = "Please select the **Slot**, and (optionally) **Stat**, then press ✅ **Search**:"
-    elif source == "db":
-        prompt = "Search the **Database** using the filters below, then press ✅ **Search**:"
-    else:  # dbp
-        prompt = "Search the **Database (Private)** using the filters below, then press ✅ **Search**:"
-
-    # 3) Create a fresh filter view + reattach handler
-    new_filter_view = WikiSelectView(
-        source_command=source,
-        optional_slot=optional_slot
-    )
-    # reattach handler so the new “✅ Search” button works
-    if source == "wiki":
-        new_filter_view.on_submit = run_wiki_items
-    else:
-        new_filter_view.on_submit = run_item_db
-
-    # 4) Swap the SAME message to the new filter UI
-    try:
-        await interaction.edit_original_response(
-            content=prompt,
-            embeds=[],
-            view=new_filter_view
+    @discord.ui.button(label="🔄 Back to Filters", style=discord.ButtonStyle.danger)
+    async def back_to_filters(self, interaction: discord.Interaction, button: discord.ui.Button):
+        # 1) Disable the current view so users can’t keep clicking “Next/Prev”
+        for child in self.children:
+            child.disabled = True
+        try:
+            await interaction.response.edit_message(view=self)  # visually shows disabled controls
+        except discord.InteractionResponded:
+            pass
+    
+        # 2) Decide context (wiki / db / dbp)
+        source = getattr(self, "source_command", "wiki")
+        optional_slot = (source != "wiki")
+        ephemeral = (source == "dbp")
+    
+        if source == "wiki":
+            prompt = "Please select the **Slot**, and (optionally) **Stat**, then press ✅ **Search**:"
+        elif source == "db":
+            prompt = "Search the **Database** using the filters below, then press ✅ **Search**:"
+        else:  # dbp
+            prompt = "Search the **Database (Private)** using the filters below, then press ✅ **Search**:"
+    
+        # 3) Create a fresh filter view + reattach handler
+        new_filter_view = WikiSelectView(
+            source_command=source,
+            optional_slot=optional_slot
         )
-    except (discord.NotFound, discord.HTTPException):
-        # If the original message is gone/expired, fall back to sending a new one
-        await interaction.followup.send(content=prompt, view=new_filter_view, ephemeral=ephemeral)
-
-    # 5) Stop this old view so it doesn’t handle anything else
-    self.stop()
+        # reattach handler so the new “✅ Search” button works
+        if source == "wiki":
+            new_filter_view.on_submit = run_wiki_items
+        else:
+            new_filter_view.on_submit = run_item_db
+    
+        # 4) Swap the SAME message to the new filter UI
+        try:
+            await interaction.edit_original_response(
+                content=prompt,
+                embeds=[],
+                view=new_filter_view
+            )
+        except (discord.NotFound, discord.HTTPException):
+            # If the original message is gone/expired, fall back to sending a new one
+            await interaction.followup.send(content=prompt, view=new_filter_view, ephemeral=ephemeral)
+    
+        # 5) Stop this old view so it doesn’t handle anything else
+        self.stop()
 
 
 
