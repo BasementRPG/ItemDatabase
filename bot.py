@@ -80,7 +80,7 @@ def format_item_name(name: str) -> str:
     if not name:
         return name
 
-    lowercase_words = {"of", "and"}
+    lowercase_words = {"of", "and", "the"}
 
     words = name.split()
     formatted = []
@@ -1098,7 +1098,7 @@ class WikiView(discord.ui.View):
             zone_name= format_item_name(item["zone_name"])
             
             item_link =f"{linkback}{item['item_name'].replace(' ', '_')}"
-            zone_link = f"{linkback}{item['zone_name'].replace(' ', '_')}"
+            zone_link = f"{linkback}{zone_name}.replace(' ', '_')}"
             
             quest_link = f"{linkback}{item['quest_name'].replace(' ', '_')}"
             
@@ -1129,7 +1129,7 @@ class WikiView(discord.ui.View):
                 npc_level=""
 
             if item["zone_name"] != "":
-                embed.add_field(name="🗺️ Zone ", value=f"{zone_name}" f"[{item['zone_name']}]({zone_link})" f"\n{item['zone_area']}", inline=True)
+                embed.add_field(name="🗺️ Zone ", value=f"[{zone_name'}]({zone_link})" f"\n{item['zone_area']}", inline=True)
             if npc_name != "":
                 embed.add_field(name="👹 Npc", value=f"{npc_name}" f"\n{npc_level}", inline=True)
             
