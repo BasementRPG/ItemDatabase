@@ -1512,9 +1512,7 @@ class WikiSelectView(discord.ui.View):
         source_command: str = "wiki",
         on_submit: Optional[Callable[[discord.Interaction, Optional[str], Optional[str], Optional[str]], Awaitable[None]]] = None,
         optional_slot: bool = False, ephemeral: bool = False, initial_results=None, show_search=False,
-        self.search_btn = discord.ui.Button(label="✅ Search", style=discord.ButtonStyle.success)
-        self.search_btn.callback = self.confirm_selection
-        self.add_item(self.search_btn)
+        
     ):
         super().__init__(timeout=None)
         self.source_command = source_command  # 'wiki' or 'db'
@@ -1603,12 +1601,12 @@ class WikiSelectView(discord.ui.View):
         self.classes_select.callback = self.select_classes
         self.add_item(self.classes_select)
 
-        if self.show_search:
-            self.add_item(SearchButton(self))
-        # Confirm button
-        confirm_button = discord.ui.Button(label="✅ Search", style=discord.ButtonStyle.green)
-        confirm_button.callback = self.confirm_selection
-        self.add_item(confirm_button)
+        self.search_btn = discord.ui.Button(
+            label="✅ Search", 
+            style=discord.ButtonStyle.success
+        )
+        self.search_btn.callback = self.confirm_selection
+        self.add_item(self.search_btn)
 
         self.value = None
 
