@@ -1098,7 +1098,7 @@ class WikiView(discord.ui.View):
             zone_name= format_item_name(item["zone_name"])
             
             item_link =f"{linkback}{item['item_name'].replace(' ', '_')}"
-            zone_link = f"{linkback}{zone_name}.replace(' ', '_')}"
+            zone_link = f"{linkback}{zone_name.replace(' ', '_')}"
             
             quest_link = f"{linkback}{item['quest_name'].replace(' ', '_')}"
             
