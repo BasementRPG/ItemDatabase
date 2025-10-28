@@ -745,7 +745,7 @@ async def run_item_db(
     slot: Optional[str],
     stat: Optional[str],
     classes: Optional[str],
-    search_query: None,
+    search_query = None,
     source_command="db",
     show_search = True
 ):
@@ -1193,6 +1193,7 @@ class WikiView(discord.ui.View):
             optional_slot = False
             source_command = "wiki"
             show_search=False
+            new_filter_view.on_submit = run_wiki_items
             
         elif self.source_command == "db":
             prompt = "Search the **Database** using filters below:"
@@ -1200,6 +1201,7 @@ class WikiView(discord.ui.View):
             optional_slot=True
             source_command = "db"
             show_search=True
+            new_filter_view.on_submit = run_item_db
         
         elif self.source_command == "dbp":
             prompt = "Search the **Database (Private)** using filters below:"
@@ -1207,12 +1209,13 @@ class WikiView(discord.ui.View):
             optional_slot=True
             source_command = "dbp"
             show_search=True
+            new_filter_view.on_submit = run_item_db
         
         else:
             prompt = "Please select your filters again:"
             ephemeral = False
 
-        new_filter_view = WikiSelectView(source_command=source_command, optional_slot=optional_slot)
+        new_filter_view = WikiSelectView(source_command=source_command, optional_slot=optional_slot,)
         
         try:
             # Replace message with a new filter menu
