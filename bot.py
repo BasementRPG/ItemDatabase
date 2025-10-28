@@ -1219,7 +1219,7 @@ class WikiView(discord.ui.View):
             prompt = "Please select your filters again:"
             ephemeral = False
 
-        new_filter_view = WikiSelectView(source_command=source_command, optional_slot=optional_slot)
+        new_filter_view = WikiSelectView(source_command=source_command, optional_slot=optional_slot, show_search=show_search)
         
         try:
             # Replace message with a new filter menu
@@ -1601,7 +1601,7 @@ class WikiSelectView(discord.ui.View):
         self.classes_select.callback = self.select_classes
         self.add_item(self.classes_select)
         
-        if self.show_search:
+        if show_search:
             self.add_item(SearchButton(self))
         # Confirm button
         confirm_button = discord.ui.Button(label="✅ Search", style=discord.ButtonStyle.green)
