@@ -136,7 +136,7 @@ class SlotSelect(discord.ui.Select):
                 await interaction.response.send_message(f"Error: {str(e)}", ephemeral=True)
             except:
                 pass
-
+ 
 
 class ClassesSelect(discord.ui.Select):
     def __init__(self, parent_view):
