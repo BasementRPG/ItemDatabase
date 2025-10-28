@@ -345,6 +345,9 @@ class ItemDatabaseModal(discord.ui.Modal, title="Add Item to Database"):
     
     
         # Insert into DB
+        item_name= format_item_name(item_name)
+        zone_name= format_item_name(zone_name)
+        
         try:
             async with self.db_pool.acquire() as conn:
                 await conn.execute("""
@@ -1193,7 +1196,7 @@ class WikiView(discord.ui.View):
             optional_slot = False
             source_command = "wiki"
             show_search=False
-            
+            new_filter_view.on_submit = run_wiki_items
             
         elif self.source_command == "db":
             prompt = "Search the **Database** using filters below:"
@@ -1201,6 +1204,7 @@ class WikiView(discord.ui.View):
             optional_slot=True
             source_command = "db"
             show_search=True
+            new_filter_view.on_submit = run_item_db
         
         elif self.source_command == "dbp":
             prompt = "Search the **Database (Private)** using filters below:"
@@ -1208,6 +1212,7 @@ class WikiView(discord.ui.View):
             optional_slot=True
             source_command = "dbp"
             show_search=True
+            new_filter_view.on_submit = run_item_db
            
         
         else:
@@ -1506,7 +1511,10 @@ class WikiSelectView(discord.ui.View):
         self,
         source_command: str = "wiki",
         on_submit: Optional[Callable[[discord.Interaction, Optional[str], Optional[str], Optional[str]], Awaitable[None]]] = None,
-        optional_slot: bool = False, ephemeral: bool = False, initial_results=None, show_search=False
+        optional_slot: bool = False, ephemeral: bool = False, initial_results=None, show_search=False,
+        self.search_btn = discord.ui.Button(label="✅ Search", style=discord.ButtonStyle.success)
+        self.search_btn.callback = self.confirm_selection
+        self.add_item(self.search_btn)
     ):
         super().__init__(timeout=None)
         self.source_command = source_command  # 'wiki' or 'db'
@@ -1639,13 +1647,13 @@ class WikiSelectView(discord.ui.View):
             if hasattr(self, "source_command"):
                 source = self.source_command
                 if source == "wiki":
-                    await run_wiki_items(interaction, self.slot, self.stat, self.classes)
+                    await run_wiki_items(interaction, self.slot, self.stat, self.classes, None)
                     return
                 elif source == "db":
-                    await run_item_db(interaction, self.slot, self.stat, self.classes)
+                    await run_item_db(interaction, self.slot, self.stat, self.classes, search_query)
                     return
                 elif source == "dbp":
-                    await run_item_db(interaction, self.slot, self.stat, self.classes)
+                    await run_item_db(interaction, self.slot, self.stat, self.classes, search_query)
                     return
     
             # still no handler? give warning
