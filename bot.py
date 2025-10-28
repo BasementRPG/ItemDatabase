@@ -1196,7 +1196,7 @@ class WikiView(discord.ui.View):
             optional_slot = False
             source_command = "wiki"
             show_search=False
-            new_filter_view.on_submit = run_wiki_items
+            
             
         elif self.source_command == "db":
             prompt = "Search the **Database** using filters below:"
@@ -1204,7 +1204,7 @@ class WikiView(discord.ui.View):
             optional_slot=True
             source_command = "db"
             show_search=True
-            new_filter_view.on_submit = run_item_db
+           
         
         elif self.source_command == "dbp":
             prompt = "Search the **Database (Private)** using filters below:"
@@ -1212,7 +1212,7 @@ class WikiView(discord.ui.View):
             optional_slot=True
             source_command = "dbp"
             show_search=True
-            new_filter_view.on_submit = run_item_db
+            
            
         
         else:
@@ -1598,6 +1598,9 @@ class WikiSelectView(discord.ui.View):
                 discord.SelectOption(label="WIZ", value="WIZ"),
             ]
         )
+        self.classes_select.callback = self.select_classes
+        self.add_item(self.classes_select)
+        
         if self.show_search:
             self.add_item(SearchButton(self))
         # Confirm button
