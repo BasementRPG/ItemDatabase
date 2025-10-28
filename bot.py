@@ -745,7 +745,7 @@ async def run_item_db(
     slot: Optional[str],
     stat: Optional[str],
     classes: Optional[str],
-    search_query: Optional[str],
+    search_query: None,
     source_command="db"
 ):
     try:
@@ -1523,8 +1523,7 @@ class WikiSelectView(discord.ui.View):
         self.classes: Optional[str] = None
         self.ephermeral = ephemeral
 
-        if self.show_search:
-            self.add_item(SearchButton(self))
+        
         # Slot dropdown
         self.slot_select = discord.ui.Select(
             placeholder="🎒 Select item slot...",
@@ -1600,6 +1599,8 @@ class WikiSelectView(discord.ui.View):
         self.classes_select.callback = self.select_classes
         self.add_item(self.classes_select)
 
+        if self.show_search:
+            self.add_item(SearchButton(self))
         # Confirm button
         confirm_button = discord.ui.Button(label="✅ Search", style=discord.ButtonStyle.green)
         confirm_button.callback = self.confirm_selection
