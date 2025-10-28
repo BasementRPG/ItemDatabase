@@ -1073,9 +1073,8 @@ class WikiView(discord.ui.View):
   
         for i, item in enumerate(current_items, start=1):
             color = discord.Color.blurple()
-             
-            zone_name = format_item_name(zone_name)
-            item_name = format_item_name(item_name)
+
+            
 
  # --- 2️⃣ If zone_name contains a number, swap it into npc_name and clear zone_name
             if any(char.isdigit() for char in item["npc_name"]):
@@ -1096,7 +1095,7 @@ class WikiView(discord.ui.View):
 
 
            
-            
+            zone_name= format_item_name(item["zone_name"])
             
             item_link =f"{linkback}{item['item_name'].replace(' ', '_')}"
             zone_link = f"{linkback}{item['zone_name'].replace(' ', '_')}"
@@ -1121,13 +1120,7 @@ class WikiView(discord.ui.View):
                 url=f"{item_link}"
             )
             
-            """
-            #  NPC + Level
-            npc_display = f"{npc_name}\n ({npc_level})" if npc_level else f"{npc_name}"
-
-            # Zone + Area
-            zone_display = zone_name if not zone_area else f"{zone_name}\n {zone_area.title()}"
-            """
+    
             level = item["npc_level"]
             level_number = re.search(r'\d', level)
             if level_number:
@@ -1136,7 +1129,7 @@ class WikiView(discord.ui.View):
                 npc_level=""
 
             if item["zone_name"] != "":
-                embed.add_field(name="🗺️ Zone ", value=f"[{item['zone_name']}]({zone_link})" f"\n{item['zone_area']}", inline=True)
+                embed.add_field(name="🗺️ Zone ", value=f"{zone_name}" f"[{item['zone_name']}]({zone_link})" f"\n{item['zone_area']}", inline=True)
             if npc_name != "":
                 embed.add_field(name="👹 Npc", value=f"{npc_name}" f"\n{npc_level}", inline=True)
             
