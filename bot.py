@@ -1074,7 +1074,8 @@ class WikiView(discord.ui.View):
         for i, item in enumerate(current_items, start=1):
             color = discord.Color.blurple()
              
-
+        zone_name = format_item_name(zone_name)
+        item_name = format_item_name(item_name)
 
  # --- 2️⃣ If zone_name contains a number, swap it into npc_name and clear zone_name
             if any(char.isdigit() for char in item["npc_name"]):
@@ -1094,8 +1095,9 @@ class WikiView(discord.ui.View):
                 npc_name = " \n ".join(linked_npc)
 
 
-
-
+           
+            
+            
             item_link =f"{linkback}{item['item_name'].replace(' ', '_')}"
             zone_link = f"{linkback}{item['zone_name'].replace(' ', '_')}"
             
@@ -1196,18 +1198,21 @@ class WikiView(discord.ui.View):
             ephemeral = False
             optional_slot = False
             source_command = "wiki"
+            show_search=False
             
         elif self.source_command == "db":
             prompt = "Search the **Database** using filters below:"
             ephemeral = False
             optional_slot=True
             source_command = "db"
+            show_search=True
         
         elif self.source_command == "dbp":
             prompt = "Search the **Database (Private)** using filters below:"
             ephemeral = True
             optional_slot=True
             source_command = "dbp"
+            show_search=True
         
         else:
             prompt = "Please select your filters again:"
