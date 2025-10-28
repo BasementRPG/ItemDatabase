@@ -1181,60 +1181,52 @@ class WikiView(discord.ui.View):
 
 
  
-    # 🔄 Back to Filters Button
-    @discord.ui.button(label="🔄 Back to Filters", style=discord.ButtonStyle.danger)
-    async def back_to_filters(self, interaction: discord.Interaction, button: discord.ui.Button):
-        await interaction.response.defer()
+  @discord.ui.button(label="🔄 Back to Filters", style=discord.ButtonStyle.danger)
+async def back_to_filters(self, interaction: discord.Interaction, button: discord.ui.Button):
+    # 1) Disable the current view so users can’t keep clicking “Next/Prev”
+    for child in self.children:
+        child.disabled = True
+    try:
+        await interaction.response.edit_message(view=self)  # visually shows disabled controls
+    except discord.InteractionResponded:
+        pass
 
-        # Recreate a new filter view
-        
+    # 2) Decide context (wiki / db / dbp)
+    source = getattr(self, "source_command", "wiki")
+    optional_slot = (source != "wiki")
+    ephemeral = (source == "dbp")
 
-        # Detect which command was the source
-        if self.source_command == "wiki":
-            prompt = "Please select the **Slot**, and (optionally) **Stat** and/or **Class**, then press ✅ **Search**:"
-            ephemeral = False
-            optional_slot = False
-            source_command = "wiki"
-            show_search=False
-            new_filter_view.on_submit = run_wiki_items
-            
-        elif self.source_command == "db":
-            prompt = "Search the **Database** using filters below:"
-            ephemeral = False
-            optional_slot=True
-            source_command = "db"
-            show_search=True
-            new_filter_view.on_submit = run_item_db
-        
-        elif self.source_command == "dbp":
-            prompt = "Search the **Database (Private)** using filters below:"
-            ephemeral = True
-            optional_slot=True
-            source_command = "dbp"
-            show_search=True
-            new_filter_view.on_submit = run_item_db
-           
-        
-        else:
-            prompt = "Please select your filters again:"
-            ephemeral = False
+    if source == "wiki":
+        prompt = "Please select the **Slot**, and (optionally) **Stat**, then press ✅ **Search**:"
+    elif source == "db":
+        prompt = "Search the **Database** using the filters below, then press ✅ **Search**:"
+    else:  # dbp
+        prompt = "Search the **Database (Private)** using the filters below, then press ✅ **Search**:"
 
-        new_filter_view = WikiSelectView(source_command=source_command, optional_slot=optional_slot)
-        
-        try:
-            # Replace message with a new filter menu
-            await interaction.edit_original_response(
-                content=prompt,
-                embeds=[],
-                view=new_filter_view
-            )
-        except discord.errors.InteractionResponded:
-            # Fallback in case original interaction expired
-            await interaction.followup.send(
-                content=prompt,
-                view=new_filter_view,
-                ephemeral=ephemeral
-            )
+    # 3) Create a fresh filter view + reattach handler
+    new_filter_view = WikiSelectView(
+        source_command=source,
+        optional_slot=optional_slot
+    )
+    # reattach handler so the new “✅ Search” button works
+    if source == "wiki":
+        new_filter_view.on_submit = run_wiki_items
+    else:
+        new_filter_view.on_submit = run_item_db
+
+    # 4) Swap the SAME message to the new filter UI
+    try:
+        await interaction.edit_original_response(
+            content=prompt,
+            embeds=[],
+            view=new_filter_view
+        )
+    except (discord.NotFound, discord.HTTPException):
+        # If the original message is gone/expired, fall back to sending a new one
+        await interaction.followup.send(content=prompt, view=new_filter_view, ephemeral=ephemeral)
+
+    # 5) Stop this old view so it doesn’t handle anything else
+    self.stop()
 
 
 
