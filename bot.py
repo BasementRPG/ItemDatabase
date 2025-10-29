@@ -492,6 +492,10 @@ async def add_item_db(interaction: discord.Interaction, item_image: discord.Atta
         view=view,
         ephemeral=True
     )
+    except discord.Forbidden:
+        await interaction.followup.send("❌ I don't have permission to upload files here.", ephemeral=True)
+        return
+
     except Exception as e:
         # 🧹 Cleanup uploaded messages on error
         try:
