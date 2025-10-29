@@ -441,7 +441,7 @@ async def add_item_db(interaction: discord.Interaction, item_image: discord.Atta
     await interaction.response.defer(ephemeral=True, thinking=True)
     
     if not item_image:
-        await interaction.response.send_message("❌ Item image is required.", ephemeral=True)
+        await interaction.followup.send("❌ Item image is required.", ephemeral=True)
         return
 
     added_by = str(interaction.user)
@@ -482,7 +482,7 @@ async def add_item_db(interaction: discord.Interaction, item_image: discord.Atta
             upload_channel_id=upload_channel.id
         )
     
-        await interaction.response.send_message(
+        await interaction.followup.send(
             "Select the **Slot**, **Classes**, and **Stats** for this item:",
             view=view,
             ephemeral=True
