@@ -363,41 +363,30 @@ class ItemDatabaseModal(discord.ui.Modal, title="Add Item to Database"):
     
     
                
+             
                 if exists:
-                    # 🧹 Clean up uploaded images if duplicate is found
-                    
+                # 🧹 Clean up uploaded images if duplicate is found
                     try:
-                        channel = interaction.guild.get_channel(int(self.item_msg_id // 10000000000000000))  # placeholder; fix below
-                    except Exception:
-                        channel = None
-                
-                    try:
-                        # If we stored upload channel ID earlier, we can use that directly:
-                        if hasattr(self, "upload_channel_id"):
-                            upload_channel = interaction.guild.get_channel(self.upload_channel_id)
-                        else:
-                            upload_channel = None
-                
+                        upload_channel = interaction.client.get_channel(self.upload_channel_id)
                         if upload_channel:
-                            if self.item_msg_id:
-                                try:
-                                    print(f"🧹 Attempting cleanup in channel: {self.upload_channel_id}")
-                                    msg = await upload_channel.fetch_message(self.item_msg_id)
-                                    await msg.delete()
-                                except Exception as e:
-                                    print(f"⚠️ Failed to delete item image message: {e}")
-                
-                            if self.npc_msg_id:
-                                try:
-                                    print(f"🧹 Attempting cleanup in channel: {self.upload_channel_id}")
-                                    msg = await upload_channel.fetch_message(self.npc_msg_id)
-                                    await msg.delete()
-                                except Exception as e:
-                                    print(f"⚠️ Failed to delete NPC image message: {e}")
+                            for msg_id in (self.item_msg_id, self.npc_msg_id):
+                                if msg_id:
+                                    try:
+                                        msg = await upload_channel.fetch_message(msg_id)
+                                        await msg.delete()
+                                        print(f"✅ Deleted uploaded message {msg_id}")
+                                    except discord.NotFound:
+                                        print(f"⚠️ Message {msg_id} already deleted.")
+                                    except discord.Forbidden:
+                                        print(f"❌ Missing permissions to delete in {upload_channel.name}")
+                                    except Exception as e:
+                                        print(f"⚠️ Error deleting message {msg_id}: {e}")
+                        else:
+                            print("⚠️ Upload channel not found for cleanup.")
                     except Exception as e:
                         print(f"⚠️ Error cleaning up uploaded images: {e}")
-                
-                    # Notify user
+    
+                    # Notify user of duplicate
                     await interaction.response.send_message(
                         f"❌ Unable to add **{item_name}** — this item from **{npc_name}** already exists in the database.\n"
                         f"🗑️ Uploaded images were deleted to keep the upload channel clean.",
@@ -449,6 +438,8 @@ class ItemDatabaseModal(discord.ui.Modal, title="Add Item to Database"):
 )
 async def add_item_db(interaction: discord.Interaction, item_image: discord.Attachment, npc_image: Optional[discord.Attachment] = None):
     """Uploads images and opens dropdown view for slot/race/class before modal."""
+    await interaction.response.defer(ephemeral=True, thinking=True)
+    
     if not item_image:
         await interaction.response.send_message("❌ Item image is required.", ephemeral=True)
         return
@@ -501,6 +492,18 @@ async def add_item_db(interaction: discord.Interaction, item_image: discord.Atta
         view=view,
         ephemeral=True
     )
+    except Exception as e:
+        # 🧹 Cleanup uploaded messages on error
+        try:
+            if upload_channel:
+                for msg_id in (locals().get("item_msg", None), locals().get("npc_msg", None)):
+                    if msg_id and isinstance(msg_id, discord.Message):
+                        await msg_id.delete()
+        except Exception as cleanup_err:
+            print(f"⚠️ Cleanup failed after upload error: {cleanup_err}")
+
+        await interaction.followup.send(f"❌ Upload failed: {e}", ephemeral=True)
+        return
 
 
 class EditDatabaseModal(discord.ui.Modal):
