@@ -328,7 +328,7 @@ class ItemDatabaseModal(discord.ui.Modal, title="Add Item to Database"):
 
 
     
-    async def on_submit(self, interaction: discord.Interaction):
+async def on_submit(self, interaction: discord.Interaction):
     # 🧹 Clean and title-case all text inputs
     item_name = self.item_name.value.strip().title()
     raw_zone_value = self.zone_field.value.strip()
