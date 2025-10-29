@@ -387,7 +387,7 @@ class ItemDatabaseModal(discord.ui.Modal, title="Add Item to Database"):
                         print(f"⚠️ Error cleaning up uploaded images: {e}")
     
                     # Notify user of duplicate
-                    await interaction.followup.send(
+                    await interaction.edit_original_response(
                         f"❌ Unable to add **{item_name}** — this item from **{npc_name}** already exists in the database.\n"
                         f"🗑️ Uploaded images were deleted to keep the upload channel clean.",
                         ephemeral=True
@@ -424,7 +424,7 @@ class ItemDatabaseModal(discord.ui.Modal, title="Add Item to Database"):
             )
     
         except Exception as e:
-            await interaction.followup.send(f"❌ Database error: {e}", ephemeral=True)
+            await interaction.edit_original_responsef"❌ Database error: {e}", ephemeral=True)
 
 
         
@@ -441,7 +441,7 @@ async def add_item_db(interaction: discord.Interaction, item_image: discord.Atta
     await interaction.response.defer(ephemeral=True, thinking=True)
     
     if not item_image:
-        await interaction.followup.send("❌ Item image is required.", ephemeral=True)
+        await interaction.edit_original_response("❌ Item image is required.", ephemeral=True)
         return
 
     added_by = str(interaction.user)
@@ -489,7 +489,7 @@ async def add_item_db(interaction: discord.Interaction, item_image: discord.Atta
         )
     
     except discord.Forbidden:
-        await interaction.followup.send("❌ I don't have permission to upload files here.", ephemeral=True)
+        await interaction.edit_original_responsed("❌ I don't have permission to upload files here.", ephemeral=True)
         return
 
     except Exception as e:
@@ -502,7 +502,7 @@ async def add_item_db(interaction: discord.Interaction, item_image: discord.Atta
         except Exception as cleanup_err:
             print(f"⚠️ Cleanup failed after upload error: {cleanup_err}")
 
-        await interaction.followup.send(f"❌ Upload failed: {e}", ephemeral=True)
+        await interaction.edit_original_response(f"❌ Upload failed: {e}", ephemeral=True)
         return
 
 
