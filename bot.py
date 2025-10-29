@@ -278,7 +278,8 @@ class SlotStatClassSelectView(discord.ui.View):
                 item_slot=item_slot,
                 item_msg_id=self.item_msg_id,
                 npc_msg_id=self.npc_msg_id,
-                item_stats=item_stats  # 🔹 pass this new field
+                item_stats=item_stats,
+                upload_channel_id=self.upload_channel_id
             )
         )
     @discord.ui.button(label="❌ Cancel", style=discord.ButtonStyle.danger)
@@ -424,7 +425,7 @@ class ItemDatabaseModal(discord.ui.Modal, title="Add Item to Database"):
             )
     
         except Exception as e:
-            await interaction.edit_original_responsef"❌ Database error: {e}", ephemeral=True)
+            await interaction.edit_original_response"❌ Database error: {e}", ephemeral=True)
 
 
         
