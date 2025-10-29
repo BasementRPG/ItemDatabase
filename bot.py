@@ -390,8 +390,7 @@ class ItemDatabaseModal(discord.ui.Modal, title="Add Item to Database"):
                     # Notify user of duplicate
                     await interaction.edit_original_response(
                         f"❌ Unable to add **{item_name}** — this item from **{npc_name}** already exists in the database.\n"
-                        f"🗑️ Uploaded images were deleted to keep the upload channel clean.",
-                        ephemeral=True
+                        f"🗑️ Uploaded images were deleted to keep the upload channel clean."
                     )
                     return
     
@@ -425,7 +424,7 @@ class ItemDatabaseModal(discord.ui.Modal, title="Add Item to Database"):
             )
     
         except Exception as e:
-            await interaction.edit_original_response("❌ Database error: {e}", ephemeral=True)
+            await interaction.edit_original_response("❌ Database error: {e}")
 
 
         
