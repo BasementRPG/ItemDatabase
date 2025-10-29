@@ -292,7 +292,7 @@ class SlotStatClassSelectView(discord.ui.View):
 
 
 class ItemDatabaseModal(discord.ui.Modal, title="Add Item to Database"):
-    def __init__(self, db_pool, guild_id, added_by, item_image_url=None, npc_image_url=None, item_slot=None, item_msg_id=None, npc_msg_id=None, item_stats=None):
+    def __init__(self, db_pool, guild_id, added_by, item_image_url=None, npc_image_url=None, item_msg_id=None, npc_msg_id=None, item_stats=None, upload_channel_id=upload_channel.id):
 
         super().__init__(timeout=None)
         self.db_pool = db_pool
@@ -303,7 +303,7 @@ class ItemDatabaseModal(discord.ui.Modal, title="Add Item to Database"):
         self.item_msg_id = item_msg_id
         self.npc_msg_id = npc_msg_id
         self.item_stats = item_stats or ""
-        self.item_slot = item_slot
+        self.upload_channel_id = upload_channel_id
 
         # Fields
         self.item_name = discord.ui.TextInput(label="Item Name", placeholder="Example: Flowing Black Silk Sash")
@@ -327,129 +327,111 @@ class ItemDatabaseModal(discord.ui.Modal, title="Add Item to Database"):
         
 
 
+    
     async def on_submit(self, interaction: discord.Interaction):
-         # 🧹 Clean and title-case all text inputs
-        item_name = self.item_name.value.strip().title()
-        raw_zone_value = self.zone_field.value.strip()
-        npc_name = self.npc_name.value.strip().title()
-        npc_level = self.npc_level.value.strip().title()
-    
-        # 🗺️ Split "Zone - Area"
-        if "-" in raw_zone_value:
-            zone_name, zone_area = map(str.strip, raw_zone_value.split("-", 1))
-            zone_name = zone_name.title()
-            zone_area = zone_area.title()
-        else:
-            zone_name = raw_zone_value.title()
-            zone_area = None
-    
-    
-        # Insert into DB
-        item_name= format_item_name(item_name)
-        zone_name= format_item_name(zone_name)
-        
-        try:
-            async with self.db_pool.acquire() as conn:
-                await conn.execute("""
-                    INSERT INTO item_database (
-                        guild_id, item_name, zone_name, zone_area,
-                        npc_name, item_slot, npc_level, item_image, npc_image,
-                        item_msg_id, npc_msg_id, item_stats, added_by, created_at
-                    )
-                    VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,NOW())
-                """,
-                self.guild_id,
-                item_name,
-                zone_name,
-                zone_area,
-                npc_name,
-                self.item_slot,
-                npc_level,
-                self.item_image_url,
-                self.npc_image_url,
-                self.item_msg_id,
-                self.npc_msg_id,
-                self.item_stats, 
-                self.added_by)
+    # 🧹 Clean and title-case all text inputs
+    item_name = self.item_name.value.strip().title()
+    raw_zone_value = self.zone_field.value.strip()
+    npc_name = self.npc_name.value.strip().title()
+    npc_level = self.npc_level.value.strip().title()
 
-    
-            # Confirmation
-            await interaction.response.edit_message(
-                f"✅ `{item_name}` added successfully!",
-                ephemeral=True
-            )
-    
-        except asyncpg.UniqueViolationError:
-            # ⚠️ Already exists — ask if they want to update
-            class ConfirmUpdateView(discord.ui.View):
-                def __init__(self, db_pool, guild_id, item_name, npc_name, zone_name, zone_area,
-                             item_slot, npc_level_value, item_image_url, npc_image_url, item_msg_id, npc_msg_id, added_by):
-                    super().__init__(timeout=30)
-                    self.db_pool = db_pool
-                    self.guild_id = guild_id
-                    self.item_name = item_name
-                    self.npc_name = npc_name
-                    self.zone_name = zone_name
-                    self.zone_area = zone_area
-                    self.item_slot = item_slot
-                    self.npc_level_value = npc_level_value
-                    self.item_image_url = item_image_url
-                    self.npc_image_url = npc_image_url
-                    self.item_msg_id = item_msg_id
-                    self.npc_msg_id = npc_msg_id
-                    self.added_by = added_by
-    
-                @discord.ui.button(label="✅ Update Existing", style=discord.ButtonStyle.green)
-                async def confirm(self, interaction2: discord.Interaction, button: discord.ui.Button):
-                    async with self.db_pool.acquire() as conn:
-                        await conn.execute("""
-                            UPDATE item_database
-                            SET zone_name=$3, zone_area=$4, item_slot=$5,
-                                npc_level=$6, item_image=$7, npc_image=$8, item_msg_id=$9, npc_msg_id=$10,
-                                added_by=$11, updated_at=NOW()
-                            WHERE guild_id=$1 AND item_name=$2 AND npc_name=$12
-                        """,
-                        self.guild_id,
-                        self.item_name,
-                        self.zone_name,
-                        self.zone_area,
-                        self.item_slot,
-                        self.npc_level_value,
-                        self.item_image_url,
-                        self.npc_image_url,
-                        self.item_msg_id,
-                        self.npc_msg_id,
-                        self.added_by,
-                        self.npc_name)
-                    await interaction2.response.edit_message(content=f"✅ `{self.item_name}` updated successfully!", view=None)
-    
-                @discord.ui.button(label="❌ Cancel", style=discord.ButtonStyle.red)
-                async def cancel(self, interaction2: discord.Interaction, button: discord.ui.Button):
-                    await interaction2.response.edit_message(content="❌ Update cancelled.", view=None)
-    
-            view = ConfirmUpdateView(
-                db_pool=self.db_pool,
-                guild_id=self.guild_id,
-                item_name=self.item_name.value.strip(),
-                npc_name=self.npc_name.value.strip(),
-                zone_name=zone_name,
-                zone_area=zone_area,
-                item_slot=self.item_slot_field.value.lower(),
-                npc_level_value=npc_level_value,
-                item_image_url=self.item_image_url,
-                npc_image_url=self.npc_image_url,
-                item_msg_id=self.item_msg_id,
-                npc_msg_id=self.npc_msg_id,
-                added_by=self.added_by
-            )
-    
-            await interaction.response.send_message(
-                f"⚠️ `{self.item_name.value}` from `{self.npc_name.value}` already exists.\nWould you like to update it?",
-                view=view,
-                ephemeral=True
-            )
+    # 🗺️ Split "Zone - Area"
+    if "-" in raw_zone_value:
+        zone_name, zone_area = map(str.strip, raw_zone_value.split("-", 1))
+        zone_name = zone_name.title()
+        zone_area = zone_area.title()
+    else:
+        zone_name = raw_zone_value.title()
+        zone_area = None
 
-        return
+    # ✅ Format item_name and zone_name but not npc_name
+    item_name = format_item_name(item_name)
+    zone_name = format_item_name(zone_name)
+
+    try:
+        async with self.db_pool.acquire() as conn:
+
+             # 🔍 Check for duplicates in this guild or global (fuzzy, case-insensitive)
+            exists = await conn.fetchval("""
+                SELECT 1 FROM item_database
+                WHERE TRIM(LOWER(REPLACE(item_name, '-', ''))) = TRIM(LOWER(REPLACE($1, '-', '')))
+                  AND TRIM(LOWER(REPLACE(npc_name, '-', ''))) = TRIM(LOWER(REPLACE($2, '-', '')))
+                  AND (guild_id = $3 OR guild_id IS NULL)
+                LIMIT 1
+            """, item_name, npc_name, self.guild_id)
+
+
+           
+            if exists:
+                # 🧹 Clean up uploaded images if duplicate is found
+                try:
+                    channel = interaction.guild.get_channel(int(self.item_msg_id // 10000000000000000))  # placeholder; fix below
+                except Exception:
+                    channel = None
+            
+                try:
+                    # If we stored upload channel ID earlier, we can use that directly:
+                    if hasattr(self, "upload_channel_id"):
+                        upload_channel = interaction.guild.get_channel(self.upload_channel_id)
+                    else:
+                        upload_channel = None
+            
+                    if upload_channel:
+                        if self.item_msg_id:
+                            try:
+                                msg = await upload_channel.fetch_message(self.item_msg_id)
+                                await msg.delete()
+                            except Exception as e:
+                                print(f"⚠️ Failed to delete item image message: {e}")
+            
+                        if self.npc_msg_id:
+                            try:
+                                msg = await upload_channel.fetch_message(self.npc_msg_id)
+                                await msg.delete()
+                            except Exception as e:
+                                print(f"⚠️ Failed to delete NPC image message: {e}")
+                except Exception as e:
+                    print(f"⚠️ Error cleaning up uploaded images: {e}")
+            
+                # Notify user
+                await interaction.response.send_message(
+                    f"❌ Unable to add **{item_name}** — this item from **{npc_name}** already exists in the database.\n"
+                    f"🗑️ Uploaded images were deleted to keep the upload channel clean.",
+                    ephemeral=True
+                )
+                return
+
+
+            # ✅ Insert new record
+            await conn.execute("""
+                INSERT INTO item_database (
+                    guild_id, item_name, zone_name, zone_area,
+                    npc_name, npc_level, item_image, npc_image,
+                    item_msg_id, npc_msg_id, item_stats, added_by, created_at
+                )
+                VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,NOW())
+            """,
+            self.guild_id,
+            item_name,
+            zone_name,
+            zone_area,
+            npc_name,
+            npc_level,
+            self.item_image_url,
+            self.npc_image_url,
+            self.item_msg_id,
+            self.npc_msg_id,
+            self.item_stats,
+            self.added_by)
+
+        await interaction.response.edit_message(
+            content=f"✅ `{item_name}` added successfully!",
+            view=None
+        )
+
+    except Exception as e:
+        await interaction.response.send_message(f"❌ Database error: {e}", ephemeral=True)
+
 
         
 
