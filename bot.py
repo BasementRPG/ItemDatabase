@@ -292,7 +292,7 @@ class SlotStatClassSelectView(discord.ui.View):
 
 
 class ItemDatabaseModal(discord.ui.Modal, title="Add Item to Database"):
-    def __init__(self, db_pool, guild_id, added_by, item_image_url=None, npc_image_url=None, item_msg_id=None, npc_msg_id=None, item_stats=None, upload_channel_id=None):
+    def __init__(self, db_pool, guild_id, added_by, item_image_url=None, npc_image_url=None, item_msg_id=None, npc_msg_id=None, item_stats=None, item_slot=None upload_channel_id=None):
 
         super().__init__(timeout=None)
         self.db_pool = db_pool
@@ -303,6 +303,7 @@ class ItemDatabaseModal(discord.ui.Modal, title="Add Item to Database"):
         self.item_msg_id = item_msg_id
         self.npc_msg_id = npc_msg_id
         self.item_stats = item_stats or ""
+        self.item_slot = item_slot
         self.upload_channel_id = upload_channel_id
 
         # Fields
@@ -407,9 +408,9 @@ class ItemDatabaseModal(discord.ui.Modal, title="Add Item to Database"):
                     INSERT INTO item_database (
                         guild_id, item_name, zone_name, zone_area,
                         npc_name, npc_level, item_image, npc_image,
-                        item_msg_id, npc_msg_id, item_stats, added_by, created_at
+                        item_msg_id, npc_msg_id, item_stats, item_slot, added_by, created_at
                     )
-                    VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,NOW())
+                    VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,NOW())
                 """,
                 self.guild_id,
                 item_name,
@@ -422,6 +423,7 @@ class ItemDatabaseModal(discord.ui.Modal, title="Add Item to Database"):
                 self.item_msg_id,
                 self.npc_msg_id,
                 self.item_stats,
+                self.item_slot,
                 self.added_by)
     
             await interaction.response.edit_message(
