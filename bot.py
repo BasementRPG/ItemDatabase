@@ -365,6 +365,7 @@ class ItemDatabaseModal(discord.ui.Modal, title="Add Item to Database"):
                
                 if exists:
                     # 🧹 Clean up uploaded images if duplicate is found
+                    print(f"🧹 Attempting cleanup in channel: {self.upload_channel_id}")
                     try:
                         channel = interaction.guild.get_channel(int(self.item_msg_id // 10000000000000000))  # placeholder; fix below
                     except Exception:
