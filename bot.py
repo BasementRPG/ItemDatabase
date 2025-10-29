@@ -425,7 +425,7 @@ class ItemDatabaseModal(discord.ui.Modal, title="Add Item to Database"):
             )
     
         except Exception as e:
-            await interaction.edit_original_response"❌ Database error: {e}", ephemeral=True)
+            await interaction.edit_original_response("❌ Database error: {e}", ephemeral=True)
 
 
         
