@@ -462,36 +462,32 @@ async def add_item_db(interaction: discord.Interaction, item_image: discord.Atta
                 content=f"👹 Uploaded NPC image by {interaction.user.mention}"
             )
 
-    except discord.Forbidden:
-        await interaction.response.send_message("❌ I don't have permission to upload files here.", ephemeral=True)
-        return
-    except Exception as e:
-        await interaction.response.send_message(f"❌ Upload failed: {e}", ephemeral=True)
-        return
 
-    # Extract URLs and message IDs for later
-    item_url = item_msg.attachments[0].url
-    npc_url = npc_msg.attachments[0].url if npc_msg else ""
-    item_msg_id = item_msg.id
-    npc_msg_id = npc_msg.id if npc_msg else None
-
-    # Launch Slot/Stat/Class view
-    view = SlotStatClassSelectView(
-        db_pool=db_pool,
-        guild_id=guild.id,
-        added_by=added_by,
-        item_image_url=item_url,
-        npc_image_url=npc_url if npc_msg else None,
-        item_msg_id=item_msg_id,
-        npc_msg_id=npc_msg_id if npc_msg else None,
-        upload_channel_id=upload_channel.id
-    )
-
-    await interaction.response.send_message(
-        "Select the **Slot**, **Classes**, and **Stats** for this item:",
-        view=view,
-        ephemeral=True
-    )
+    
+        # Extract URLs and message IDs for later
+        item_url = item_msg.attachments[0].url
+        npc_url = npc_msg.attachments[0].url if npc_msg else ""
+        item_msg_id = item_msg.id
+        npc_msg_id = npc_msg.id if npc_msg else None
+    
+        # Launch Slot/Stat/Class view
+        view = SlotStatClassSelectView(
+            db_pool=db_pool,
+            guild_id=guild.id,
+            added_by=added_by,
+            item_image_url=item_url,
+            npc_image_url=npc_url if npc_msg else None,
+            item_msg_id=item_msg_id,
+            npc_msg_id=npc_msg_id if npc_msg else None,
+            upload_channel_id=upload_channel.id
+        )
+    
+        await interaction.response.send_message(
+            "Select the **Slot**, **Classes**, and **Stats** for this item:",
+            view=view,
+            ephemeral=True
+        )
+    
     except discord.Forbidden:
         await interaction.followup.send("❌ I don't have permission to upload files here.", ephemeral=True)
         return
