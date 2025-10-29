@@ -367,7 +367,7 @@ class ItemDatabaseModal(discord.ui.Modal, title="Add Item to Database"):
                 if exists:
                 # 🧹 Clean up uploaded images if duplicate is found
                     try:
-                        upload_channel = await ensure_upload_channel1(guild)
+                        upload_channel = interaction.client.get_channel(self.upload_channel_id)
                         if upload_channel:
                             for msg_id in (self.item_msg_id, self.npc_msg_id):
                                 if msg_id:
