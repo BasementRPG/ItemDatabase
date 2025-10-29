@@ -328,109 +328,109 @@ class ItemDatabaseModal(discord.ui.Modal, title="Add Item to Database"):
 
 
     
-async def on_submit(self, interaction: discord.Interaction):
-    # 🧹 Clean and title-case all text inputs
-    item_name = self.item_name.value.strip().title()
-    raw_zone_value = self.zone_field.value.strip()
-    npc_name = self.npc_name.value.strip().title()
-    npc_level = self.npc_level.value.strip().title()
-
-    # 🗺️ Split "Zone - Area"
-    if "-" in raw_zone_value:
-        zone_name, zone_area = map(str.strip, raw_zone_value.split("-", 1))
-        zone_name = zone_name.title()
-        zone_area = zone_area.title()
-    else:
-        zone_name = raw_zone_value.title()
-        zone_area = None
-
-    # ✅ Format item_name and zone_name but not npc_name
-    item_name = format_item_name(item_name)
-    zone_name = format_item_name(zone_name)
-
-    try:
-        async with self.db_pool.acquire() as conn:
-
-             # 🔍 Check for duplicates in this guild or global (fuzzy, case-insensitive)
-            exists = await conn.fetchval("""
-                SELECT 1 FROM item_database
-                WHERE TRIM(LOWER(REPLACE(item_name, '-', ''))) = TRIM(LOWER(REPLACE($1, '-', '')))
-                  AND TRIM(LOWER(REPLACE(npc_name, '-', ''))) = TRIM(LOWER(REPLACE($2, '-', '')))
-                  AND (guild_id = $3 OR guild_id IS NULL)
-                LIMIT 1
-            """, item_name, npc_name, self.guild_id)
-
-
-           
-            if exists:
-                # 🧹 Clean up uploaded images if duplicate is found
-                try:
-                    channel = interaction.guild.get_channel(int(self.item_msg_id // 10000000000000000))  # placeholder; fix below
-                except Exception:
-                    channel = None
-            
-                try:
-                    # If we stored upload channel ID earlier, we can use that directly:
-                    if hasattr(self, "upload_channel_id"):
-                        upload_channel = interaction.guild.get_channel(self.upload_channel_id)
-                    else:
-                        upload_channel = None
-            
-                    if upload_channel:
-                        if self.item_msg_id:
-                            try:
-                                msg = await upload_channel.fetch_message(self.item_msg_id)
-                                await msg.delete()
-                            except Exception as e:
-                                print(f"⚠️ Failed to delete item image message: {e}")
-            
-                        if self.npc_msg_id:
-                            try:
-                                msg = await upload_channel.fetch_message(self.npc_msg_id)
-                                await msg.delete()
-                            except Exception as e:
-                                print(f"⚠️ Failed to delete NPC image message: {e}")
-                except Exception as e:
-                    print(f"⚠️ Error cleaning up uploaded images: {e}")
-            
-                # Notify user
-                await interaction.response.send_message(
-                    f"❌ Unable to add **{item_name}** — this item from **{npc_name}** already exists in the database.\n"
-                    f"🗑️ Uploaded images were deleted to keep the upload channel clean.",
-                    ephemeral=True
-                )
-                return
-
-
-            # ✅ Insert new record
-            await conn.execute("""
-                INSERT INTO item_database (
-                    guild_id, item_name, zone_name, zone_area,
-                    npc_name, npc_level, item_image, npc_image,
-                    item_msg_id, npc_msg_id, item_stats, added_by, created_at
-                )
-                VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,NOW())
-            """,
-            self.guild_id,
-            item_name,
-            zone_name,
-            zone_area,
-            npc_name,
-            npc_level,
-            self.item_image_url,
-            self.npc_image_url,
-            self.item_msg_id,
-            self.npc_msg_id,
-            self.item_stats,
-            self.added_by)
-
-        await interaction.response.edit_message(
-            content=f"✅ `{item_name}` added successfully!",
-            view=None
-        )
-
-    except Exception as e:
-        await interaction.response.send_message(f"❌ Database error: {e}", ephemeral=True)
+    async def on_submit(self, interaction: discord.Interaction):
+        # 🧹 Clean and title-case all text inputs
+        item_name = self.item_name.value.strip().title()
+        raw_zone_value = self.zone_field.value.strip()
+        npc_name = self.npc_name.value.strip().title()
+        npc_level = self.npc_level.value.strip().title()
+    
+        # 🗺️ Split "Zone - Area"
+        if "-" in raw_zone_value:
+            zone_name, zone_area = map(str.strip, raw_zone_value.split("-", 1))
+            zone_name = zone_name.title()
+            zone_area = zone_area.title()
+        else:
+            zone_name = raw_zone_value.title()
+            zone_area = None
+    
+        # ✅ Format item_name and zone_name but not npc_name
+        item_name = format_item_name(item_name)
+        zone_name = format_item_name(zone_name)
+    
+        try:
+            async with self.db_pool.acquire() as conn:
+    
+                 # 🔍 Check for duplicates in this guild or global (fuzzy, case-insensitive)
+                exists = await conn.fetchval("""
+                    SELECT 1 FROM item_database
+                    WHERE TRIM(LOWER(REPLACE(item_name, '-', ''))) = TRIM(LOWER(REPLACE($1, '-', '')))
+                      AND TRIM(LOWER(REPLACE(npc_name, '-', ''))) = TRIM(LOWER(REPLACE($2, '-', '')))
+                      AND (guild_id = $3 OR guild_id IS NULL)
+                    LIMIT 1
+                """, item_name, npc_name, self.guild_id)
+    
+    
+               
+                if exists:
+                    # 🧹 Clean up uploaded images if duplicate is found
+                    try:
+                        channel = interaction.guild.get_channel(int(self.item_msg_id // 10000000000000000))  # placeholder; fix below
+                    except Exception:
+                        channel = None
+                
+                    try:
+                        # If we stored upload channel ID earlier, we can use that directly:
+                        if hasattr(self, "upload_channel_id"):
+                            upload_channel = interaction.guild.get_channel(self.upload_channel_id)
+                        else:
+                            upload_channel = None
+                
+                        if upload_channel:
+                            if self.item_msg_id:
+                                try:
+                                    msg = await upload_channel.fetch_message(self.item_msg_id)
+                                    await msg.delete()
+                                except Exception as e:
+                                    print(f"⚠️ Failed to delete item image message: {e}")
+                
+                            if self.npc_msg_id:
+                                try:
+                                    msg = await upload_channel.fetch_message(self.npc_msg_id)
+                                    await msg.delete()
+                                except Exception as e:
+                                    print(f"⚠️ Failed to delete NPC image message: {e}")
+                    except Exception as e:
+                        print(f"⚠️ Error cleaning up uploaded images: {e}")
+                
+                    # Notify user
+                    await interaction.response.send_message(
+                        f"❌ Unable to add **{item_name}** — this item from **{npc_name}** already exists in the database.\n"
+                        f"🗑️ Uploaded images were deleted to keep the upload channel clean.",
+                        ephemeral=True
+                    )
+                    return
+    
+    
+                # ✅ Insert new record
+                await conn.execute("""
+                    INSERT INTO item_database (
+                        guild_id, item_name, zone_name, zone_area,
+                        npc_name, npc_level, item_image, npc_image,
+                        item_msg_id, npc_msg_id, item_stats, added_by, created_at
+                    )
+                    VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,NOW())
+                """,
+                self.guild_id,
+                item_name,
+                zone_name,
+                zone_area,
+                npc_name,
+                npc_level,
+                self.item_image_url,
+                self.npc_image_url,
+                self.item_msg_id,
+                self.npc_msg_id,
+                self.item_stats,
+                self.added_by)
+    
+            await interaction.response.edit_message(
+                content=f"✅ `{item_name}` added successfully!",
+                view=None
+            )
+    
+        except Exception as e:
+            await interaction.response.send_message(f"❌ Database error: {e}", ephemeral=True)
 
 
         
