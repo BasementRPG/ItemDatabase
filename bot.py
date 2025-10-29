@@ -381,6 +381,7 @@ class ItemDatabaseModal(discord.ui.Modal, title="Add Item to Database"):
                         if upload_channel:
                             if self.item_msg_id:
                                 try:
+                                    print(f"🧹 Attempting cleanup in channel: {self.upload_channel_id}")
                                     msg = await upload_channel.fetch_message(self.item_msg_id)
                                     await msg.delete()
                                 except Exception as e:
