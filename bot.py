@@ -1221,17 +1221,18 @@ class WikiView(discord.ui.View):
 
             crafting_recipe = item.get("crafting_recipe") or ""
 
+           
             yield_text = ""
-            remaining_lines = []
+            re_crafting_recipe = []
             
             if crafting_recipe:
-                lines = crafting_recipe.split("\n")
-            
-                for line in lines:
+                for line in crafting_recipe.split("\n"):
                     if line.lower().startswith("yield"):
-                        yield_text = line.strip()  # "Yield: 1"
+                        yield_text = line.strip()
                     else:
-                        remaining_lines.append(line)
+                        remaining.append(line)
+            
+            crafting_recipe_clean = "\n".join(re_crafting_recipe)
 
            
             
@@ -1265,7 +1266,7 @@ class WikiView(discord.ui.View):
             if item["crafted_name"] != "":
                 embed.add_field(name="⚒️ Crafted Item", value=f"[{crafted_name}]({crafted_link})", inline=True)
             if item["crafting_recipe"] !="":
-                embed.add_field(name=f"📜 Recipe: {yield_text}", value=f"{remaining_lines}", inline=True)
+                embed.add_field(name=f"📜 Recipe: {yield_text}", value=f"{crafting_recipe_clean}", inline=True)
             embed.set_footer(
                 text=f"Page {page_index + 1}/{self.total_pages()} - Total Results: {len(self.items)}"
             )
@@ -1539,10 +1540,8 @@ async def fetch_wiki_items(slot_name: str):
                
                 
                 # --- Extract Crafted  ---
-    
-    
+  
                 crafted_name = ""
-
                 crafting_recipe = ""  # final formatted block for DB
                 
                 crafted_section = None
@@ -1556,7 +1555,7 @@ async def fetch_wiki_items(slot_name: str):
                     if ul:
                         li = ul.find("li")
                         if li:
-                            # --- Crafted Name (ignore nested <ul>) ---
+                            # --- Crafted name ---
                             direct_bits = []
                             for node in li.contents:
                                 if isinstance(node, NavigableString):
@@ -1577,6 +1576,7 @@ async def fetch_wiki_items(slot_name: str):
                                 crafted_name = li.get_text(" ", strip=True) or ""
                 
                             # --- Yield & Station ---
+                            wiki_base = "https://monstersandmemories.miraheze.org"
                             yield_qty = None
                             station_line = None
                 
@@ -1587,7 +1587,7 @@ async def fetch_wiki_items(slot_name: str):
                                     if not text:
                                         continue
                 
-                                    # Yield: extract last number only
+                                    # Yield
                                     if text.lower().startswith("yield"):
                                         m = re.search(r"x\s*(\d+)\s*$", text, flags=re.IGNORECASE)
                                         if m:
@@ -1596,27 +1596,71 @@ async def fetch_wiki_items(slot_name: str):
                                             m2 = re.search(r"(\d+)\s*$", text)
                                             yield_qty = m2.group(1) if m2 else "1"
                 
-                                    # Station (use EXACT wiki text)
+                                    # Crafting station link
                                     if text.lower().startswith("in "):
-                                        station_line = text if text.endswith(":") else (text + ":")
+                                        a = sub_li.find("a", href=True)
+                                        if a:
+                                            href = a["href"]
+                                            if href.startswith("//"):
+                                                href = "https:" + href
+                                            elif href.startswith("/"):
+                                                href = wiki_base + href
+                                            station_name = a.get_text(" ", strip=True)
+                                            station_line = f"In [{station_name}]({href}):"
+                                        else:
+                                            station_line = text if text.endswith(":") else (text + ":")
                 
-                            # --- Ingredient list in <dl><dd> (RAW TEXT, FULL LINE) ---
+                            # --- Ingredient list (linked, unique, no nesting) ---
                             recipe_lines = []
-                      
                             dl_block = li.find_next("dl")
                             if dl_block:
                                 for dd in dl_block.find_all("dd"):
-                                    # Skip <dd> entries that contain nested <dl> (these are parents)
                                     if dd.find("dl"):
-                                        continue
-                            
-                                    # PURE final ingredient line
+                                        continue  # skip parents
                                     dd_text = dd.get_text(" ", strip=True)
-                                    if dd_text:
-                                        recipe_lines.append(dd_text)
-
+                                    if not dd_text:
+                                        continue
                 
-                            # --- Remove exact duplicates, keep order ---
+                                    qty_match = re.match(r"^x\s*(\d+)\s+", dd_text, flags=re.IGNORECASE)
+                                    qty_str = None
+                                    line = ""
+                
+                                    if qty_match:
+                                        qty_str = qty_match.group(1)
+                                        a = dd.find("a", href=True)
+                                        if a:
+                                            item_name = a.get_text(" ", strip=True)
+                                            href = a["href"]
+                                            if href.startswith("//"):
+                                                href = "https:" + href
+                                            elif href.startswith("/"):
+                                                href = wiki_base + href
+                                            else:
+                                                href = href
+                                            # preserve all text after the item name
+                                            tail_text = dd_text[qty_match.end():].replace(item_name, "").strip()
+                                            if tail_text:
+                                                line = f"- x{qty_str} [{item_name}]({href}) {tail_text}"
+                                            else:
+                                                line = f"- x{qty_str} [{item_name}]({href})"
+                                        else:
+                                            line = f"- {dd_text}"
+                                    else:
+                                        a = dd.find("a", href=True)
+                                        if a:
+                                            item_name = a.get_text(" ", strip=True)
+                                            href = a["href"]
+                                            if href.startswith("//"):
+                                                href = "https:" + href
+                                            elif href.startswith("/"):
+                                                href = wiki_base + href
+                                            line = f"- [{item_name}]({href})"
+                                        else:
+                                            line = f"- {dd_text}"
+                
+                                    recipe_lines.append(line)
+                
+                            # --- Deduplicate cleanly ---
                             seen = set()
                             recipe_lines_cleaned = []
                             for line in recipe_lines:
@@ -1624,7 +1668,7 @@ async def fetch_wiki_items(slot_name: str):
                                     recipe_lines_cleaned.append(line)
                                     seen.add(line)
                 
-                            # --- Build final block ---
+                            # --- Final save block ---
                             block_lines = []
                             if yield_qty is not None:
                                 block_lines.append(f"Yield: {yield_qty}")
@@ -1634,6 +1678,7 @@ async def fetch_wiki_items(slot_name: str):
                                 block_lines.extend(recipe_lines_cleaned)
                 
                             crafting_recipe = "\n".join(block_lines)
+
 
 
                
