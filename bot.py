@@ -2559,7 +2559,6 @@ async def run_update_db(interaction: discord.Interaction):
 
 
 
-
 # ---------------- Bot Setup ----------------
 
 @bot.event
