@@ -427,10 +427,17 @@ class ItemDatabaseModal(discord.ui.Modal, title="Add Item to Database"):
                 self.item_slot,
                 self.added_by)
     
-            await interaction.edit_original_response(
-                content=f"✅ `{item_name}` added successfully!",
-                view=None
-            )
+            
+            if not interaction.response.is_done():
+                await interaction.response.send_message(
+                    f"✅ `{item_name}` added successfully!",
+                    ephemeral=True
+                )
+            else:
+                await interaction.followup.send(
+                    f"✅ `{item_name}` added successfully!",
+                    ephemeral=True
+                )
      
        
    
