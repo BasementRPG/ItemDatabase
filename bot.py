@@ -456,17 +456,17 @@ class ItemDatabaseModal(discord.ui.Modal, title="Add Item to Database"):
             except discord.NotFound:
                 # Fallback if modal interaction is detached
 
-                )
+                
         
             except discord.InteractionResponded:
                 # If response was already used (common with image uploads)
 
-                )
+                
         
             except Exception as err:
                 print(f"⚠️ Unhandled DB error during modal submit: {err}")
 
-                )
+                
 
 
 
