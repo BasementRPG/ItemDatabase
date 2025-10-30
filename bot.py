@@ -2448,31 +2448,49 @@ async def run_update_db(interaction: discord.Interaction):
 
                         # Recipe
                         recipe_lines = []
-                        if (dl_block := li.find_next("dl")):
-                            for dd in dl_block.find_all("dd", recursive=True):
-                                text = dd.get_text(" ", strip=True)
-                                if not text:
+                        
+                        # only take the immediate sibling <dl> to avoid jumping into deeper blocks
+                        dl_block = li.find_next_sibling("dl")
+                        if dl_block:
+                            for dd in dl_block.find_all("dd", recursive=False):  # don't descend into nested dd/dl
+                                line_text = dd.get_text(" ", strip=True)
+                                if not line_text:
                                     continue
+                        
+                                # If there's a link, replace the first occurrence of the visible name with a linked version.
+                                # This preserves the rest of the text ("- Crafted, Bought") and prevents duplication.
                                 a = dd.find("a", href=True)
                                 if a:
+                                    name = a.get_text(" ", strip=True)
                                     href = a["href"]
-                                    href = href if href.startswith("http") else wiki_base + href
-                                    line = f"- [{a.get_text(' ', strip=True)}]({href})"
-                                    rest = text.replace(a.get_text(strip=True), "").strip()
-                                    if rest:
-                                        line += f" {rest}"
-                                else:
-                                    line = f"- {text}"
-                                recipe_lines.append(line)
-                        # Remove duplicates
-                        recipe_lines = list(dict.fromkeys(recipe_lines))
-                        lines = []
-                        if yield_qty:
-                            lines.append(f"Yield: {yield_qty}")
+                                    if href.startswith("//"):
+                                        href = "https:" + href
+                                    elif href.startswith("/"):
+                                        href = wiki_base + href  # wiki_base defined earlier
+                                    # Replace only the first occurrence of the exact name (case sensitive as on the wiki).
+                                    line_text = re.sub(rf'\b{re.escape(name)}\b', f"[{name}]({href})", line_text, count=1)
+                        
+                                recipe_lines.append(f"- {line_text}")
+                        
+                        # Deduplicate while preserving order (in case the wiki markup repeats lines)
+                        seen = set()
+                        recipe_lines_cleaned = []
+                        for ln in recipe_lines:
+                            if ln not in seen:
+                                seen.add(ln)
+                                recipe_lines_cleaned.append(ln)
+                        
+                        # Final save block
+                        block_lines = []
+                        if yield_qty is not None:
+                            block_lines.append(f"Yield: {yield_qty}")
                         if station_line:
-                            lines.append(station_line)
-                        lines.extend(recipe_lines)
-                        crafting_recipe = "\n".join(lines)
+                            block_lines.append(station_line)
+                        if recipe_lines_cleaned:
+                            block_lines.extend(recipe_lines_cleaned)
+                        
+                        crafting_recipe = "\n".join(block_lines)
+
 
                 # --- Item Stats ---
                 stats_div = soup.find("div", class_="item-stats")
