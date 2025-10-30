@@ -35,7 +35,8 @@ UPLOAD_CHANNEL_ID = 1432472242029334600
 
 RACE_OPTIONS = ["DDF","DEF","DGN","DWF","ELF","GNM","GOB","HFL","HIE","HUM","ORG","TRL"]
 CLASS_OPTIONS = ["ARC", "BRD", "BST", "CLR", "DRU", "ELE", "ENC", "FTR", "INQ", "MNK", "NEC", "PAL", "RNG", "ROG", "SHD", "SHM", "SPB", "WIZ"]
-ITEM_SLOTS = ["Ammo","Back","Chest","Ear","Face","Feet","Finger","Hands","Head","Legs","Neck","Primary","Range","Secondary","Shirt","Shoulders","Waist","Wrist"]
+ITEM_SLOTS = ["Ammo","Back","Chest","Ear","Face","Feet","Finger","Hands","Head","Legs","Neck","Primary","Range","Secondary","Shirt","Shoulders","Waist","Wrist",
+              "1H Bludgeoning","2H Bludgeoning","1H Piercing","2H Piercing","1H Slashing","2H Slashing"]
 ITEM_STATS = ["AGI","CHA","DEX","INT","STA","STR","WIS","HP","Mana","SV Cold","SV Corruption","SV Disease","SV Electricity","SV Fire","SV Holy","SV Magi","SV Poison"]
 
 intents = discord.Intents.default()
@@ -1788,13 +1789,18 @@ class WikiSelectView(discord.ui.View):
                 discord.SelectOption(label="Legs", value="Legs"),
                 discord.SelectOption(label="Neck", value="Neck"),
                 discord.SelectOption(label="Primary", value="Primary"),
-                discord.SelectOption(label="Primary 2h", value="Primary 2h"),
                 discord.SelectOption(label="Range", value="Range"),
                 discord.SelectOption(label="Secondary", value="Secondary"),
                 discord.SelectOption(label="Shirt", value="Shirt"),
                 discord.SelectOption(label="Shoulders", value="Shoulders"),
                 discord.SelectOption(label="Waist", value="Waist"),
                 discord.SelectOption(label="Wrist", value="Wrist"),
+                discord.SelectOption(label="1H Bludgeoning", value="1H Bludgeoning"),
+                discord.SelectOption(label="2H Bludgeoning", value="2H Bludgeoning"),
+                discord.SelectOption(label="1H Piercing", value="1H Piercing"),
+                discord.SelectOption(label="2H Piercing", value="2H Piercing"),
+                discord.SelectOption(label="1H Slashing", value="1H Slashing"),
+                discord.SelectOption(label="2H Slashing", value="2H Slashing"),
             ]
         )
         self.slot_select.callback = self.select_slot
