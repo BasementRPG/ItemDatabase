@@ -390,8 +390,8 @@ class ItemDatabaseModal(discord.ui.Modal, title="Add Item to Database"):
 
     
                     # Notify user of duplicate
-                    try:
-                        if not interaction.response.is_done():
+                    
+                    if not interaction.response.is_done():
                         await interaction.response.send_message(
                             f"❌ `{item_name}` from `{npc_name}` already exists. Images deleted.",
                             ephemeral=True
