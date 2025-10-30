@@ -1217,21 +1217,7 @@ class WikiView(discord.ui.View):
             # Show recipe if expanded
             item_key = item["item_name"]
             
-            if item.get("crafting_recipe") and item["crafting_recipe"] != "":
-                if item_key in self.expanded_recipes:
-                    # Show recipe ingredients
-                    recipe_lines = "\n".join([f"• {ing}" for ing in item["recipe"]])
-                    embed.add_field(
-                        name="📜 Recipe",
-                        value=recipe_lines,
-                        inline=False
-                    )
-                else:
-                    embed.add_field(
-                        name="📜 Recipe",
-                        value="`Click ⚒️ Toggle Recipe to expand`",
-                        inline=False
-        )
+           
             
             embed = discord.Embed(
                 title=item["item_name"],
@@ -1262,10 +1248,7 @@ class WikiView(discord.ui.View):
                 embed.add_field(name="🧩 Related Quest", value=f"[{item['quest_name']}]({quest_link})", inline=False)
             if item["crafted_name"] != "":
                 embed.add_field(name="⚒️ Crafted Item", value=f"[{crafted_name}]({crafted_link})", inline=False)
-            # Only show recipe button if the item has a recipe
-            if item.get("crafting_recipe") and item["crafting_recipe"] != "":
-                embed.add_field(name="⚒️ Crafting", value="Click below to view recipe", inline=False)
-
+            
             embed.set_footer(
                 text=f"Page {page_index + 1}/{self.total_pages()} - Total Results: {len(self.items)}"
             )
@@ -1298,27 +1281,7 @@ class WikiView(discord.ui.View):
         self.item_select_menu.options = self.item_select_menu._build_options()
         await interaction.response.edit_message(embeds=self.build_embeds(self.current_page), view=self)
 
-    @discord.ui.button(label="⚒️ Toggle Recipe", style=discord.ButtonStyle.success, row=2)
-    async def toggle_recipe(self, interaction: discord.Interaction, button: discord.ui.Button):
-        # Determine which item is selected
-        selected_item_index = self.current_page * self.items_per_page + self.item_select_menu.current_index
     
-        item = self.items[selected_item_index]
-    
-        item_key = item["item_name"]
-    
-        # Toggle expanded state
-        if item_key in self.expanded_recipes:
-            self.expanded_recipes.remove(item_key)
-        else:
-            self.expanded_recipes.add(item_key)
-    
-        # Recreate view & embed
-        self.item_select_menu.options = self.item_select_menu._build_options()
-        await interaction.response.edit_message(
-            embeds=self.build_embeds(self.current_page),
-            view=self
-        )
     
 
  
