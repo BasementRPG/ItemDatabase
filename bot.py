@@ -391,29 +391,14 @@ class ItemDatabaseModal(discord.ui.Modal, title="Add Item to Database"):
     
                     # Notify user of duplicate
                     try:
-                        # Try to replace the previous filter or confirmation message
-                        await interaction.response.defer(thinking=False)
-                        await interaction.edit_original_response(
-                            content=(
-                                f"❌ Unable to add **{item_name}** — this item from **{npc_name}** already exists in the database.\n"
-                                f"🗑️ Uploaded images were deleted to keep the upload channel clean."
-                            ),
-                            view=None
-                        )
-                    
-                    except discord.NotFound:
-                        # Fallback if original webhook expired
-                        await interaction.followup.send(
-                            f"❌ Unable to add **{item_name}** — this item from **{npc_name}** already exists in the database.\n"
-                            f"🗑️ Uploaded images were deleted to keep the upload channel clean.",
+                        if not interaction.response.is_done():
+                        await interaction.response.send_message(
+                            f"❌ `{item_name}` from `{npc_name}` already exists. Images deleted.",
                             ephemeral=True
                         )
-                    
-                    except discord.InteractionResponded:
-                        # If a response was already sent before (like after cleanup)
+                    else:
                         await interaction.followup.send(
-                            f"❌ Unable to add **{item_name}** — this item from **{npc_name}** already exists in the database.\n"
-                            f"🗑️ Uploaded images were deleted to keep the upload channel clean.",
+                            f"❌ `{item_name}` from `{npc_name}` already exists. Images deleted.",
                             ephemeral=True
                         )
                     return
@@ -448,31 +433,24 @@ class ItemDatabaseModal(discord.ui.Modal, title="Add Item to Database"):
             )
      
        
+   
         except Exception as e:
-            # ✅ Log the real DB error internally — DO NOT show to user
-            print(f"❌ Database error: {e}")
+        print(f"❌ Database error: {e}")  # log only
 
-            try:
-                # ✅ If modal hasn't been acknowledged yet, acknowledge silently
-                if not interaction.response.is_done():
-                    await interaction.response.defer(thinking=False)
-
-                # ✅ Try to replace the original UI (filters) with a simple message
-                try:
-                    await interaction.edit_original_response(
-                        content="⚠️ Something went wrong while saving this item. Please try again.",
-                        view=None
-                    )
-                except discord.NotFound:
-                    # The original webhook/message is gone — ignore silently
-                    pass
-                except discord.InteractionResponded:
-                    # Interaction already used — do not send anything else
-                    pass
-
-            except Exception as err:
-                # ✅ Final fallback — only log, show nothing to users
-                print(f"⚠️ Secondary DB error handler failed: {err}")
+        # ✅ Safe failure response logic
+        try:
+            if not interaction.response.is_done():
+                await interaction.response.send_message(
+                    "⚠️ Something went wrong while saving this item.",
+                    ephemeral=True
+                )
+            else:
+                await interaction.followup.send(
+                    "⚠️ Something went wrong while saving this item.",
+                    ephemeral=True
+                )
+        except Exception as err:
+            print(f"⚠️ Secondary DB error handler failed: {err}")
 
 
     
