@@ -392,18 +392,19 @@ class ItemDatabaseModal(discord.ui.Modal, title="Add Item to Database"):
                
 
     
-                    # Notify user of duplicate
-                    
+                    # ✅ Acknowledge modal silently (no popup)
                     if not interaction.response.is_done():
-                        await interaction.response.send_message(
-                            f"❌ `{item_name}` from `{npc_name}` already exists. Images deleted.",
-                            ephemeral=True
+                        await interaction.response.defer(ephemeral=True)
+                
+                    # ✅ Replace dropdown UI with duplicate error
+                    try:
+                        await self.origin_message.edit(
+                            content=f"❌ `{item_name}` from `{npc_name}` already exists.\n🗑️ Uploaded images deleted.",
+                            view=None
                         )
-                    else:
-                        await interaction.followup.send(
-                            f"❌ `{item_name}` from `{npc_name}` already exists. Images deleted.",
-                            ephemeral=True
-                        )
+                    except Exception as e:
+                        print(f"⚠️ Could not edit original ephemeral message: {e}")
+                
                     return
     
     
