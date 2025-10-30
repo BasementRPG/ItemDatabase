@@ -386,6 +386,8 @@ class ItemDatabaseModal(discord.ui.Modal, title="Add Item to Database"):
                             print("⚠️ Upload channel not found for cleanup.")
                     except Exception as e:
                         print(f"⚠️ Error cleaning up uploaded images: {e}")
+               
+
     
                     # Notify user of duplicate
                     try:
@@ -414,7 +416,7 @@ class ItemDatabaseModal(discord.ui.Modal, title="Add Item to Database"):
                             f"🗑️ Uploaded images were deleted to keep the upload channel clean.",
                             ephemeral=True
                         )
-
+                    return
     
     
                 # ✅ Insert new record
@@ -444,38 +446,29 @@ class ItemDatabaseModal(discord.ui.Modal, title="Add Item to Database"):
                 content=f"✅ `{item_name}` added successfully!",
                 view=None
             )
+     
         except Exception as e:
+            # ✅ Log internally — NO user error message
             print(f"❌ Database error: {e}")
         
             try:
-                # Try to gracefully defer so we can edit the original message
-                await interaction.response.defer(thinking=False)
+                # Acknowledge modal so Discord doesn't throw an error
+                if not interaction.response.is_done():
+                    await interaction.response.defer(thinking=False)
+                else:
+                    # If already responded, do nothing further
+                    return
+        
+                # Optionally replace UI with a neutral message, or do nothing
                 await interaction.edit_original_response(
-                    content=f"❌ Database error: {e}",
+                    content="⚠️ Something went wrong while saving this item.",
                     view=None
                 )
         
-            except discord.NotFound:
-                # Fallback if modal interaction is detached
-                await interaction.followup.send(
-                    f"❌ Database error: {e}",
-                    ephemeral=True
-                )
-        
-            except discord.InteractionResponded:
-                # If response was already used (common with image uploads)
-                await interaction.followup.send(
-                    f"❌ Database error: {e}",
-                    ephemeral=True
-                )
-        
             except Exception as err:
-                print(f"⚠️ Unhandled DB error during modal submit: {err}")
-                await interaction.followup.send(
-                    f"❌ Database error (unhandled): {e}",
-                    ephemeral=True
-                )
-  
+                # Final fallback logging — NO user messaging
+                print(f"⚠️ Secondary DB error handler failed: {err}")
+
     
              
         
