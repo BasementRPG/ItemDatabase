@@ -474,7 +474,19 @@ class ItemDatabaseModal(discord.ui.Modal, title="Add Item to Database"):
                 print(f"⚠️ Secondary DB error handler failed: {err}")
 
 
-    
+
+@bot.tree.command(name="clear_wiki_cache", description="Clear cached wiki results (forces fresh scraping)")
+@app_commands.checks.has_permissions(administrator=True)
+async def clear_wiki_cache(interaction: discord.Interaction):
+    global wiki_cache
+    count = len(wiki_cache)
+    wiki_cache.clear()
+    await interaction.response.send_message(
+        f"🧹 Cache cleared! ({count} cached slot pages flushed)\nNext wiki pull will be fresh.",
+        ephemeral=True
+    )
+
+
              
         
 
@@ -1887,7 +1899,16 @@ class WikiSelectView(discord.ui.View):
         )
         search_query = self.search_query or ""
         if self.source_command in ("db", "dbp"):
-            await run_item_db(interaction, self.slot, self.stat, self.classes, search_query)
+            search_query = self.search_query or ""  # ✅ MAKE SURE WE PASS THE QUERY
+            return await run_item_db(
+                interaction,
+                self.slot,
+                self.stat,
+                self.classes,
+                search_query,
+                source_command=self.source_command
+            )
+
         
         
         # If the handler isn’t attached, fall back to auto-detect based on command
