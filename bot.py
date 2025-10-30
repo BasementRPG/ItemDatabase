@@ -435,22 +435,22 @@ class ItemDatabaseModal(discord.ui.Modal, title="Add Item to Database"):
        
    
         except Exception as e:
-        print(f"❌ Database error: {e}")  # log only
-
-        # ✅ Safe failure response logic
-        try:
-            if not interaction.response.is_done():
-                await interaction.response.send_message(
-                    "⚠️ Something went wrong while saving this item.",
-                    ephemeral=True
-                )
-            else:
-                await interaction.followup.send(
-                    "⚠️ Something went wrong while saving this item.",
-                    ephemeral=True
-                )
-        except Exception as err:
-            print(f"⚠️ Secondary DB error handler failed: {err}")
+            print(f"❌ Database error: {e}")  # log only
+    
+            # ✅ Safe failure response logic
+            try:
+                if not interaction.response.is_done():
+                    await interaction.response.send_message(
+                        "⚠️ Something went wrong while saving this item.",
+                        ephemeral=True
+                    )
+                else:
+                    await interaction.followup.send(
+                        "⚠️ Something went wrong while saving this item.",
+                        ephemeral=True
+                    )
+            except Exception as err:
+                print(f"⚠️ Secondary DB error handler failed: {err}")
 
 
     
