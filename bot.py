@@ -441,7 +441,7 @@ async def add_item_db(interaction: discord.Interaction, item_image: discord.Atta
     await interaction.response.defer(ephemeral=True, thinking=True)
     
     if not item_image:
-        await interaction.edit_original_response(content=f"❌ Item image is required.")
+        await interaction.edit_original_response(content=f"❌ Item image is required.",view=None)
         return
 
     added_by = str(interaction.user)
@@ -489,7 +489,7 @@ async def add_item_db(interaction: discord.Interaction, item_image: discord.Atta
         )
     
     except discord.Forbidden:
-        await interaction.edit_original_responsed(content=f"❌ I don't have permission to upload files here.")
+        await interaction.edit_original_response(content=f"❌ I don't have permission to upload files here.",view=None)
         return
 
     except Exception as e:
@@ -502,7 +502,7 @@ async def add_item_db(interaction: discord.Interaction, item_image: discord.Atta
         except Exception as cleanup_err:
             print(f"⚠️ Cleanup failed after upload error: {cleanup_err}")
 
-        await interaction.edit_original_response(content=f"❌ Upload failed: {e}")
+        await interaction.edit_original_response(content=f"❌ Upload failed: {e}",view=None)
         return
 
 
