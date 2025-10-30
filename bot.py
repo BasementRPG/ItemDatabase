@@ -314,9 +314,9 @@ class ItemDatabaseModal(discord.ui.Modal, title="Add Item to Database"):
         self.item_name = discord.ui.TextInput(label="Item Name", placeholder="Example: Flowing Black Silk Sash")
         self.zone_field = discord.ui.TextInput(
             label="Zone Name - Zone Area (Optional)",
-            placeholder="Eamples: Shaded Dunes - Ashira Camp",
+            placeholder="Eamples: Shaded Dunes - Ashira Camp", required=False,
         )
-        self.npc_name = discord.ui.TextInput(label="NPC Name", placeholder="Example: Fippy Darkpaw")
+        self.npc_name = discord.ui.TextInput(label="NPC Name", placeholder="Example: Fippy Darkpaw", required=False)
 
         self.npc_level = discord.ui.TextInput(
             label="NPC Level",
@@ -566,14 +566,16 @@ class EditItemModal(discord.ui.Modal, title="Edit Item"):
         super().__init__(timeout=None)
         self.item_row = item_row
         self.db_pool = db_pool
-        self.origin_interaction = origin_interaction  # store original ephemeral source interaction
+        self.origin_interaction = origin_interaction
 
-        # Prefilled fields
+        # ✅ Item name REQUIRED
         self.item_name = discord.ui.TextInput(
             label="Item Name",
-            default=item_row['item_name']
+            default=item_row['item_name'],
+            required=True
         )
 
+        # ✅ All other fields optional now
         zone_default = (
             f"{item_row['zone_name']} - {item_row['zone_area']}"
             if item_row['zone_area'] else item_row['zone_name']
@@ -581,12 +583,14 @@ class EditItemModal(discord.ui.Modal, title="Edit Item"):
 
         self.zone_field = discord.ui.TextInput(
             label="Zone - Area",
-            default=zone_default
+            default=zone_default,
+            required=False
         )
 
         self.npc_name = discord.ui.TextInput(
             label="NPC Name",
-            default=item_row['npc_name']
+            default=item_row['npc_name'],
+            required=False
         )
 
         self.npc_level = discord.ui.TextInput(
@@ -597,7 +601,8 @@ class EditItemModal(discord.ui.Modal, title="Edit Item"):
 
         self.item_slot = discord.ui.TextInput(
             label="Item Slot",
-            default=item_row['item_slot']
+            default=item_row['item_slot'] or "",
+            required=False
         )
 
         self.add_item(self.item_name)
@@ -607,58 +612,63 @@ class EditItemModal(discord.ui.Modal, title="Edit Item"):
         self.add_item(self.item_slot)
 
     async def on_submit(self, interaction: discord.Interaction):
-        # Normalize values
+        # 🧹 Normalize
         new_name = format_item_name(self.item_name.value.strip().title())
-        raw_zone = self.zone_field.value.strip()
+        old_name = self.item_row['item_name']
+
+        raw_zone = self.zone_field.value.strip() if self.zone_field.value else ""
 
         if "-" in raw_zone:
             zone_name, zone_area = map(str.strip, raw_zone.split("-", 1))
             zone_name = format_item_name(zone_name.title())
             zone_area = zone_area.title()
         else:
-            zone_name = format_item_name(raw_zone.title())
+            zone_name = format_item_name(raw_zone.title()) if raw_zone else None
             zone_area = None
 
-        npc_name = self.npc_name.value.strip().title()
-        item_slot = self.item_slot.value.strip()
+        npc_name = self.npc_name.value.strip().title() if self.npc_name.value else None
         npc_level_val = self.npc_level.value.strip() or None
+        item_slot = self.item_slot.value.strip() or None
 
         try:
             async with self.db_pool.acquire() as conn:
 
-                # ✅ Smart duplicate check (guild or global)
-                exists = await conn.fetchval("""
-                    SELECT 1 FROM item_database
-                    WHERE TRIM(LOWER(REPLACE(item_name, '-', ''))) =
-                          TRIM(LOWER(REPLACE($1, '-', '')))
-                      AND id != $2
-                      AND (guild_id = $3 OR guild_id IS NULL)
-                    LIMIT 1
-                """, new_name, self.item_row['id'], interaction.guild.id)
+                # Only check duplicates if the name CHANGED
+                if new_name != old_name:
+                    exists = await conn.fetchval("""
+                        SELECT 1 FROM item_database
+                        WHERE TRIM(LOWER(item_name)) = TRIM(LOWER($1))
+                          AND (guild_id = $2 OR guild_id IS NULL)
+                        LIMIT 1
+                    """, new_name, interaction.guild.id)
 
-                if exists:
-                    # Silent defer (modal requirement)
-                    if not interaction.response.is_done():
-                        await interaction.response.defer(ephemeral=True)
+                    if exists:
+                        if not interaction.response.is_done():
+                            await interaction.response.defer(ephemeral=True)
 
-                    # Replace original dropdown with error
-                    await self.origin_interaction.edit_original_response(
-                        content=f"❌ Cannot rename — `{new_name}` already exists in database.",
-                        view=None
-                    )
-                    return
+                        await self.origin_interaction.edit_original_response(
+                            content=f"❌ `{new_name}` already exists. Item name cannot be changed to a duplicate.",
+                            view=None
+                        )
+                        return
 
                 # ✅ Update DB
                 await conn.execute("""
                     UPDATE item_database
-                    SET item_name=$1, zone_name=$2, zone_area=$3,
-                        npc_name=$4, npc_level=$5, item_slot=$6, updated_at=NOW()
+                    SET item_name=$1,
+                        zone_name=$2,
+                        zone_area=$3,
+                        npc_name=$4,
+                        npc_level=$5,
+                        item_slot=$6,
+                        updated_at=NOW()
                     WHERE id=$7
-                """, new_name, zone_name, zone_area,
-                    npc_name, npc_level_val, item_slot,
-                    self.item_row['id'])
+                """,
+                new_name, zone_name, zone_area,
+                npc_name, npc_level_val, item_slot,
+                self.item_row['id'])
 
-            # ✅ Success toast
+            # ✅ Toast
             if not interaction.response.is_done():
                 await interaction.response.send_message(
                     f"✅ `{new_name}` successfully updated!",
@@ -670,7 +680,7 @@ class EditItemModal(discord.ui.Modal, title="Edit Item"):
                     ephemeral=True
                 )
 
-            # ✅ Replace dropdown UI with success message
+            # ✅ Replace dropdown UI
             await self.origin_interaction.edit_original_response(
                 content=f"✅ `{new_name}` updated successfully!",
                 view=None
@@ -679,26 +689,24 @@ class EditItemModal(discord.ui.Modal, title="Edit Item"):
         except Exception as e:
             print(f"❌ Edit error: {e}")
 
-            # Toast error
             if not interaction.response.is_done():
                 await interaction.response.send_message(
-                    f"❌ Failed to update `{self.item_row['item_name']}`.",
+                    f"❌ Failed to update `{old_name}`.",
                     ephemeral=True
                 )
             else:
                 await interaction.followup.send(
-                    f"❌ Failed to update `{self.item_row['item_name']}`.",
+                    f"❌ Failed to update `{old_name}`.",
                     ephemeral=True
                 )
 
-            # Replace dropdown with error message
             try:
                 await self.origin_interaction.edit_original_response(
-                    content=f"❌ Could not update `{self.item_row['item_name']}`. Try again.",
+                    content=f"❌ Could not update `{old_name}`. Try again.",
                     view=None
                 )
-            except Exception as inner:
-                print(f"⚠️ UI update fail after error: {inner}")
+            except:
+                pass
 
 
 
