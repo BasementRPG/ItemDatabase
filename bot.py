@@ -1234,6 +1234,25 @@ class WikiView(discord.ui.View):
             
             crafting_recipe_clean = "\n".join(re_crafting_recipe)
 
+            def recipe_with_emojis(crafting_recipe_text: str) -> str:
+                if not crafting_recipe_text:
+                    return crafting_recipe_text
+                
+                replacements = {
+                    " Crafted": " ⚒️",
+                    " Dropped": " 💀",
+                    " Drop": " 💀",
+                    " Bought": " 💰",
+                    " Vendor": " 💰",
+                }
+            
+                # Apply replacements only in display text
+                for key, emoji in replacements.items():
+                    crafting_recipe_text = crafting_recipe_text.replace(key, emoji)
+            
+                return crafting_recipe_text
+                
+            display_recipe = recipe_with_emojis(crafting_recipe_clean)
            
             
             embed = discord.Embed(
@@ -1266,7 +1285,7 @@ class WikiView(discord.ui.View):
             if item["crafted_name"] != "":
                 embed.add_field(name="⚒️ Crafted Item", value=f"[{crafted_name}]({crafted_link})", inline=True)
             if item["crafting_recipe"] !="":
-                embed.add_field(name=f"📜 Recipe: {yield_text}", value=f"{crafting_recipe_clean}", inline=True)
+                embed.add_field(name=f"📜 Recipe: {yield_text}", value=f"{display_recipe}", inline=True)
             embed.set_footer(
                 text=f"Page {page_index + 1}/{self.total_pages()} - Total Results: {len(self.items)}"
             )
