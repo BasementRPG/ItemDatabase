@@ -280,7 +280,8 @@ class SlotStatClassSelectView(discord.ui.View):
                 npc_msg_id=self.npc_msg_id,
                 item_stats=item_stats,
                 upload_channel_id=self.upload_channel_id,
-                origin_message_id=interaction.message.id
+                origin_message=self.origin_message
+               
             )
         )
     @discord.ui.button(label="❌ Cancel", style=discord.ButtonStyle.danger)
@@ -294,7 +295,7 @@ class SlotStatClassSelectView(discord.ui.View):
 
 
 class ItemDatabaseModal(discord.ui.Modal, title="Add Item to Database"):
-    def __init__(self, db_pool, guild_id, added_by, item_image_url=None, npc_image_url=None, item_msg_id=None, npc_msg_id=None, item_stats=None, item_slot=None, upload_channel_id=None, origin_message_id=None):
+    def __init__(self, db_pool, guild_id, added_by, item_image_url=None, npc_image_url=None, item_msg_id=None, npc_msg_id=None, item_stats=None, item_slot=None, upload_channel_id=None, origin_message=None):
 
         super().__init__(timeout=None)
         self.db_pool = db_pool
@@ -307,7 +308,7 @@ class ItemDatabaseModal(discord.ui.Modal, title="Add Item to Database"):
         self.item_stats = item_stats or ""
         self.item_slot = item_slot
         self.upload_channel_id = upload_channel_id
-        self.origin_message_id = origin_message_id
+        self.origin_message = origin_message
 
         # Fields
         self.item_name = discord.ui.TextInput(label="Item Name", placeholder="Example: Flowing Black Silk Sash")
@@ -430,19 +431,19 @@ class ItemDatabaseModal(discord.ui.Modal, title="Add Item to Database"):
                 self.added_by)
     
             
-            # ✅ Modal MUST respond first
-            await interaction.response.send_message("✅ Item saved!", ephemeral=True)
-
-            # ✅ Then edit the original filter message (if provided)
+            
+            # ✅ modal MUST respond
+            await interaction.response.send_message(f"✅ `{item_name}` added!", ephemeral=True)
+            
+            # ✅ now edit the original ephemeral dropdown message
             try:
-                if self.origin_message_id:
-                    msg = await interaction.channel.fetch_message(self.origin_message_id)
-                    await msg.edit(
-                        content=f"✅ `{item_name}` added successfully!",
-                        view=None
-                    )
-            except Exception as err:
-                print(f"⚠️ Could not edit original filter message: {err}")
+                await self.origin_message.edit(
+                    content=f"✅ `{item_name}` added successfully!",
+                    view=None  # remove dropdowns
+                )
+            except Exception as e:
+                print(f"⚠️ Could not edit original ephemeral message: {e}")
+
 
      
        
@@ -523,11 +524,16 @@ async def add_item_db(interaction: discord.Interaction, item_image: discord.Atta
             upload_channel_id=upload_channel.id
         )
     
-        await interaction.followup.send(
+       
+        sent = await interaction.followup.send(
             "Select the **Slot**, **Classes**, and **Stats** for this item:",
             view=view,
             ephemeral=True
         )
+
+# store the interaction message ID for the modal to edit later
+view.origin_message = sent
+
     
     except discord.Forbidden:
         await interaction.edit_original_response(content=f"❌ I don't have permission to upload files here.",view=None)
