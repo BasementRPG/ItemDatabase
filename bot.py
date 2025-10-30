@@ -1222,7 +1222,6 @@ class WikiView(discord.ui.View):
             crafting_recipe = item.get("crafting_recipe") or ""
 
             yield_text = ""
-            station_text = ""
             remaining_lines = []
             
             if crafting_recipe:
@@ -1231,8 +1230,6 @@ class WikiView(discord.ui.View):
                 for line in lines:
                     if line.lower().startswith("yield"):
                         yield_text = line.strip()  # "Yield: 1"
-                    elif line.lower().startswith("in "):
-                        station_text = line.strip()  # "In Anvil:"
                     else:
                         remaining_lines.append(line)
 
@@ -1268,7 +1265,7 @@ class WikiView(discord.ui.View):
             if item["crafted_name"] != "":
                 embed.add_field(name="⚒️ Crafted Item", value=f"[{crafted_name}]({crafted_link})", inline=True)
             if item["crafting_recipe"] !="":
-                embed.add_field(name=f"📜 Recipe: {yield_text}", value={station_text}{remaining_lines}, inline=True)
+                embed.add_field(name=f"📜 Recipe: {yield_text}", value=f"{remaining_lines}", inline=True)
             embed.set_footer(
                 text=f"Page {page_index + 1}/{self.total_pages()} - Total Results: {len(self.items)}"
             )
