@@ -2417,7 +2417,7 @@ async def run_update_db(interaction: discord.Interaction):
                 
                 crafted_section = None
                 for pid in ("Player_crafted", "Player_crafter"):
-                    crafted_section = s2.find("h2", id=pid)
+                    crafted_section = soup.find("h2", id=pid)
                     if crafted_section:
                         break
                 
