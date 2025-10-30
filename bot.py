@@ -449,22 +449,31 @@ class ItemDatabaseModal(discord.ui.Modal, title="Add Item to Database"):
      
        
         except Exception as e:
-            print(f"❌ Database error: {e}")  # log only
-    
-            # ✅ Safe failure response logic
+            # ✅ Log the real DB error internally — DO NOT show to user
+            print(f"❌ Database error: {e}")
+
             try:
+                # ✅ If modal hasn't been acknowledged yet, acknowledge silently
                 if not interaction.response.is_done():
-                    await interaction.response.send_message(
-                        "⚠️ Something went wrong while saving this item.",
-                        ephemeral=True
+                    await interaction.response.defer(thinking=False)
+
+                # ✅ Try to replace the original UI (filters) with a simple message
+                try:
+                    await interaction.edit_original_response(
+                        content="⚠️ Something went wrong while saving this item. Please try again.",
+                        view=None
                     )
-                else:
-                    await interaction.followup.send(
-                        "⚠️ Something went wrong while saving this item.",
-                        ephemeral=True
-                    )
+                except discord.NotFound:
+                    # The original webhook/message is gone — ignore silently
+                    pass
+                except discord.InteractionResponded:
+                    # Interaction already used — do not send anything else
+                    pass
+
             except Exception as err:
+                # ✅ Final fallback — only log, show nothing to users
                 print(f"⚠️ Secondary DB error handler failed: {err}")
+
 
     
              
