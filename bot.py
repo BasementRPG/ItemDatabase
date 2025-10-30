@@ -1250,7 +1250,7 @@ class WikiView(discord.ui.View):
             if item["crafted_name"] != "":
                 embed.add_field(name="⚒️ Crafted Item", value=f"[{crafted_name}]({crafted_link})", inline=True)
             if item["crafting_recipe"] !="":
-                embed.add_field(name="📜 Recipe", value=f"{item[crafting_recipe]}", inline=True)
+                embed.add_field(name="📜 Recipe", value=item["crafting_recipe"], inline=True)
             embed.set_footer(
                 text=f"Page {page_index + 1}/{self.total_pages()} - Total Results: {len(self.items)}"
             )
