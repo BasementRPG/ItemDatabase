@@ -2544,13 +2544,18 @@ async def run_update_db(interaction: discord.Interaction):
                 if changes:
                     updated_count += 1
                     changes_log.append(f"🛠️ `{item_name}` → {', '.join(changes.keys())}")
-                    set_clause = ", ".join([f"{col} = ${i+2}" for i, col in enumerate(changes.keys())])
+                    set_clause = ", ".join([f"{col} = ${i+3}" for i, col in enumerate(changes.keys())])
                     values = list(changes.values())
 
                     async with db_pool.acquire() as conn:
                         await conn.execute(
-                            f"UPDATE item_database SET {set_clause} WHERE LOWER(item_name) = LOWER($1)",
-                            item_name, *values
+                            f"""
+                            UPDATE item_database 
+                            SET {set_clause} 
+                            WHERE LOWER(item_name) = LOWER($1) 
+                            AND (guild_id = $2 OR guild_id IS NULL)
+                            """,
+                            item_name, interaction.guild.id, *values
                         )
 
                 await asyncio.sleep(0.7)
