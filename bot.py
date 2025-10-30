@@ -2384,8 +2384,8 @@ async def run_update_db(interaction: discord.Interaction):
     
     
                 crafted_name = ""
-                
-                # Handle either id="Player_crafted" or id="Player_crafter"
+                crafting_recipe = ""  # final formatted block for DB
+
                 crafted_section = None
                 for pid in ("Player_crafted", "Player_crafter"):
                     crafted_section = s2.find("h2", id=pid)
@@ -2393,22 +2393,18 @@ async def run_update_db(interaction: discord.Interaction):
                         break
                 
                 if crafted_section:
-                    # First <ul> after the heading
                     ul = crafted_section.find_next("ul")
                     if ul:
-                        # First <li> inside that <ul>
                         li = ul.find("li")
                         if li:
-                            # 1) Prefer the direct text nodes (ignore nested <ul>)
-                            #    This grabs only the text that is DIRECTLY inside the <li>
+                            # collect crafted name without nested <ul>
                             direct_bits = []
                             for node in li.contents:
                                 if isinstance(node, NavigableString):
                                     text = str(node).strip()
                                     if text:
                                         direct_bits.append(text)
-                                elif node.name != "ul":
-                                    # keep inline tags like <a>, <b>, etc. but not the nested <ul>
+                                elif getattr(node, "name", None) != "ul":
                                     text = node.get_text(" ", strip=True)
                                     if text:
                                         direct_bits.append(text)
@@ -2416,11 +2412,94 @@ async def run_update_db(interaction: discord.Interaction):
                             if direct_bits:
                                 crafted_name = " ".join(direct_bits)
                             else:
-                                # 2) Fallback: remove nested <ul>, then read the remaining text
                                 nested_ul = li.find("ul")
                                 if nested_ul:
                                     nested_ul.extract()
                                 crafted_name = li.get_text(" ", strip=True) or ""
+                
+                            # ---------- NEW: Yield / Station / Recipe ----------
+                            wiki_base = "https://monstersandmemories.miraheze.org"
+                
+                            yield_qty = None
+                            station_line = None
+                
+                            inner_ul = li.find("ul")
+                            if inner_ul:
+                                for sub_li in inner_ul.find_all("li", recursive=False):
+                                    text = sub_li.get_text(" ", strip=True)
+                                    if not text:
+                                        continue
+                
+                                    # Yield: extract last number
+                                    if text.lower().startswith("yield"):
+                                        m = re.search(r"x\s*(\d+)\s*$", text, flags=re.IGNORECASE)
+                                        if m:
+                                            yield_qty = m.group(1)
+                                        else:
+                                            m2 = re.search(r"(\d+)\s*$", text)
+                                            if m2:
+                                                yield_qty = m2.group(1)
+                                            else:
+                                                yield_qty = "1"
+                
+                                    # Crafting station (use exactly as wiki prints it)
+                                    if text.lower().startswith("in "):
+                                        station_line = text if text.endswith(":") else (text + ":")
+                
+                            # Ingredient list in <dl><dd>
+                            recipe_lines_md = []
+                            dl_block = li.find_next("dl")
+                            if dl_block:
+                                for dd in dl_block.find_all("dd"):
+                                    dd_text = dd.get_text(" ", strip=True)
+                                    if not dd_text:
+                                        continue
+                
+                                    qty_match = re.match(r"^x\s*(\d+)\s+", dd_text, flags=re.IGNORECASE)
+                                    qty_str = None
+                
+                                    if qty_match:
+                                        qty_str = qty_match.group(1)
+                                        a = dd.find("a", href=True)
+                                        if a:
+                                            item_name = a.get_text(" ", strip=True)
+                                            href = a["href"]
+                                            if href.startswith("//"):
+                                                item_url = "https:" + href
+                                            elif href.startswith("/"):
+                                                item_url = wiki_base + href
+                                            else:
+                                                item_url = href
+                                            recipe_lines_md.append(f"- x{qty_str} [{item_name}]({item_url})")
+                                        else:
+                                            rest = dd_text[qty_match.end():].strip()
+                                            recipe_lines_md.append(f"- x{qty_str} {rest}")
+                                    else:
+                                        a = dd.find("a", href=True)
+                                        if a:
+                                            item_name = a.get_text(" ", strip=True)
+                                            href = a["href"]
+                                            if href.startswith("//"):
+                                                item_url = "https:" + href
+                                            elif href.startswith("/"):
+                                                item_url = wiki_base + href
+                                            else:
+                                                item_url = href
+                                            recipe_lines_md.append(f"- [{item_name}]({item_url})")
+                                        else:
+                                            recipe_lines_md.append(f"- {dd_text}")
+                
+                            # Build final saved block (for DB column crafting_recipe)
+                            block_lines = []
+                            if yield_qty is not None:
+                                block_lines.append(f"Yield: {yield_qty}")
+                            if station_line:
+                                block_lines.append(station_line)
+                            if recipe_lines_md:
+                                block_lines.extend(recipe_lines_md)
+                
+                            crafting_recipe = "\n".join(block_lines)
+               
     
     
                 
@@ -2446,6 +2525,8 @@ async def run_update_db(interaction: discord.Interaction):
                     changes["item_stats"] = item_stats
                 if crafted_name and crafted_name != db_item["crafted_name"]:
                     changes["crafted_name"] = crafted_name
+                if crafting_recipe and crafting_recipe != db_item["crafting_recipe"]:
+                    changes["crafting_recipe"] = crafting_recipe
                 if quest_name and quest_name != db_item["quest_name"]:
                     changes["quest_name"] = quest_name
                 if npc_level and npc_level != db_item["npc_level"]:
