@@ -428,16 +428,12 @@ class ItemDatabaseModal(discord.ui.Modal, title="Add Item to Database"):
                 self.added_by)
     
             
-            if not interaction.response.is_done():
-                await interaction.response.send_message(
-                    f"✅ `{item_name}` added successfully!",
-                    ephemeral=True
-                )
-            else:
-                await interaction.followup.send(
-                    f"✅ `{item_name}` added successfully!",
-                    ephemeral=True
-                )
+            # ✅ Modal MUST respond first
+            await interaction.response.send_message("✅ Item saved!", ephemeral=True)
+
+            # ✅ Then try to edit the original message (filter UI)
+            msg = await interaction.channel.fetch_message(interaction.message.id)
+            await msg.edit(content=f"✅ `{item_name}` added successfully!", view=None)
      
        
    
