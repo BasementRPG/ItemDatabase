@@ -1587,12 +1587,19 @@ async def fetch_wiki_items(slot_name: str):
                 
                             # --- Ingredient list in <dl><dd> (RAW TEXT, FULL LINE) ---
                             recipe_lines = []
+                      
                             dl_block = li.find_next("dl")
                             if dl_block:
                                 for dd in dl_block.find_all("dd"):
+                                    # Skip <dd> entries that contain nested <dl> (these are parents)
+                                    if dd.find("dl"):
+                                        continue
+                            
+                                    # PURE final ingredient line
                                     dd_text = dd.get_text(" ", strip=True)
                                     if dd_text:
                                         recipe_lines.append(dd_text)
+
                 
                             # --- Remove exact duplicates, keep order ---
                             seen = set()
