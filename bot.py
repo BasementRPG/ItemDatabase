@@ -939,7 +939,7 @@ async def run_item_db(
         db_rows = [r for r in db_rows if matches_filters(r.get("item_stats") or "")]
 
         if not db_rows:
-            await interaction.edit_original_response("❌ No items found matching your search and filters.")
+            await interaction.edit_original_response(content="❌ No items found matching your search and filters.")
             return
 
         # --- Step 6: Format and display results ---
