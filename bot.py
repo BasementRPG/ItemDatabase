@@ -1629,7 +1629,7 @@ async def fetch_wiki_items(slot_name: str):
                                         qty_str = qty_match.group(1)
                                         a = dd.find("a", href=True)
                                         if a:
-                                            item_name = a.get_text(" ", strip=True)
+                                            ingredient_name = a.get_text(" ", strip=True)
                                             href = a["href"]
                                             if href.startswith("//"):
                                                 href = "https:" + href
@@ -1638,23 +1638,23 @@ async def fetch_wiki_items(slot_name: str):
                                             else:
                                                 href = href
                                             # preserve all text after the item name
-                                            tail_text = dd_text[qty_match.end():].replace(item_name, "").strip()
+                                            tail_text = dd_text[qty_match.end():].replace(ingredient_name, "").strip()
                                             if tail_text:
-                                                line = f"- x{qty_str} [{item_name}]({href}) {tail_text}"
+                                                line = f"- x{qty_str} [{ingredient_name}]({href}) {tail_text}"
                                             else:
-                                                line = f"- x{qty_str} [{item_name}]({href})"
+                                                line = f"- x{qty_str} [{ingredient_name}]({href})"
                                         else:
                                             line = f"- {dd_text}"
                                     else:
                                         a = dd.find("a", href=True)
                                         if a:
-                                            item_name = a.get_text(" ", strip=True)
+                                            ingredient_name = a.get_text(" ", strip=True)
                                             href = a["href"]
                                             if href.startswith("//"):
                                                 href = "https:" + href
                                             elif href.startswith("/"):
                                                 href = wiki_base + href
-                                            line = f"- [{item_name}]({href})"
+                                            line = f"- [{ingredient_name}]({href})"
                                         else:
                                             line = f"- {dd_text}"
                 
