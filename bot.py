@@ -566,7 +566,7 @@ class EditItemModal(discord.ui.Modal, title="Edit Item"):
         super().__init__(timeout=None)
         self.item_row = item_row
         self.db_pool = db_pool
-        self.origin_interaction = origin_interaction  # store the ephemeral source
+        self.origin_interaction = origin_interaction  # store original ephemeral source interaction
 
         # Prefilled fields
         self.item_name = discord.ui.TextInput(
@@ -607,7 +607,7 @@ class EditItemModal(discord.ui.Modal, title="Edit Item"):
         self.add_item(self.item_slot)
 
     async def on_submit(self, interaction: discord.Interaction):
-        # Normalization
+        # Normalize values
         new_name = format_item_name(self.item_name.value.strip().title())
         raw_zone = self.zone_field.value.strip()
 
@@ -621,27 +621,29 @@ class EditItemModal(discord.ui.Modal, title="Edit Item"):
 
         npc_name = self.npc_name.value.strip().title()
         item_slot = self.item_slot.value.strip()
-
         npc_level_val = self.npc_level.value.strip() or None
 
         try:
             async with self.db_pool.acquire() as conn:
 
-                # ✅ Duplicate check (guild OR global), ignore self
+                # ✅ Smart duplicate check (guild or global)
                 exists = await conn.fetchval("""
                     SELECT 1 FROM item_database
-                    WHERE TRIM(LOWER(item_name)) = TRIM(LOWER($1))
+                    WHERE TRIM(LOWER(REPLACE(item_name, '-', ''))) =
+                          TRIM(LOWER(REPLACE($1, '-', '')))
                       AND id != $2
                       AND (guild_id = $3 OR guild_id IS NULL)
                     LIMIT 1
                 """, new_name, self.item_row['id'], interaction.guild.id)
 
                 if exists:
+                    # Silent defer (modal requirement)
                     if not interaction.response.is_done():
                         await interaction.response.defer(ephemeral=True)
 
+                    # Replace original dropdown with error
                     await self.origin_interaction.edit_original_response(
-                        content=f"❌ Cannot rename — `{new_name}` already exists.",
+                        content=f"❌ Cannot rename — `{new_name}` already exists in database.",
                         view=None
                     )
                     return
@@ -653,12 +655,20 @@ class EditItemModal(discord.ui.Modal, title="Edit Item"):
                         npc_name=$4, npc_level=$5, item_slot=$6, updated_at=NOW()
                     WHERE id=$7
                 """, new_name, zone_name, zone_area,
-                     npc_name, npc_level_val, item_slot,
-                     self.item_row['id'])
+                    npc_name, npc_level_val, item_slot,
+                    self.item_row['id'])
 
-            # ✅ Silent modal acknowledgment
+            # ✅ Success toast
             if not interaction.response.is_done():
-                await interaction.response.defer(ephemeral=True)
+                await interaction.response.send_message(
+                    f"✅ `{new_name}` successfully updated!",
+                    ephemeral=True
+                )
+            else:
+                await interaction.followup.send(
+                    f"✅ `{new_name}` successfully updated!",
+                    ephemeral=True
+                )
 
             # ✅ Replace dropdown UI with success message
             await self.origin_interaction.edit_original_response(
@@ -668,10 +678,28 @@ class EditItemModal(discord.ui.Modal, title="Edit Item"):
 
         except Exception as e:
             print(f"❌ Edit error: {e}")
+
+            # Toast error
+            if not interaction.response.is_done():
+                await interaction.response.send_message(
+                    f"❌ Failed to update `{self.item_row['item_name']}`.",
+                    ephemeral=True
+                )
+            else:
+                await interaction.followup.send(
+                    f"❌ Failed to update `{self.item_row['item_name']}`.",
+                    ephemeral=True
+                )
+
+            # Replace dropdown with error message
             try:
-                await interaction.response.send_message("⚠️ DB error while updating item.", ephemeral=True)
-            except:
-                pass
+                await self.origin_interaction.edit_original_response(
+                    content=f"❌ Could not update `{self.item_row['item_name']}`. Try again.",
+                    view=None
+                )
+            except Exception as inner:
+                print(f"⚠️ UI update fail after error: {inner}")
+
 
 
 
