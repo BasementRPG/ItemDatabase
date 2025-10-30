@@ -1527,8 +1527,9 @@ async def fetch_wiki_items(slot_name: str):
     
     
                 crafted_name = ""
-                crafting_recipe = ""  # final formatted block for DB
 
+                crafting_recipe = ""  # final formatted block for DB
+                
                 crafted_section = None
                 for pid in ("Player_crafted", "Player_crafter"):
                     crafted_section = s2.find("h2", id=pid)
@@ -1540,7 +1541,7 @@ async def fetch_wiki_items(slot_name: str):
                     if ul:
                         li = ul.find("li")
                         if li:
-                            # collect crafted name without nested <ul>
+                            # --- Crafted Name (ignore nested <ul>) ---
                             direct_bits = []
                             for node in li.contents:
                                 if isinstance(node, NavigableString):
@@ -1560,9 +1561,7 @@ async def fetch_wiki_items(slot_name: str):
                                     nested_ul.extract()
                                 crafted_name = li.get_text(" ", strip=True) or ""
                 
-                            # ---------- NEW: Yield / Station / Recipe ----------
-                            wiki_base = "https://monstersandmemories.miraheze.org"
-                
+                            # --- Yield & Station ---
                             yield_qty = None
                             station_line = None
                 
@@ -1573,75 +1572,48 @@ async def fetch_wiki_items(slot_name: str):
                                     if not text:
                                         continue
                 
-                                    # Yield: extract last number
+                                    # Yield: extract last number only
                                     if text.lower().startswith("yield"):
                                         m = re.search(r"x\s*(\d+)\s*$", text, flags=re.IGNORECASE)
                                         if m:
                                             yield_qty = m.group(1)
                                         else:
                                             m2 = re.search(r"(\d+)\s*$", text)
-                                            if m2:
-                                                yield_qty = m2.group(1)
-                                            else:
-                                                yield_qty = "1"
+                                            yield_qty = m2.group(1) if m2 else "1"
                 
-                                    # Crafting station (use exactly as wiki prints it)
+                                    # Station (use EXACT wiki text)
                                     if text.lower().startswith("in "):
                                         station_line = text if text.endswith(":") else (text + ":")
                 
-                            # Ingredient list in <dl><dd>
-                            recipe_lines_md = []
+                            # --- Ingredient list in <dl><dd> (RAW TEXT, FULL LINE) ---
+                            recipe_lines = []
                             dl_block = li.find_next("dl")
                             if dl_block:
                                 for dd in dl_block.find_all("dd"):
                                     dd_text = dd.get_text(" ", strip=True)
-                                    if not dd_text:
-                                        continue
+                                    if dd_text:
+                                        recipe_lines.append(dd_text)
                 
-                                    qty_match = re.match(r"^x\s*(\d+)\s+", dd_text, flags=re.IGNORECASE)
-                                    qty_str = None
+                            # --- Remove exact duplicates, keep order ---
+                            seen = set()
+                            recipe_lines_cleaned = []
+                            for line in recipe_lines:
+                                if line not in seen:
+                                    recipe_lines_cleaned.append(line)
+                                    seen.add(line)
                 
-                                    if qty_match:
-                                        qty_str = qty_match.group(1)
-                                        a = dd.find("a", href=True)
-                                        if a:
-                                            item_name = a.get_text(" ", strip=True)
-                                            href = a["href"]
-                                            if href.startswith("//"):
-                                                item_url = "https:" + href
-                                            elif href.startswith("/"):
-                                                item_url = wiki_base + href
-                                            else:
-                                                item_url = href
-                                            recipe_lines_md.append(f"- x{qty_str} [{item_name}]({item_url})")
-                                        else:
-                                            rest = dd_text[qty_match.end():].strip()
-                                            recipe_lines_md.append(f"- x{qty_str} {rest}")
-                                    else:
-                                        a = dd.find("a", href=True)
-                                        if a:
-                                            item_name = a.get_text(" ", strip=True)
-                                            href = a["href"]
-                                            if href.startswith("//"):
-                                                item_url = "https:" + href
-                                            elif href.startswith("/"):
-                                                item_url = wiki_base + href
-                                            else:
-                                                item_url = href
-                                            recipe_lines_md.append(f"- [{item_name}]({item_url})")
-                                        else:
-                                            recipe_lines_md.append(f"- {dd_text}")
-                
-                            # Build final saved block (for DB column crafting_recipe)
+                            # --- Build final block ---
                             block_lines = []
                             if yield_qty is not None:
                                 block_lines.append(f"Yield: {yield_qty}")
                             if station_line:
                                 block_lines.append(station_line)
-                            if recipe_lines_md:
-                                block_lines.extend(recipe_lines_md)
+                            if recipe_lines_cleaned:
+                                block_lines.extend(recipe_lines_cleaned)
                 
                             crafting_recipe = "\n".join(block_lines)
+
+
                
     
     
