@@ -424,11 +424,38 @@ class ItemDatabaseModal(discord.ui.Modal, title="Add Item to Database"):
             )
     
 
+    except Exception as e:
+        print(f"❌ Database error: {e}")
+    
         try:
+            # Try to gracefully defer so we can edit the original message
             await interaction.response.defer(thinking=False)
-            await interaction.edit_original_response(content=f"❌ Database error: {e}", view=None)
+            await interaction.edit_original_response(
+                content=f"❌ Database error: {e}",
+                view=None
+            )
+    
         except discord.NotFound:
-            await interaction.followup.send(f"❌ Database error: {e}", ephemeral=True)
+            # Fallback if modal interaction is detached
+            await interaction.followup.send(
+                f"❌ Database error: {e}",
+                ephemeral=True
+            )
+    
+        except discord.InteractionResponded:
+            # If response was already used (common with image uploads)
+            await interaction.followup.send(
+                f"❌ Database error: {e}",
+                ephemeral=True
+            )
+    
+        except Exception as err:
+            print(f"⚠️ Unhandled DB error during modal submit: {err}")
+            await interaction.followup.send(
+                f"❌ Database error (unhandled): {e}",
+                ephemeral=True
+            )
+
 
 
         
