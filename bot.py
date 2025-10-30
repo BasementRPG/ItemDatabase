@@ -1742,7 +1742,7 @@ class WikiSelectView(discord.ui.View):
             if hasattr(self, "source_command"):
                 source = self.source_command
                 if source == "wiki":
-                    await run_wiki_items(interaction, self.slot, self.stat, self.classes, None)
+                    await run_wiki_items(interaction, self.slot, self.stat, self.classes)
                     return
                 elif source == "db":
                     await run_item_db(interaction, self.slot, self.stat, self.classes, search_query)
