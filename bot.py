@@ -451,7 +451,7 @@ class ItemDatabaseModal(discord.ui.Modal, title="Add Item to Database"):
             try:
                 # Try to gracefully defer so we can edit the original message
                 await interaction.response.defer(thinking=False)
-                )
+                
         
             except discord.NotFound:
                 # Fallback if modal interaction is detached
