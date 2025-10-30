@@ -888,7 +888,7 @@ async def run_item_db(
     where_sql = " WHERE " + " AND ".join(where_clauses) if where_clauses else ""
     query = f"""
         SELECT item_name, item_image, npc_image, npc_name, zone_name, zone_area,
-               item_slot, item_stats, description, quest_name, crafted_name,
+               item_slot, item_stats, description, quest_name, crafted_name, crafting_recipe,
                npc_level, source
         FROM item_database
         {where_sql}
@@ -955,6 +955,7 @@ async def run_item_db(
                 "description": row["description"] or "",
                 "quest_name": row["quest_name"] or "",
                 "crafted_name": row["crafted_name"] or "",
+                "crafting_recipe":row["crafting_recipe"] or "",
                 "npc_level": row["npc_level"] or "",
                 "source": "Database",
             }
@@ -1917,7 +1918,7 @@ async def run_wiki_items(interaction: discord.Interaction, slot: str, stat: Opti
         async with db_pool.acquire() as conn:
             db_rows = await conn.fetch("""
                 SELECT item_name, item_image, item_slot, npc_name, zone_name, item_stats,
-                       description, quest_name, crafted_name, npc_image, npc_level
+                       description, quest_name, crafted_name, crafting_recipe, npc_image, npc_level
                 FROM item_database
                 WHERE LOWER(item_slot) = LOWER($1)
             """, slot)
@@ -2017,7 +2018,7 @@ async def run_wiki_items(interaction: discord.Interaction, slot: str, stat: Opti
                     await conn.execute("""
                         INSERT INTO item_database (
                             item_name, item_slot, item_image, npc_image, npc_name, zone_name, zone_area,
-                            item_stats, description, crafted_name, quest_name, npc_level,
+                            item_stats, description, crafted_name, crafting_recipe, quest_name, npc_level,
                             added_by, source
                         ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,'Wiki')
                         ON CONFLICT (item_name) DO NOTHING
@@ -2032,6 +2033,7 @@ async def run_wiki_items(interaction: discord.Interaction, slot: str, stat: Opti
                     item.get("item_stats") or "",
                     item.get("description") or "",
                     item.get("crafted_name") or "",
+                    item.get("crafting_recipe") or "",                  
                     item.get("quest_name") or "",
                     item.get("npc_level") or "",
                     interaction.user.name
@@ -2096,7 +2098,7 @@ async def run_wiki_items(interaction: discord.Interaction, slot: str, stat: Opti
         async with db_pool.acquire() as conn:
             refreshed_rows = await conn.fetch("""
                 SELECT item_name, item_image, npc_image, npc_name, zone_name, zone_area,
-                       item_slot, item_stats, description, quest_name, crafted_name,
+                       item_slot, item_stats, description, quest_name, crafted_name, crafting_recipe,
                        npc_level, source
                 FROM item_database
                 WHERE LOWER(item_slot) = LOWER($1)
@@ -2128,6 +2130,7 @@ async def run_wiki_items(interaction: discord.Interaction, slot: str, stat: Opti
                 "description": row["description"] or "",
                 "quest_name": row["quest_name"] or "",
                 "crafted_name": row["crafted_name"] or "",
+                "crafting_recipe": row["crafting_recipe"] or "",
                 "npc_level": row["npc_level"] or "",
                 "source": row["source"],
                 "in_database": True,
@@ -2192,6 +2195,7 @@ class ItemSelectMenu(discord.ui.Select):
         zone_link = f"{linkback}{item['zone_name'].replace(' ', '_')}"
         quest_link = f"{linkback}{item['quest_name'].replace(' ', '_')}"
         crafted_name = item["crafted_name"]
+        crafting_recipe = item["crafting_recipe"]
         crafted_index = crafted_name.find('(')
         if any(char.isdigit() for char in item["npc_name"]):
             npc_name=item["npc_name"]
@@ -2272,7 +2276,7 @@ async def run_update_db(interaction: discord.Interaction):
     try:
         async with db_pool.acquire() as conn:
             db_items = await conn.fetch("""
-                SELECT item_name, zone_name, zone_area, npc_name, item_stats, crafted_name, quest_name, npc_image, npc_level
+                SELECT item_name, zone_name, zone_area, npc_name, item_stats, crafted_name, crafting_recipe, quest_name, npc_image, npc_level
                 FROM item_database
             """)
 
