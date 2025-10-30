@@ -1009,14 +1009,12 @@ class SearchModal(discord.ui.Modal, title="Search Database"):
 )
 @app_commands.describe(
     item_name="The exact item name to update",
-    npc_name="The NPC associated with this item",
     new_item_image="Upload a new image for the item (optional)",
     new_npc_image="Upload a new image for the NPC (optional)",
 )
 async def edit_item_image(
     interaction: discord.Interaction,
     item_name: str,
-    npc_name: str,
     new_item_image: discord.Attachment = None,
     new_npc_image: discord.Attachment = None,
 ):
@@ -1024,7 +1022,7 @@ async def edit_item_image(
     guild_id = guild.id
     updated_by = str(interaction.user)
 
-    # --- Validate ---
+    # Must upload at least one file
     if not new_item_image and not new_npc_image:
         await interaction.response.send_message(
             "⚠️ You must upload at least one new image.",
@@ -1033,28 +1031,28 @@ async def edit_item_image(
         return
 
     async with db_pool.acquire() as conn:
-        # --- Fetch existing entry ---
+        # 🔍 Fetch matching item by name ONLY, guild OR global
         existing = await conn.fetchrow(
             """
-            SELECT item_msg_id, npc_msg_id, item_image, npc_image
+            SELECT id, item_msg_id, npc_msg_id, item_image, npc_image
             FROM item_database
-            WHERE guild_id = $1
-              AND LOWER(item_name) = LOWER($2)
-              AND LOWER(npc_name) = LOWER($3)
+            WHERE TRIM(LOWER(item_name)) = TRIM(LOWER($1))
+              AND (guild_id = $2 OR guild_id IS NULL)
+            LIMIT 1
             """,
-            guild_id, item_name, npc_name
+            item_name, guild_id
         )
 
         if not existing:
             await interaction.response.send_message(
-                f"❌ No record found for `{item_name}` (NPC: `{npc_name}`).",
+                f"❌ No record found for `{item_name}`",
                 ephemeral=True
             )
             return
 
         upload_channel = await ensure_upload_channel1(guild)
 
-        # --- Delete old messages if new replacements exist ---
+        # ✅ Delete old item image if new one provided
         if new_item_image and existing["item_msg_id"]:
             try:
                 msg = await upload_channel.fetch_message(int(existing["item_msg_id"]))
@@ -1064,6 +1062,7 @@ async def edit_item_image(
             except Exception as e:
                 print(f"⚠️ Could not delete old item message: {e}")
 
+        # ✅ Delete old NPC image if new one provided
         if new_npc_image and existing["npc_msg_id"]:
             try:
                 msg = await upload_channel.fetch_message(int(existing["npc_msg_id"]))
@@ -1073,7 +1072,7 @@ async def edit_item_image(
             except Exception as e:
                 print(f"⚠️ Could not delete old NPC message: {e}")
 
-        # --- Upload new images ---
+        # Upload new images to channel
         new_item_image_url, new_npc_image_url = None, None
         new_item_msg_id, new_npc_msg_id = None, None
 
@@ -1089,7 +1088,7 @@ async def edit_item_image(
             if new_npc_image:
                 msg = await upload_channel.send(
                     file=await new_npc_image.to_file(),
-                    content=f"👹 Updated NPC image for **{npc_name}** by {interaction.user.mention}"
+                    content=f"👹 Updated NPC image for item **{item_name}** by {interaction.user.mention}"
                 )
                 new_npc_image_url = msg.attachments[0].url
                 new_npc_msg_id = msg.id
@@ -1101,7 +1100,7 @@ async def edit_item_image(
             await interaction.response.send_message(f"❌ Upload failed: {e}", ephemeral=True)
             return
 
-        # --- Update database record ---
+        # ✅ Update DB
         await conn.execute(
             """
             UPDATE item_database
@@ -1112,24 +1111,20 @@ async def edit_item_image(
                 npc_msg_id = COALESCE($4, npc_msg_id),
                 updated_by = $5,
                 updated_at = NOW()
-            WHERE guild_id = $6
-              AND LOWER(item_name) = LOWER($7)
-              AND LOWER(npc_name) = LOWER($8)
+            WHERE id = $6
             """,
             new_item_image_url,
             new_npc_image_url,
             new_item_msg_id,
             new_npc_msg_id,
             updated_by,
-            guild_id,
-            item_name,
-            npc_name
+            existing["id"]
         )
 
-    # --- Confirmation embed ---
+    # ✅ Response embed
     embed = discord.Embed(
         title=f"🖼️ Updated Images for {item_name}",
-        description=f"NPC: **{npc_name}**\n👤 Updated by: {interaction.user.mention}",
+        description=f"👤 Updated by: {interaction.user.mention}",
         color=discord.Color.green()
     )
 
@@ -1139,7 +1134,7 @@ async def edit_item_image(
 
     if new_npc_image_url:
         embed.add_field(name="👹 NPC Image", value=f"[View Updated NPC]({new_npc_image_url})", inline=False)
-        if not new_item_image_url:
+        if not new_item_image_url:  # only set as main image if item image wasn't updated
             embed.set_image(url=new_npc_image_url)
 
     await interaction.response.send_message(embed=embed, ephemeral=True)
