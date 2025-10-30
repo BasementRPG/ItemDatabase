@@ -279,7 +279,8 @@ class SlotStatClassSelectView(discord.ui.View):
                 item_msg_id=self.item_msg_id,
                 npc_msg_id=self.npc_msg_id,
                 item_stats=item_stats,
-                upload_channel_id=self.upload_channel_id
+                upload_channel_id=self.upload_channel_id,
+                origin_message_id=interaction.message.id
             )
         )
     @discord.ui.button(label="❌ Cancel", style=discord.ButtonStyle.danger)
@@ -293,7 +294,7 @@ class SlotStatClassSelectView(discord.ui.View):
 
 
 class ItemDatabaseModal(discord.ui.Modal, title="Add Item to Database"):
-    def __init__(self, db_pool, guild_id, added_by, item_image_url=None, npc_image_url=None, item_msg_id=None, npc_msg_id=None, item_stats=None, item_slot=None, upload_channel_id=None):
+    def __init__(self, db_pool, guild_id, added_by, item_image_url=None, npc_image_url=None, item_msg_id=None, npc_msg_id=None, item_stats=None, item_slot=None, upload_channel_id=None, origin_message_id=None):
 
         super().__init__(timeout=None)
         self.db_pool = db_pool
@@ -306,6 +307,7 @@ class ItemDatabaseModal(discord.ui.Modal, title="Add Item to Database"):
         self.item_stats = item_stats or ""
         self.item_slot = item_slot
         self.upload_channel_id = upload_channel_id
+        self.origin_message_id = origin_message_id
 
         # Fields
         self.item_name = discord.ui.TextInput(label="Item Name", placeholder="Example: Flowing Black Silk Sash")
@@ -431,9 +433,17 @@ class ItemDatabaseModal(discord.ui.Modal, title="Add Item to Database"):
             # ✅ Modal MUST respond first
             await interaction.response.send_message("✅ Item saved!", ephemeral=True)
 
-            # ✅ Then try to edit the original message (filter UI)
-            msg = await interaction.channel.fetch_message(interaction.message.id)
-            await msg.edit(content=f"✅ `{item_name}` added successfully!", view=None)
+            # ✅ Then edit the original filter message (if provided)
+            try:
+                if self.origin_message_id:
+                    msg = await interaction.channel.fetch_message(self.origin_message_id)
+                    await msg.edit(
+                        content=f"✅ `{item_name}` added successfully!",
+                        view=None
+                    )
+            except Exception as err:
+                print(f"⚠️ Could not edit original filter message: {err}")
+
      
        
    
