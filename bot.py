@@ -668,45 +668,42 @@ class EditItemModal(discord.ui.Modal, title="Edit Item"):
                 npc_name, npc_level_val, item_slot,
                 self.item_row['id'])
 
-            # ✅ Toast
+           
+            # ✅ Toast success
             if not interaction.response.is_done():
                 await interaction.response.send_message(
-                    f"✅ `{new_name}` successfully updated!",
-                    ephemeral=True
+                    f"✅ `{new_name}` successfully updated!", ephemeral=True
                 )
             else:
                 await interaction.followup.send(
-                    f"✅ `{new_name}` successfully updated!",
-                    ephemeral=True
+                    f"✅ `{new_name}` successfully updated!", ephemeral=True
                 )
 
-            # ✅ Replace dropdown UI
-            await self.origin_interaction.edit_original_response(
-                content=f"✅ `{new_name}` updated successfully!",
-                view=None
-            )
-
-        except Exception as e:
-            print(f"❌ Edit error: {e}")
-
-            if not interaction.response.is_done():
-                await interaction.response.send_message(
-                    f"❌ Failed to update `{old_name}`.",
-                    ephemeral=True
-                )
-            else:
-                await interaction.followup.send(
-                    f"❌ Failed to update `{old_name}`.",
-                    ephemeral=True
-                )
-
+            # ✅ Replace original ephemeral dropdown, but ignore if expired
             try:
                 await self.origin_interaction.edit_original_response(
-                    content=f"❌ Could not update `{old_name}`. Try again.",
+                    content=f"✅ `{new_name}` updated successfully!",
                     view=None
                 )
-            except:
-                pass
+            except discord.NotFound:
+                pass  # ephemeral expired, ignore
+            except Exception as e:
+                print(f"UI update warning (non-fatal): {e}")
+
+        except Exception as e:
+            print(f"❌ DB Update Error: {e}")
+
+            # ✅ Only notify user for DB failures
+            if not interaction.response.is_done():
+                await interaction.response.send_message(
+                    f"❌ Database update failed. Try again.",
+                    ephemeral=True
+                )
+            else:
+                await interaction.followup.send(
+                    f"❌ Database update failed. Try again.",
+                    ephemeral=True
+                )
 
 
 
