@@ -1230,7 +1230,7 @@ class WikiView(discord.ui.View):
                     if line.lower().startswith("yield"):
                         yield_text = line.strip()
                     else:
-                        remaining.append(line)
+                        re_crafting_recipe.append(line)
             
             crafting_recipe_clean = "\n".join(re_crafting_recipe)
 
