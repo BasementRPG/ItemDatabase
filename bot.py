@@ -450,23 +450,20 @@ class ItemDatabaseModal(discord.ui.Modal, title="Add Item to Database"):
         except Exception as e:
             # ✅ Log internally — NO user error message
             print(f"❌ Database error: {e}")
-        
+            
             try:
                 # Acknowledge modal so Discord doesn't throw an error
                 if not interaction.response.is_done():
                     await interaction.response.defer(thinking=False)
                 else:
-                    # If already responded, do nothing further
                     return
         
-                # Optionally replace UI with a neutral message, or do nothing
                 await interaction.edit_original_response(
                     content="⚠️ Something went wrong while saving this item.",
                     view=None
                 )
         
             except Exception as err:
-                # Final fallback logging — NO user messaging
                 print(f"⚠️ Secondary DB error handler failed: {err}")
 
     
