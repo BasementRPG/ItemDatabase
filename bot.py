@@ -2578,10 +2578,13 @@ async def run_update_db(interaction: discord.Interaction):
                             crafting_recipe = "\n".join(block_lines)
 
 
-                # --- Item Stats ---
-                stats_div = soup.find("div", class_="item-stats")
-                item_stats = "\n".join(line.strip() for line in stats_div.stripped_strings) if stats_div else "None listed"
-
+                   # --- Item Stats ---
+                item_stats_div = soup.find("div", class_="item-stats")
+                item_stats = "None listed"
+                if item_stats_div:
+                    lines = [line.strip() for line in item_stats_div.stripped_strings]
+                    item_stats = "\n".join(lines)
+              
                 # --- Swap zone <-> npc if number in zone
                 if any(char.isdigit() for char in zone_name):
                     npc_name, zone_name = zone_name, ""
