@@ -424,7 +424,7 @@ class ItemDatabaseModal(discord.ui.Modal, title="Add Item to Database"):
             )
     
         except Exception as e:
-            await interaction.edit_original_response(content=f"❌ Database error: {e}")
+            await interaction.edit_original_response(content=f"❌ Database error: {e}", view=None)
 
 
         
@@ -565,7 +565,7 @@ class EditDatabaseModal(discord.ui.Modal):
             try:
                 npc_level_value = int(self.npc_level.value.strip())
             except ValueError:
-                await interaction.response.send_message("⚠️ NPC Level must be a number.", ephemeral=True)
+                await interaction.response.send_message(content = f"⚠️ NPC Level must be a number.")
                 return
 
         # Check for duplicates BEFORE updating
