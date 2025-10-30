@@ -531,8 +531,8 @@ async def add_item_db(interaction: discord.Interaction, item_image: discord.Atta
             ephemeral=True
         )
 
-# store the interaction message ID for the modal to edit later
-view.origin_message = sent
+        # store the interaction message ID for the modal to edit later
+        view.origin_message = sent
 
     
     except discord.Forbidden:
