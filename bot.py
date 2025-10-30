@@ -559,31 +559,42 @@ async def add_item_db(interaction: discord.Interaction, item_image: discord.Atta
         return
 
 
-class EditDatabaseModal(discord.ui.Modal):
-    def __init__(self, item_row, db_pool):
-        super().__init__(title=f"Edit {item_row['item_name']}")
+
+
+class EditItemModal(discord.ui.Modal, title="Edit Item"):
+    def __init__(self, item_row, db_pool, origin_interaction):
+        super().__init__(timeout=None)
         self.item_row = item_row
         self.db_pool = db_pool
+        self.origin_interaction = origin_interaction  # store the ephemeral source
 
+        # Prefilled fields
         self.item_name = discord.ui.TextInput(
             label="Item Name",
-            default=item_row['item_name'],
-            max_length=45
+            default=item_row['item_name']
         )
+
+        zone_default = (
+            f"{item_row['zone_name']} - {item_row['zone_area']}"
+            if item_row['zone_area'] else item_row['zone_name']
+        )
+
         self.zone_field = discord.ui.TextInput(
-            label="Zone Name - Area",
-            default=f"{item_row['zone_name']} - {item_row['zone_area'] or ''}"
+            label="Zone - Area",
+            default=zone_default
         )
+
         self.npc_name = discord.ui.TextInput(
             label="NPC Name",
-            default=item_row['npc_name'],
-            max_length=45
+            default=item_row['npc_name']
         )
+
         self.npc_level = discord.ui.TextInput(
             label="NPC Level",
             default=str(item_row['npc_level'] or ""),
             required=False
         )
+
         self.item_slot = discord.ui.TextInput(
             label="Item Slot",
             default=item_row['item_slot']
@@ -596,82 +607,97 @@ class EditDatabaseModal(discord.ui.Modal):
         self.add_item(self.item_slot)
 
     async def on_submit(self, interaction: discord.Interaction):
-       
-        # 🧹 Normalize values
-        item_name = self.item_name.value.strip().title()
-        npc_name = self.npc_name.value.strip().title()
-        item_slot = self.item_slot.value.strip().title()
+        # Normalization
+        new_name = format_item_name(self.item_name.value.strip().title())
+        raw_zone = self.zone_field.value.strip()
 
-        # Split "Zone - Area"
-        raw_zone_value = self.zone_field.value.strip()
-        if "-" in raw_zone_value:
-            zone_name, zone_area = map(str.strip, raw_zone_value.split("-", 1))
-            zone_name = zone_name.title()
+        if "-" in raw_zone:
+            zone_name, zone_area = map(str.strip, raw_zone.split("-", 1))
+            zone_name = format_item_name(zone_name.title())
             zone_area = zone_area.title()
         else:
-            zone_name = raw_zone_value.title()
+            zone_name = format_item_name(raw_zone.title())
             zone_area = None
 
-        # Validate NPC level
-        npc_level_value = None
-        if self.npc_level.value.strip():
+        npc_name = self.npc_name.value.strip().title()
+        item_slot = self.item_slot.value.strip()
+
+        npc_level_val = self.npc_level.value.strip() or None
+
+        try:
+            async with self.db_pool.acquire() as conn:
+
+                # ✅ Duplicate check (guild OR global), ignore self
+                exists = await conn.fetchval("""
+                    SELECT 1 FROM item_database
+                    WHERE TRIM(LOWER(item_name)) = TRIM(LOWER($1))
+                      AND id != $2
+                      AND (guild_id = $3 OR guild_id IS NULL)
+                    LIMIT 1
+                """, new_name, self.item_row['id'], interaction.guild.id)
+
+                if exists:
+                    if not interaction.response.is_done():
+                        await interaction.response.defer(ephemeral=True)
+
+                    await self.origin_interaction.edit_original_response(
+                        content=f"❌ Cannot rename — `{new_name}` already exists.",
+                        view=None
+                    )
+                    return
+
+                # ✅ Update DB
+                await conn.execute("""
+                    UPDATE item_database
+                    SET item_name=$1, zone_name=$2, zone_area=$3,
+                        npc_name=$4, npc_level=$5, item_slot=$6, updated_at=NOW()
+                    WHERE id=$7
+                """, new_name, zone_name, zone_area,
+                     npc_name, npc_level_val, item_slot,
+                     self.item_row['id'])
+
+            # ✅ Silent modal acknowledgment
+            if not interaction.response.is_done():
+                await interaction.response.defer(ephemeral=True)
+
+            # ✅ Replace dropdown UI with success message
+            await self.origin_interaction.edit_original_response(
+                content=f"✅ `{new_name}` updated successfully!",
+                view=None
+            )
+
+        except Exception as e:
+            print(f"❌ Edit error: {e}")
             try:
-                npc_level_value = int(self.npc_level.value.strip())
-            except ValueError:
-                await interaction.response.send_message(content = f"⚠️ NPC Level must be a number.")
-                return
-
-        # Check for duplicates BEFORE updating
-        async with self.db_pool.acquire() as conn:
-            duplicate = await conn.fetchrow("""
-                SELECT id FROM item_database
-                WHERE guild_id=$1 AND item_name=$2 AND npc_name=$3 AND id != $4
-            """, interaction.guild.id, self.item_name.value.strip(), self.npc_name.value.strip(), self.item_row['id'])
-
-            if duplicate:
-                await interaction.response.send_message(
-                    f"⚠️ `{self.item_name.value}` from `{self.npc_name.value}` already exists in the database.\n"
-                    f"You cannot rename this entry to a duplicate.",
-                    ephemeral=True
-                )
-                return
-
-            # Proceed with update if no duplicates
-            await conn.execute("""
-                UPDATE item_database
-                SET item_name=$1, zone_name=$2, zone_area=$3,
-                    npc_name=$4, npc_level=$5, item_slot=$6,
-                    updated_at=NOW()
-                WHERE id=$7 AND guild_id=$8
-            """,
-            item_name,
-            zone_name,
-            zone_area,
-            npc_name,
-            npc_level_value,
-            item_slot,
-            self.item_row['id'],
-            interaction.guild.id)
-
-        await interaction.response.send_message(f"✅ Updated **{item_name}** successfully!", ephemeral=True)
+                await interaction.response.send_message("⚠️ DB error while updating item.", ephemeral=True)
+            except:
+                pass
 
 
 
-@bot.tree.command(name="edit_item_db", description="Edit an existing item in the database by name.")
+
+@bot.tree.command(name="edit_item_db", description="Edit an existing item in the database by item name.")
 @app_commands.describe(item_name="The name of the item to edit.")
-@app_commands.describe(npc_name="The name of the NPC to edit.")
-async def edit_database_item(interaction: discord.Interaction, item_name: str, npc_name: str):
+async def edit_database_item(interaction: discord.Interaction, item_name: str):
+
+    # fetch item (guild only — global items edited by guild only if copied)
     async with db_pool.acquire() as conn:
-        item_row = await conn.fetchrow(
-            "SELECT * FROM item_database WHERE guild_id=$1 AND item_name=$2 AND npc_name=$3",
-            interaction.guild.id, item_name, npc_name
-        )
+        item_row = await conn.fetchrow("""
+            SELECT *
+            FROM item_database
+            WHERE (guild_id = $1 OR guild_id IS NULL)
+              AND TRIM(LOWER(item_name)) = TRIM(LOWER($2))
+            LIMIT 1
+        """, interaction.guild.id, item_name)
 
     if not item_row:
         await interaction.response.send_message("❌ Item not found.", ephemeral=True)
         return
 
-    await interaction.response.send_modal(EditDatabaseModal(item_row, db_pool))
+    # Store original interaction reference for replacing dropdown later
+    modal = EditItemModal(item_row=item_row, db_pool=db_pool, origin_interaction=interaction)
+    await interaction.response.send_modal(modal)
+
 
 
 
