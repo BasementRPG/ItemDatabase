@@ -432,8 +432,13 @@ class ItemDatabaseModal(discord.ui.Modal, title="Add Item to Database"):
     
             
             
-            # ✅ modal MUST respond
-            await interaction.response.send_message(f"✅ `{item_name}` added!", ephemeral=True)
+            
+            # ✅ DO NOT send a new ephemeral popup here
+            # await interaction.response.send_message(...)
+            
+            # ✅ Just acknowledge the modal silently
+            if not interaction.response.is_done():
+                await interaction.response.defer(ephemeral=True)
             
             # ✅ now edit the original ephemeral dropdown message
             try:
