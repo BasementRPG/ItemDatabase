@@ -470,12 +470,12 @@ class ItemDatabaseModal(discord.ui.Modal, title="Add Item to Database"):
                     ephemeral=True
                 )
 
-    except Exception as err:
-        print(f"⚠️ Unhandled DB error during modal submit: {err}")
-        await interaction.followup.send(
-            f"❌ Database error (unhandled): {e}",
-            ephemeral=True
-        )
+            except Exception as err:
+                print(f"⚠️ Unhandled DB error during modal submit: {err}")
+                await interaction.followup.send(
+                    f"❌ Database error (unhandled): {e}",
+                    ephemeral=True
+                )
 
                 
 
