@@ -1864,7 +1864,6 @@ class WikiSelectView(discord.ui.View):
         if self.source_command in ("db", "dbp"):
             await run_item_db(interaction, self.slot, self.stat, self.classes, search_query)
         
-
         
         # If the handler isn’t attached, fall back to auto-detect based on command
         if self.on_submit is None:
