@@ -71,8 +71,8 @@ async def help_itemdb(interaction: discord.Interaction):
             "**Search Filters (all optional):**\n"
             "• Select slot, class, and/or stat\n"
             "• Text search — click **Enter Search Terms**\n"
-            "‎     ‎◦ Enter partial (item, zone, npc) name\n"
-            "     ◦ Submit → Search\n\n"
+            "‎ ‎ ‎     ‎◦ Enter partial (item, zone, npc) name\n"
+            " ‎ ‎     ◦ Submit → Search\n\n"
             
             "🧭 **Navigation:**\n"
             "• Previous / Next page buttons\n"
@@ -84,9 +84,7 @@ async def help_itemdb(interaction: discord.Interaction):
             "`/add_item_db`\n"
             "• Upload item image (required)\n"
             "• Upload NPC image (optional)\n"
-            "• Select slots\n"
-            "• Select classes\n"
-            "• Select stats\n"
+            "• Select slots, classes, and stats\n"
             "• Fill item form popup\n"
             "*Check spelling — affects search accuracy*\n\n"
        
@@ -94,11 +92,12 @@ async def help_itemdb(interaction: discord.Interaction):
             "`/edit_item_db`\n"
             "• Enter item name\n"
             "• Edit fields in popup\n\n"
+          
             "`/edit_item_image`\n"
             "• Replace item/NPC images only\n"
             "• Enter name → upload new image\n\n"
 
-            "🔧 **Recipe Icons:**\n"
+            "🔧 **Recipe Icons:**\n\n"
             "⚒️ Crafted 💀 Dropped 💰 Bought ⛏️ Mined"
         ),
         inline=False
