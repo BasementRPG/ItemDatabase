@@ -60,7 +60,7 @@ async def help_itemdb(interaction: discord.Interaction):
     embed.add_field(
         name="🔍 Search Items",
         value=(
-            "**Public Search:**\n"
+            "\n**Public Search:**\n"
             "`/view_item_db`\n"
             "Anyone can see & use the filters\n\n"
            
@@ -78,7 +78,7 @@ async def help_itemdb(interaction: discord.Interaction):
             "• Previous / Next page buttons\n"
             "• Back to filters\n"
             "• Item dropdown → sends details privately\n"
-            "• All links point to the Wiki (zones, NPCs, quests, tradeskills, recipes)\n"
+            "• All links point to the Wiki (zones, NPCs, quests, tradeskills, recipes)\n\n"
         ),
         inline=False
     )
@@ -93,7 +93,7 @@ async def help_itemdb(interaction: discord.Interaction):
             "• Select classes\n"
             "• Select stats\n"
             "• Fill item form popup\n"
-            "*Check spelling — affects search accuracy*\n"
+            "*Check spelling — affects search accuracy*\n\n"
         ),
         inline=False
     )
@@ -106,7 +106,7 @@ async def help_itemdb(interaction: discord.Interaction):
             "• Edit fields in popup\n\n"
             "`/edit_item_image`\n"
             "• Replace item/NPC images only\n"
-            "• Enter name → upload new image\n"
+            "• Enter name → upload new image\n\n"
         ),
         inline=False
     )
