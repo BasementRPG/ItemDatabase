@@ -71,8 +71,8 @@ async def help_itemdb(interaction: discord.Interaction):
             "**Search Filters (all optional):**\n"
             "• Select slot, class, and/or stat\n"
             "• Text search — click **Enter Search Terms**\n"
-            "‎ ‎ ‎     ‎◦ Enter partial (item, zone, npc) name\n"
-            " ‎ ‎     ◦ Submit → Search\n\n"
+            " ‎ ‎  ‎ ‎ ◦ Enter partial (item, zone, npc) name\n"
+            " ‎ ‎  ‎ ‎ ‎‎◦ Submit → Search\n\n"
             
             "🧭 **Navigation:**\n"
             "• Previous / Next page buttons\n"
