@@ -74,18 +74,13 @@ async def help_itemdb(interaction: discord.Interaction):
             "  • Enter partial (item, zone, npc) name\n"
             "  • Submit → Search\n\n"
             
-            "🧭**Navigation:**\n"
+            "🧭 **Navigation:**\n"
             "• Previous / Next page buttons\n"
             "• Back to filters\n"
             "• Item dropdown → sends details privately\n"
             "• All links point to the Wiki (zones, NPCs, quests, tradeskills, recipes)\n\n"
-        ),
-        inline=False
-    )
-
-    embed.add_field(
-        name="📜 Add Items",
-        value=(
+             
+            "📜 **Add Items**\n"
             "`/add_item_db`\n"
             "• Upload item image (required)\n"
             "• Upload NPC image (optional)\n"
@@ -94,27 +89,16 @@ async def help_itemdb(interaction: discord.Interaction):
             "• Select stats\n"
             "• Fill item form popup\n"
             "*Check spelling — affects search accuracy*\n\n"
-        ),
-        inline=False
-    )
-
-    embed.add_field(
-        name="\n✏️ Modify Existing Items",
-        value=(
+       
+            "✏️ ***Modify Existing Items**\n"
             "`/edit_item_db`\n"
             "• Enter item name\n"
             "• Edit fields in popup\n\n"
             "`/edit_item_image`\n"
             "• Replace item/NPC images only\n"
             "• Enter name → upload new image\n\n"
-        ),
-        inline=False
-    )
 
-    embed.add_field(
-        name="🔧 Extra Info",
-        value=(
-            "**Recipe Icons:**\n"
+            "🔧 **Recipe Icons:**\n"
             "⚒️ Crafted 💀 Dropped 💰 Bought ⛏️ Mined"
         ),
         inline=False
