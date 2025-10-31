@@ -60,10 +60,12 @@ async def help_itemdb(interaction: discord.Interaction):
     embed.add_field(
         name="🔍 Search Items",
         value=(
-            "**Public Search:** `/view_item_db`\n"
+            "**Public Search:**\n"
+            "`/view_item_db`\n"
             "Anyone can see & use the filters\n\n"
            
-            "**Private Search:** `/view_item_dbp`\n"
+            "**Private Search:**\n"
+            "`/view_item_dbp`\n"
             "Only you can see & use the filters\n\n"
             
             "**Search Filters (all optional):**\n"
