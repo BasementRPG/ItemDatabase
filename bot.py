@@ -1247,23 +1247,38 @@ class WikiView(discord.ui.View):
             
             crafting_recipe_clean = "\n".join(re_crafting_recipe)
 
+
             def recipe_with_emojis(crafting_recipe_text: str) -> str:
-                if not crafting_recipe_text:
-                    return crafting_recipe_text
-                
-                replacements = {
-                    " Crafted": " ⚒️",
-                    " Dropped": " 💀",
-                    " Drop": " 💀",
-                    " Bought": " 💰",
-                    " Vendor": " 💰",
-                }
-            
-                # Apply replacements only in display text
-                for key, emoji in replacements.items():
-                    crafting_recipe_text = crafting_recipe_text.replace(key, emoji)
-            
-                return crafting_recipe_text
+              if not crafting_recipe_text:
+                  return crafting_recipe_text
+          
+              # ✅ Added " Mined": " ⛏️"
+              replacements = {
+                  " Crafted": " ⚒️",
+                  " Dropped": " 💀",
+                  " Drop": " 💀",
+                  " Bought": " 💰",
+                  " Vendor": " 💰",
+                  " Mined": " ⛏️",
+              }
+          
+              out_lines = []
+              for line in crafting_recipe_text.split("\n"):
+                  # Emoji replacements on the line
+                  for key, emoji in replacements.items():
+                      line = line.replace(key, emoji)
+          
+                  # Cut everything from "with" onward (case-insensitive)
+                  low = line.lower()
+                  # match ' with ' or starting with 'with '
+                  if " with " in low or low.startswith("with "):
+                      cut = low.find(" with ") if " with " in low else 0
+                      if cut >= 0:
+                          line = line[:cut].rstrip()
+          
+                  out_lines.append(line)
+          
+              return "\n".join(out_lines)
                 
             display_recipe = recipe_with_emojis(crafting_recipe_clean)
            
