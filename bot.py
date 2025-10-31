@@ -49,6 +49,83 @@ db_pool: asyncpg.Pool = None
 # ---------- DB Helpers ----------
 
 
+
+@bot.tree.command(name="help_itemdb", description="Show help for the Item Database system.")
+async def help_itemdb(interaction: discord.Interaction):
+    embed = discord.Embed(
+        title="🛡️ Guild Item Database Bot — Command Guide",
+        color=discord.Color.green()
+    )
+
+    embed.add_field(
+        name="🔍 Search Items",
+        value=(
+            "**Public Search:** `/view_item_db`\n"
+            "Anyone can see & use the filters\n\n"
+            "**Private Search:** `/view_item_dbp`\n"
+            "Only you can see the results\n\n"
+            "**Search Filters (all optional):**\n"
+            "• Slot selector\n"
+            "• Filter by stat / class\n"
+            "• Text search (item / npc / zone) — click **Enter Search Terms**\n"
+            "• Submit → Search\n\n"
+            "**Navigation:**\n"
+            "• Previous / Next page buttons\n"
+            "• Back to filters\n"
+            "• Item dropdown → sends details privately\n"
+            "• All links point to the Wiki (zones, NPCs, quests, tradeskills, recipes)"
+        ),
+        inline=False
+    )
+
+    embed.add_field(
+        name="📜 Add Items",
+        value=(
+            "`/add_item_db`\n"
+            "• Upload item image (required)\n"
+            "• Upload NPC image (optional)\n"
+            "• Select slots\n"
+            "• Select classes\n"
+            "• Select stats\n"
+            "• Fill item form popup\n"
+            "✅ *Check spelling — affects search accuracy*"
+        ),
+        inline=False
+    )
+
+    embed.add_field(
+        name="✏️ Modify Existing Items",
+        value=(
+            "`/edit_item_db`\n"
+            "• Enter item name\n"
+            "• Edit fields in popup\n\n"
+            "`/edit_item_image`\n"
+            "• Replace item/NPC images only\n"
+            "• Enter name → upload new image"
+        ),
+        inline=False
+    )
+
+    embed.add_field(
+        name="🔧 Extra Info",
+        value=(
+            "**Recipe Icons:**\n"
+            "⚒️ Crafted 💀 Dropped 💰 Bought ⛏️ Mined"
+        ),
+        inline=False
+    )
+
+    embed.set_footer(text="Tip: Accurate spelling = better results.")
+
+    await interaction.response.send_message(embed=embed, ephemeral=True)
+
+
+
+
+
+
+
+
 async def ensure_upload_channel(guild: discord.Guild):
     for ch in guild.text_channels:
         if ch.name == "guild-bank-upload-log":
