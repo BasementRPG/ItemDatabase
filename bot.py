@@ -60,21 +60,21 @@ async def help_itemdb(interaction: discord.Interaction):
     embed.add_field(
         name="🔍 Search Items",
         value=(
-            "\n**Public Search:**\n"
+            "\n**Public Search**\n"
             "`/view_item_db`\n"
             "• Anyone can see & use the filters\n\n"
            
-            "**Private Search:**\n"
+            "**Private Search**\n"
             "`/view_item_dbp`\n"
             "• Only you can see & use the filters\n\n"
             
-            "**Search Filters (all optional):**\n"
+            "**Search Filters (all optional)**\n"
             "• Select slot, class, and/or stat\n"
             "• Text search — click **Enter Search Terms**\n"
             " ‎ ‎  ‎ ‎ ◦ Enter partial (item, zone, npc) name\n"
             " ‎ ‎  ‎ ‎ ‎‎◦ Submit → Search\n\n"
             
-            "🧭 **Navigation:**\n"
+            "🧭 **Navigation**\n"
             "• Previous / Next page buttons\n"
             "• Back to filters\n"
             "• Item dropdown → sends details privately\n"
