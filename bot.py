@@ -54,7 +54,7 @@ db_pool: asyncpg.Pool = None
 async def help_itemdb(interaction: discord.Interaction):
     embed = discord.Embed(
         title="🛡️ Guild Item Database Bot — Command Guide",
-        color=discord.Color.Orange()
+        color=discord.Color.orange()
     )
 
     embed.add_field(
