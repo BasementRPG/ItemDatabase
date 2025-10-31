@@ -62,17 +62,17 @@ async def help_itemdb(interaction: discord.Interaction):
         value=(
             "\n**Public Search:**\n"
             "`/view_item_db`\n"
-            "Anyone can see & use the filters\n\n"
+            "• Anyone can see & use the filters\n\n"
            
             "**Private Search:**\n"
             "`/view_item_dbp`\n"
-            "Only you can see & use the filters\n\n"
+            "• Only you can see & use the filters\n\n"
             
             "**Search Filters (all optional):**\n"
             "• Select slot, class, and/or stat\n"
             "• Text search — click **Enter Search Terms**\n"
-              "• Enter partial (item, zone, npc) name\n"
-              "• Submit → Search\n\n"
+            "  • Enter partial (item, zone, npc) name\n"
+            "  • Submit → Search\n\n"
             
             "**Navigation:**\n"
             "• Previous / Next page buttons\n"
