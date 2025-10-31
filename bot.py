@@ -117,7 +117,7 @@ async def help_itemdb(interaction: discord.Interaction):
 
     embed.set_footer(text="Tip: Accurate spelling = better results.")
 
-    await interaction.response.send_message(embed=embed, ephemeral=True)
+    await interaction.response.send_message(embed=embed)
 
 
 
