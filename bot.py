@@ -54,7 +54,7 @@ db_pool: asyncpg.Pool = None
 async def help_itemdb(interaction: discord.Interaction):
     embed = discord.Embed(
         title="🛡️ Guild Item Database Bot — Command Guide",
-        color=discord.Color.blue()
+        color=discord.Color.Orange()
     )
 
     embed.add_field(
@@ -71,8 +71,8 @@ async def help_itemdb(interaction: discord.Interaction):
             "**Search Filters (all optional):**\n"
             "• Select slot, class, and/or stat\n"
             "• Text search — click **Enter Search Terms**\n"
-            "  • Enter partial (item, zone, npc) name
-            "  • Submit → Search\n\n"
+              "• Enter partial (item, zone, npc) name
+              "• Submit → Search\n\n"
             
             "**Navigation:**\n"
             "• Previous / Next page buttons\n"
