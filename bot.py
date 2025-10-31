@@ -74,7 +74,7 @@ async def help_itemdb(interaction: discord.Interaction):
             "  • Enter partial (item, zone, npc) name\n"
             "  • Submit → Search\n\n"
             
-            "**Navigation:**\n"
+            "🧭**Navigation:**\n"
             "• Previous / Next page buttons\n"
             "• Back to filters\n"
             "• Item dropdown → sends details privately\n"
@@ -99,7 +99,7 @@ async def help_itemdb(interaction: discord.Interaction):
     )
 
     embed.add_field(
-        name="✏️ Modify Existing Items",
+        name="\n✏️ Modify Existing Items",
         value=(
             "`/edit_item_db`\n"
             "• Enter item name\n"
