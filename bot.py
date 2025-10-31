@@ -62,18 +62,21 @@ async def help_itemdb(interaction: discord.Interaction):
         value=(
             "**Public Search:** `/view_item_db`\n"
             "Anyone can see & use the filters\n\n"
+           
             "**Private Search:** `/view_item_dbp`\n"
             "Only you can see & use the filters\n\n"
+            
             "**Search Filters (all optional):**\n"
-            "• Slot selector\n"
-            "• Filter by stat / class\n"
-            "• Text search (item / npc / zone) — click **Enter Search Terms**\n"
-            "• Submit → Search\n\n"
+            "• Select slot, class, and/or stat\n"
+            "• Text search — click **Enter Search Terms**\n"
+            "  • Enter partial (item, zone, npc) name
+            "  • Submit → Search\n\n"
+            
             "**Navigation:**\n"
             "• Previous / Next page buttons\n"
             "• Back to filters\n"
             "• Item dropdown → sends details privately\n"
-            "• All links point to the Wiki (zones, NPCs, quests, tradeskills, recipes)"
+            "• All links point to the Wiki (zones, NPCs, quests, tradeskills, recipes)\n"
         ),
         inline=False
     )
@@ -88,7 +91,7 @@ async def help_itemdb(interaction: discord.Interaction):
             "• Select classes\n"
             "• Select stats\n"
             "• Fill item form popup\n"
-            "*Check spelling — affects search accuracy*"
+            "*Check spelling — affects search accuracy*\n"
         ),
         inline=False
     )
@@ -101,7 +104,7 @@ async def help_itemdb(interaction: discord.Interaction):
             "• Edit fields in popup\n\n"
             "`/edit_item_image`\n"
             "• Replace item/NPC images only\n"
-            "• Enter name → upload new image"
+            "• Enter name → upload new image\n"
         ),
         inline=False
     )
