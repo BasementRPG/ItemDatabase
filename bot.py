@@ -54,7 +54,7 @@ db_pool: asyncpg.Pool = None
 async def help_itemdb(interaction: discord.Interaction):
     embed = discord.Embed(
         title="🛡️ Guild Item Database Bot — Command Guide",
-        color=discord.Color.green()
+        color=discord.Color.blue()
     )
 
     embed.add_field(
@@ -63,7 +63,7 @@ async def help_itemdb(interaction: discord.Interaction):
             "**Public Search:** `/view_item_db`\n"
             "Anyone can see & use the filters\n\n"
             "**Private Search:** `/view_item_dbp`\n"
-            "Only you can see the results\n\n"
+            "Only you can see & use the filters\n\n"
             "**Search Filters (all optional):**\n"
             "• Slot selector\n"
             "• Filter by stat / class\n"
@@ -88,7 +88,7 @@ async def help_itemdb(interaction: discord.Interaction):
             "• Select classes\n"
             "• Select stats\n"
             "• Fill item form popup\n"
-            "✅ *Check spelling — affects search accuracy*"
+            "*Check spelling — affects search accuracy*"
         ),
         inline=False
     )
@@ -118,10 +118,6 @@ async def help_itemdb(interaction: discord.Interaction):
     embed.set_footer(text="Tip: Accurate spelling = better results.")
 
     await interaction.response.send_message(embed=embed)
-
-
-
-
 
 
 
