@@ -315,7 +315,7 @@ class SlotStatClassSelectView(discord.ui.View):
             except Exception:
                 pass
 
-    @discord.ui.button(label="✅ Submit new it", style=discord.ButtonStyle.success)
+    @discord.ui.button(label="✅ Submit new item", style=discord.ButtonStyle.success)
     async def confirm(self, interaction: discord.Interaction, button: discord.ui.Button):
         if not self.slot:
             await interaction.response.send_message("❌ Please select at least one slot.", ephemeral=True)
