@@ -897,7 +897,7 @@ async def remove_itemdb(interaction: discord.Interaction, item_name: str, npc_na
 
 #------------VIEW------------
 
-@bot.tree.command(name="view_item_dbp", description="View items stored in the database with optional filters.")
+@bot.tree.command(name="view_item_dbp", description="Privately View items stored in the database with optional filters.")
 async def view_item_db(interaction: discord.Interaction):
     # Show filters and return; the runner will take over on ✅
     view = WikiSelectView(source_command="dbp", on_submit=run_item_db, optional_slot=True, show_search=True)
