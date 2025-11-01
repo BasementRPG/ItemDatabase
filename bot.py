@@ -1901,6 +1901,7 @@ class WikiSelectView(discord.ui.View):
             max_values=1,
             options=[
                 discord.SelectOption(label="AGI", value="AGI"),
+                discord.SelectOption(label="CHA", value="CHA"),
                 discord.SelectOption(label="DEX", value="DEX"),
                 discord.SelectOption(label="INT", value="INT"),
                 discord.SelectOption(label="STA", value="STA"),
