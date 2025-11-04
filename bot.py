@@ -992,6 +992,24 @@ async def run_item_db(
         def text_cleanup(text: str) -> str:
             return (text or "").replace("\n", " ").replace("\r", " ")
 
+        def text_cleanup(text: str) -> str:
+            return (text or "").replace("\n", " ").replace("\r", " ")
+        
+        def has_value(val):
+            return val is not None and str(val).strip().lower() not in ("", "none", "null")
+        
+        # ✅ apply type filter **FIRST**
+        tf = (type_filter or "dropped").lower()
+        
+        if tf == "dropped":
+            db_rows = [r for r in db_rows if has_value(r["npc_name"])]
+        elif tf == "crafted":
+            db_rows = [r for r in db_rows if has_value(r["crafted_name"])]
+        elif tf == "quested":
+            db_rows = [r for r in db_rows if has_value(r["quest_name"])]
+        # "all" = keep everything
+      
+
         stat_patterns = []
         if stat:
             stat_filter = str(stat).strip().lower()
@@ -1021,8 +1039,6 @@ async def run_item_db(
                               for pat in (class_keywords.get(classes_filter, [rf"\b{classes_filter}\b"]) + [r"\bclass: all\b"])]
    # ----- TYPE FILTER -----
 
-        def has_value(val):
-            return val is not None and str(val).strip() != ""
           
         def matches_filters(text: str) -> bool:
             text = text_cleanup(text)
@@ -1032,17 +1048,7 @@ async def run_item_db(
 
         db_rows = [r for r in db_rows if matches_filters(r.get("item_stats") or "")]
 
-        # ✅ Apply Type filter (Dropped / Crafted / Quested / All)
-        type_filter = type_filter.lower() if type_filter else "dropped"
-        
-        if type_filter == "dropped":
-            db_rows = [r for r in db_rows if r["npc_name"]]  # dropped items have NPC source
-        elif type_filter == "crafted":
-            db_rows = [r for r in db_rows if r["crafted_name"]]  # crafted items have crafted_name
-        elif type_filter == "quested":
-            db_rows = [r for r in db_rows if r["quest_name"]]  # quested items have quest name
-        elif type_filter == "all":
-            pass  # no filtering
+       
 
         if not db_rows:
             await interaction.edit_original_response(content="❌ No items found matching your search and filters.")
