@@ -38,6 +38,7 @@ CLASS_OPTIONS = ["ARC", "BRD", "BST", "CLR", "DRU", "ELE", "ENC", "FTR", "INQ", 
 ITEM_SLOTS = ["Ammo","Back","Chest","Ear","Face","Feet","Finger","Hands","Head","Legs","Neck","Primary","Range","Secondary","Shirt","Shoulders","Waist","Wrist",
               "1H Bludgeoning","2H Bludgeoning","1H Piercing","2H Piercing","1H Slashing","2H Slashing"]
 ITEM_STATS = ["AGI","CHA","DEX","INT","STA","STR","WIS","HP","Mana","SV Cold","SV Corruption","SV Disease","SV Electricity","SV Fire","SV Holy","SV Magi","SV Poison"]
+ITEM_TYPE = ["Crafted","Dropped","Quested"]
 
 intents = discord.Intents.default()
 intents.message_content = True
@@ -198,7 +199,24 @@ class SlotSelect(discord.ui.Select):
                 await interaction.response.send_message(f"Error: {str(e)}", ephemeral=True)
             except:
                 pass
+              
  
+class TypeSelect(discord.ui.Select):
+    def __init__(self):
+        options = [
+            discord.SelectOption(label="Dropped", value="dropped", default=True),
+            discord.SelectOption(label="Crafted", value="crafted"),
+            discord.SelectOption(label="Quested", value="quested"),
+            discord.SelectOption(label="All", value="all"),
+        ]
+        super().__init__(placeholder="Select item type", options=options, min_values=1, max_values=1)
+
+    async def callback(self, interaction: discord.Interaction):
+        self.view.type_filter = self.values[0]
+        await interaction.response.defer()
+
+
+
 
 class ClassesSelect(discord.ui.Select):
     def __init__(self, parent_view):
@@ -924,6 +942,7 @@ async def run_item_db(
     slot: Optional[str],
     stat: Optional[str],
     classes: Optional[str],
+    type_filter:Optional[str] = "Dropped"
     search_query = None,
     source_command="db",
     show_search = True
@@ -971,7 +990,7 @@ async def run_item_db(
 
     async with db_pool.acquire() as conn:
         db_rows = await conn.fetch(query, *params)
-
+        
         # --- Step 5: Apply stat and class filters (regex-based) ---
         def text_cleanup(text: str) -> str:
             return (text or "").replace("\n", " ").replace("\r", " ")
@@ -1004,6 +1023,21 @@ async def run_item_db(
             class_patterns = [re.compile(pat, re.IGNORECASE)
                               for pat in (class_keywords.get(classes_filter, [rf"\b{classes_filter}\b"]) + [r"\bclass: all\b"])]
 
+       type_patterns = []
+        if type:
+            type_filter = str(type).strip().lower()
+            type_keywords = {
+                "arc": [r"\barc\b"], "brd": [r"\bbrd\b"], "bst": [r"\bbst\b"],
+                "clr": [r"\bclr\b"], "dru": [r"\bdru\b"], "ele": [r"\bele\b"],
+                "enc": [r"\benc\b"], "ftr": [r"\bftr\b"], "inq": [r"\binq\b"],
+                "mnk": [r"\bmnk\b"], "nec": [r"\bnec\b"], "pal": [r"\bpal\b"],
+                "rng": [r"\brng\b"], "rog": [r"\brog\b"], "shd": [r"\bshd\b"],
+                "shm": [r"\bshm\b"], "spd": [r"\bspd\b"], "wiz": [r"\bwiz\b"],
+            }
+            class_patterns = [re.compile(pat, re.IGNORECASE)
+                              for pat in (class_keywords.get(classes_filter, [rf"\b{classes_filter}\b"]) + [r"\bclass: all\b"])]
+
+
         def matches_filters(text: str) -> bool:
             text = text_cleanup(text)
             stat_match = any(p.search(text) for p in stat_patterns) if stat_patterns else True
@@ -1011,6 +1045,18 @@ async def run_item_db(
             return stat_match and class_match
 
         db_rows = [r for r in db_rows if matches_filters(r.get("item_stats") or "")]
+
+        # ✅ Apply Type filter (Dropped / Crafted / Quested / All)
+        type_filter = type_filter.lower() if type_filter else "dropped"
+        
+        if type_filter == "dropped":
+            db_rows = [r for r in db_rows if r["npc_name"]]  # dropped items have NPC source
+        elif type_filter == "crafted":
+            db_rows = [r for r in db_rows if r["crafted_name"]]  # crafted items have crafted_name
+        elif type_filter == "quested":
+            db_rows = [r for r in db_rows if r["quest_name"]]  # quested items have quest name
+        elif type_filter == "all":
+            pass  # no filtering
 
         if not db_rows:
             await interaction.edit_original_response(content="❌ No items found matching your search and filters.")
@@ -1940,7 +1986,10 @@ class WikiSelectView(discord.ui.View):
         )
         self.classes_select.callback = self.select_classes
         self.add_item(self.classes_select)
-        
+
+        if source_command in ("db", "dbp"):
+            self.add_item(TypeSelect())  # <-- your new dropdown
+      
         if show_search:
             self.add_item(SearchButton(self))
         # Confirm button
@@ -1983,7 +2032,9 @@ class WikiSelectView(discord.ui.View):
                 self.stat,
                 self.classes,
                 search_query,
-                source_command=self.source_command
+                source_command=self.source_command,
+                self.type_filter,
+                getattr(self, "type_filter", "dropped")
             )
 
         
@@ -1996,10 +2047,10 @@ class WikiSelectView(discord.ui.View):
                     await run_wiki_items(interaction, self.slot, self.stat, self.classes)
                     return
                 elif source == "db":
-                    await run_item_db(interaction, self.slot, self.stat, self.classes, search_query)
+                    await run_item_db(interaction, self.slot, self.stat, self.classes, search_query, self.type_filter, self.type_filter)
                     return
                 elif source == "dbp":
-                    await run_item_db(interaction, self.slot, self.stat, self.classes, search_query)
+                    await run_item_db(interaction, self.slot, self.stat, self.classes, search_query, self.type_filter, self.type_filter)
                     return
     
             # still no handler? give warning
