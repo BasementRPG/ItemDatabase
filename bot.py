@@ -1021,21 +1021,14 @@ async def run_item_db(
             }
             class_patterns = [re.compile(pat, re.IGNORECASE)
                               for pat in (class_keywords.get(classes_filter, [rf"\b{classes_filter}\b"]) + [r"\bclass: all\b"])]
-
-        type_patterns = []
-        if type:
-            type_filter = str(type).strip().lower()
-            type_keywords = {
-                "arc": [r"\barc\b"], "brd": [r"\bbrd\b"], "bst": [r"\bbst\b"],
-                "clr": [r"\bclr\b"], "dru": [r"\bdru\b"], "ele": [r"\bele\b"],
-                "enc": [r"\benc\b"], "ftr": [r"\bftr\b"], "inq": [r"\binq\b"],
-                "mnk": [r"\bmnk\b"], "nec": [r"\bnec\b"], "pal": [r"\bpal\b"],
-                "rng": [r"\brng\b"], "rog": [r"\brog\b"], "shd": [r"\bshd\b"],
-                "shm": [r"\bshm\b"], "spd": [r"\bspd\b"], "wiz": [r"\bwiz\b"],
-            }
-            class_patterns = [re.compile(pat, re.IGNORECASE)
-                              for pat in (class_keywords.get(classes_filter, [rf"\b{classes_filter}\b"]) + [r"\bclass: all\b"])]
-
+   # ----- TYPE FILTER -----
+        if type_filter.lower() == "dropped":
+            db_rows = [r for r in db_rows if r["npc_name"]]
+        elif type_filter.lower() == "crafted":
+            db_rows = [r for r in db_rows if r["crafted_name"]]
+        elif type_filter.lower() == "quested":
+            db_rows = [r for r in db_rows if r["quest_name"]]
+        # "all" means no filtering
 
         def matches_filters(text: str) -> bool:
             text = text_cleanup(text)
