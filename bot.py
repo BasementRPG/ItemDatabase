@@ -991,9 +991,6 @@ async def run_item_db(
         # --- Step 5: Apply stat and class filters (regex-based) ---
         def text_cleanup(text: str) -> str:
             return (text or "").replace("\n", " ").replace("\r", " ")
-
-        def text_cleanup(text: str) -> str:
-            return (text or "").replace("\n", " ").replace("\r", " ")
         
         def has_value(val):
             return val is not None and str(val).strip().lower() not in ("", "none", "null")
@@ -2024,9 +2021,10 @@ class WikiSelectView(discord.ui.View):
                 self.slot,
                 self.stat,
                 self.classes,
+                getattr(self, "type_filter", "dropped"),
                 search_query,
                 self.source_command,  # source_command param
-                type_filter            # ✅ new filter argument
+              
             )
 
         
