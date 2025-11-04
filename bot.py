@@ -941,7 +941,7 @@ async def run_item_db(
     slot: Optional[str],
     stat: Optional[str],
     classes: Optional[str],
-    type_filter:Optional[str] = "Dropped"
+    type_filter:Optional[str] = "Dropped",
     search_query = None,
     source_command="db",
     show_search = True
