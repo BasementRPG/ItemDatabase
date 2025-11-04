@@ -2023,6 +2023,7 @@ class WikiSelectView(discord.ui.View):
             view=None
         )
         search_query = self.search_query or ""
+        type_filter = getattr(self, "type_filter", "dropped")
         if self.source_command in ("db", "dbp"):
             search_query = self.search_query or ""  # ✅ MAKE SURE WE PASS THE QUERY
             return await run_item_db(
@@ -2031,9 +2032,8 @@ class WikiSelectView(discord.ui.View):
                 self.stat,
                 self.classes,
                 search_query,
-                source_command=self.source_command,
-                self.type_filter,
-                getattr(self, "type_filter", "dropped")
+                self.source_command,  # source_command param
+                type_filter            # ✅ new filter argument
             )
 
         
