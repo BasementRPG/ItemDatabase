@@ -215,8 +215,6 @@ class TypeSelect(discord.ui.Select):
         await interaction.response.defer()
 
 
-
-
 class ClassesSelect(discord.ui.Select):
     def __init__(self, parent_view):
         self.parent_view = parent_view
