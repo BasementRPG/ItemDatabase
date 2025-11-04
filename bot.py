@@ -1022,7 +1022,7 @@ async def run_item_db(
             class_patterns = [re.compile(pat, re.IGNORECASE)
                               for pat in (class_keywords.get(classes_filter, [rf"\b{classes_filter}\b"]) + [r"\bclass: all\b"])]
 
-       type_patterns = []
+        type_patterns = []
         if type:
             type_filter = str(type).strip().lower()
             type_keywords = {
