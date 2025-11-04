@@ -1022,13 +1022,18 @@ async def run_item_db(
             class_patterns = [re.compile(pat, re.IGNORECASE)
                               for pat in (class_keywords.get(classes_filter, [rf"\b{classes_filter}\b"]) + [r"\bclass: all\b"])]
    # ----- TYPE FILTER -----
-        if type_filter.lower() == "dropped":
-            db_rows = [r for r in db_rows if r["npc_name"]]
-        elif type_filter.lower() == "crafted":
-            db_rows = [r for r in db_rows if r["crafted_name"]]
-        elif type_filter.lower() == "quested":
-            db_rows = [r for r in db_rows if r["quest_name"]]
-        # "all" means no filtering
+
+        def has_value(val):
+            return val is not None and str(val).strip() != ""
+
+        type_filter = (type_filter or "dropped").lower()
+
+        if type_filter == "dropped":
+            db_rows = [r for r in db_rows if has_value(r["npc_name"])]
+        elif type_filter == "crafted":
+            db_rows = [r for r in db_rows if has_value(r["crafted_name"])]
+        elif type_filter == "quested":
+            db_rows = [r for r in db_rows if has_value(r["quest_name"])]
 
         def matches_filters(text: str) -> bool:
             text = text_cleanup(text)
