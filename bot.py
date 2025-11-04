@@ -1025,16 +1025,7 @@ async def run_item_db(
 
         def has_value(val):
             return val is not None and str(val).strip() != ""
-
-        type_filter = (type_filter or "dropped").lower()
-
-        if type_filter == "dropped":
-            db_rows = [r for r in db_rows if has_value(r["npc_name"])]
-        elif type_filter == "crafted":
-            db_rows = [r for r in db_rows if has_value(r["crafted_name"])]
-        elif type_filter == "quested":
-            db_rows = [r for r in db_rows if has_value(r["quest_name"])]
-
+          
         def matches_filters(text: str) -> bool:
             text = text_cleanup(text)
             stat_match = any(p.search(text) for p in stat_patterns) if stat_patterns else True
