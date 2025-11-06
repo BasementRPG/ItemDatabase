@@ -537,12 +537,12 @@ class ItemDatabaseModal(discord.ui.Modal, title="Add Item to Database"):
             try:
                 if not interaction.response.is_done():
                     await interaction.response.send_message(
-                        "⚠️ Something went wrong while saving this item.",
+                        "⚠️ Item already exist.",
                         ephemeral=True
                     )
                 else:
                     await interaction.followup.send(
-                        "⚠️ Something went wrong while saving this item.",
+                        "⚠️ Item already exist.",
                         ephemeral=True
                     )
             except Exception as err:
