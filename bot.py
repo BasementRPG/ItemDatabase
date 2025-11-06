@@ -22,7 +22,6 @@ from playwright.async_api import async_playwright
 from typing import Optional, Callable, Awaitable
 
 
-
 active_views = {}
 
 print("discord.py version:", discord.__version__)
@@ -968,8 +967,15 @@ async def run_item_db(
         params.extend([f"%{search_query}%", f"%{search_query}%", f"%{search_query}%"])
 
     if slot:
-        where_clauses.append("LOWER(item_slot) = LOWER($%d)" % (len(params)+1))
-        params.append(slot)
+      # Special handling for Primary / Secondary to search item_stats instead
+      slot_lower = slot.lower()
+      if slot_lower in ("primary", "secondary"):
+          where_clauses.append("item_stats ILIKE $%d" % (len(params)+1))
+          params.append(f"%{slot}%")
+      else:
+          where_clauses.append("LOWER(item_slot) = LOWER($%d)" % (len(params)+1))
+          params.append(slot)
+
 
     # Only this guild and global entries
     where_clauses.append("(guild_id = $%d OR guild_id IS NULL)" % (len(params)+1))
@@ -1047,9 +1053,46 @@ async def run_item_db(
 
        
 
+       
         if not db_rows:
-            await interaction.edit_original_response(content="❌ No items found matching your search and filters.")
+            try:
+                # 👇 Recreate the filter view with the same source settings
+                if source_command == "wiki":
+                    prompt = "Please select the **Slot**, and (optionally) **Stat** and/or **Class**, then press ✅ **Search**:"
+                    ephemeral = False
+                    optional_slot = False
+                    show_search = False
+                elif source_command == "db":
+                    prompt = "Search the **Database** using filters below:"
+                    ephemeral = False
+                    optional_slot = True
+                    show_search = True
+                elif source_command == "dbp":
+                    prompt = "Search the **Database (Private)** using filters below:"
+                    ephemeral = True
+                    optional_slot = True
+                    show_search = True
+                else:
+                    prompt = "Please select your filters again:"
+                    ephemeral = False
+                    optional_slot = True
+                    show_search = True
+        
+                # Recreate the filter UI view
+                new_filter_view = WikiSelectView(
+                    source_command=source_command,
+                    optional_slot=optional_slot,
+                    show_search=show_search
+                )
+        
+                # Inform user with popup + refresh the view
+                await interaction.followup.send("❌ No items found matching your search and filters. Try adjusting your filters:", ephemeral=True)
+                await interaction.edit_original_response(content=prompt, embeds=[], view=new_filter_view)
+            except discord.errors.InteractionResponded:
+                await interaction.followup.send("❌ No items found. Relaunching filters...", ephemeral=True)
             return
+
+
 
         # --- Step 6: Format and display results ---
         results = [
@@ -1942,6 +1985,16 @@ class WikiSelectView(discord.ui.View):
                 discord.SelectOption(label="STA", value="STA"),
                 discord.SelectOption(label="STR", value="STR"),
                 discord.SelectOption(label="WIS", value="WIS"),
+                discord.SelectOption(label="SV Cold", value="SV Cold"),
+                discord.SelectOption(label="SV Corruption", value="SV Corruption"),
+                discord.SelectOption(label="SV Disease", value="SV Disease"),
+                discord.SelectOption(label="SV Electricity", value="SV Electricity"),
+                discord.SelectOption(label="SV Fire", value="SV Fire"),
+                discord.SelectOption(label="SV Holy", value="SV Holy"),
+                discord.SelectOption(label="SV Magic", value="SV Magic"),
+                discord.SelectOption(label="SV Poison", value="SV Poison"),
+                
+              
             ]
         )
         self.stat_select.callback = self.select_stat
