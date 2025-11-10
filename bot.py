@@ -21,7 +21,6 @@ from bs4 import NavigableString
 from playwright.async_api import async_playwright
 from typing import Optional, Callable, Awaitable
 
-
 active_views = {}
 
 print("discord.py version:", discord.__version__)
