@@ -1999,6 +1999,8 @@ class WikiSelectView(discord.ui.View):
                 discord.SelectOption(label="STA", value="STA"),
                 discord.SelectOption(label="STR", value="STR"),
                 discord.SelectOption(label="WIS", value="WIS"),
+                discord.SelectOption(label="HP", value="HP"),
+                discord.SelectOption(label="Mana", value="Mana"),
                 discord.SelectOption(label="SV Cold", value="SV Cold"),
                 discord.SelectOption(label="SV Corruption", value="SV Corruption"),
                 discord.SelectOption(label="SV Disease", value="SV Disease"),
