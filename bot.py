@@ -21,6 +21,7 @@ from bs4 import NavigableString
 from playwright.async_api import async_playwright
 from typing import Optional, Callable, Awaitable
 
+
 active_views = {}
 
 print("discord.py version:", discord.__version__)
@@ -35,7 +36,7 @@ RACE_OPTIONS = ["DDF","DEF","DGN","DWF","ELF","GNM","GOB","HFL","HIE","HUM","ORG
 CLASS_OPTIONS = ["ARC", "BRD", "BST", "CLR", "DRU", "ELE", "ENC", "FTR", "INQ", "MNK", "NEC", "PAL", "RNG", "ROG", "SHD", "SHM", "SPB", "WIZ"]
 ITEM_SLOTS = ["Ammo","Back","Chest","Ear","Face","Feet","Finger","Hands","Head","Legs","Neck","Primary","Range","Secondary","Shirt","Shoulders","Waist","Wrist",
               "1H Bludgeoning","2H Bludgeoning","1H Piercing","2H Piercing","1H Slashing","2H Slashing"]
-ITEM_STATS = ["AGI","CHA","DEX","INT","STA","STR","WIS","HP","Mana","SV Cold","SV Corruption","SV Disease","SV Electricity","SV Fire","SV Holy","SV Magi","SV Poison"]
+ITEM_STATS = ["AGI","CHA","DEX","INT","STA","STR","WIS","HP","Mana","Hp Regeneration","Mana Regeneration","Haste","Spell Haste","SV Cold","SV Corruption","SV Disease","SV Electricity","SV Fire","SV Holy","SV Magic","SV Poison"]
 
 intents = discord.Intents.default()
 intents.message_content = True
@@ -536,12 +537,12 @@ class ItemDatabaseModal(discord.ui.Modal, title="Add Item to Database"):
             try:
                 if not interaction.response.is_done():
                     await interaction.response.send_message(
-                        "⚠️ Item already exist.",
+                        "⚠️ Something went wrong while saving this item.",
                         ephemeral=True
                     )
                 else:
                     await interaction.followup.send(
-                        "⚠️ Item already exist.",
+                        "⚠️ Something went wrong while saving this item.",
                         ephemeral=True
                     )
             except Exception as err:
@@ -1010,21 +1011,41 @@ async def run_item_db(
         elif tf == "quested":
             db_rows = [r for r in db_rows if has_value(r["quest_name"])]
         # "all" = keep everything
+
       
+                # --- Stat filtering (with special handling for Haste / Spell Haste) ---
 
         stat_patterns = []
         if stat:
             stat_filter = str(stat).strip().lower()
-            stat_keywords = {
-                "str": [r"\bstr\b", r"\bstrength\b"],
-                "agi": [r"\bagi\b", r"\bagility\b"],
-                "dex": [r"\bdex\b", r"\bdexterity\b"],
-                "int": [r"\bint\b", r"\bintelligence\b"],
-                "sta": [r"\bsta\b", r"\bstamina\b"],
-                "wis": [r"\bwis\b", r"\bwisdom\b"],
-            }
-            stat_patterns = [re.compile(pat, re.IGNORECASE)
-                             for pat in stat_keywords.get(stat_filter, [rf"\b{stat_filter}\b"])]
+
+            if stat_filter == "haste":
+                # Match Haste but NOT Spell Haste or Skill: Haste
+                stat_patterns = [
+                    re.compile(r"(?<!Spell\s)Haste(?!\s*\w)", re.IGNORECASE)
+                ]
+
+            elif stat_filter == "spell haste":
+                # Match only Spell Haste
+                stat_patterns = [
+                    re.compile(r"\bSpell\s+Haste\b", re.IGNORECASE)
+                ]
+
+            else:
+                # Generic fallback patterns for other stats
+                stat_keywords = {
+                    "str": [r"\bstr\b", r"\bstrength\b"],
+                    "agi": [r"\bagi\b", r"\bagility\b"],
+                    "dex": [r"\bdex\b", r"\bdexterity\b"],
+                    "int": [r"\bint\b", r"\bintelligence\b"],
+                    "sta": [r"\bsta\b", r"\bstamina\b"],
+                    "wis": [r"\bwis\b", r"\bwisdom\b"],
+                }
+                stat_patterns = [
+                    re.compile(pat, re.IGNORECASE)
+                    for pat in stat_keywords.get(stat_filter, [rf"{re.escape(stat_filter)}"])
+                ]
+
 
         class_patterns = []
         if classes:
@@ -1042,7 +1063,6 @@ async def run_item_db(
    # ----- TYPE FILTER -----
 
           
-
         def matches_filters(text: str) -> bool:
           text = text_cleanup(text)
       
@@ -1060,6 +1080,7 @@ async def run_item_db(
       
           class_match = any(p.search(text) for p in class_patterns) if class_patterns else True
           return stat_match and class_match
+
 
 
         db_rows = [r for r in db_rows if matches_filters(r.get("item_stats") or "")]
@@ -2001,6 +2022,10 @@ class WikiSelectView(discord.ui.View):
                 discord.SelectOption(label="WIS", value="WIS"),
                 discord.SelectOption(label="HP", value="HP"),
                 discord.SelectOption(label="Mana", value="Mana"),
+                discord.SelectOption(label="HP Regen", value="HP Regeneration"),
+                discord.SelectOption(label="Mana Regen", value="Mana Regeneration"),
+                discord.SelectOption(label="Haste", value="Haste"),
+                discord.SelectOption(label="Spell Haste", value="Spell Haste"),
                 discord.SelectOption(label="SV Cold", value="SV Cold"),
                 discord.SelectOption(label="SV Corruption", value="SV Corruption"),
                 discord.SelectOption(label="SV Disease", value="SV Disease"),
