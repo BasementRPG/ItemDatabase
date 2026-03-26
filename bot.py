@@ -34,7 +34,7 @@ UPLOAD_CHANNEL_ID = 1432472242029334600
 
 RACE_OPTIONS = ["DDF","DEF","DGN","DWF","ELF","GNM","GOB","HFL","HIE","HUM","ORG","TRL"]
 CLASS_OPTIONS = ["ARC", "BRD", "BST", "CLR", "DRU", "ELE", "ENC", "FTR", "INQ", "MNK", "NEC", "PAL", "RNG", "ROG", "SHD", "SHM", "SPB", "WIZ"]
-ITEM_SLOTS = ["Ammo","Back","Chest","Ear","Face","Feet","Finger","Hands","Head","Legs","Neck","Primary","Range","Secondary","Shirt","Shoulders","Waist","Wrist",
+ITEM_SLOTS = ["Ammo","Back","Bag","Chest","Ear","Face","Feet","Finger","Hands","Head","Legs","Neck","Primary","Range","Secondary","Shirt","Shoulders","Waist","Wrist",
               "1H Bludgeoning","2H Bludgeoning","1H Piercing","2H Piercing","1H Slashing","2H Slashing"]
 ITEM_STATS = ["AGI","CHA","DEX","INT","STA","STR","WIS","HP","Mana","Hp Regeneration","Mana Regeneration","Haste","Spell Haste","SV Cold","SV Corruption","SV Disease","SV Electricity","SV Fire","SV Holy","SV Magic","SV Poison"]
 
@@ -1980,6 +1980,7 @@ class WikiSelectView(discord.ui.View):
             options=[
                 discord.SelectOption(label="Ammo", value="Ammo"),
                 discord.SelectOption(label="Back", value="Back"),
+                discord.SelectOption(label="Bag", value="Bag"),
                 discord.SelectOption(label="Chest", value="Chest"),
                 discord.SelectOption(label="Ear", value="Ear"),
                 discord.SelectOption(label="Face", value="Face"),
