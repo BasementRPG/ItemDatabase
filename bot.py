@@ -970,7 +970,8 @@ async def run_item_db(
       # Special handling for Primary / Secondary to search item_stats instead
       slot_lower = slot.lower()
       if slot_lower in ("primary", "secondary"):
-          where_clauses.append("item_stats ILIKE $%d" % (len(params)+1))
+          where_clauses.append("(item_stats ILIKE $%d OR item_slot ILIKE $%d)" % (len(params)+1, len(params)+2))
+          params.append(f"%{slot}%")
           params.append(f"%{slot}%")
       else:
           where_clauses.append("LOWER(item_slot) = LOWER($%d)" % (len(params)+1))
