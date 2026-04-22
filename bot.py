@@ -967,10 +967,12 @@ async def run_item_db(
         params.extend([f"%{search_query}%", f"%{search_query}%", f"%{search_query}%"])
 
     if slot:
-      # Special handling for Primary / Secondary to search item_stats instead
+      # Special handling for Primary / Secondary / Range to search item_stats instead
       slot_lower = slot.lower()
-      if slot_lower in ("primary", "secondary"):
-          where_clauses.append("(item_stats ILIKE $%d OR item_slot ILIKE $%d)" % (len(params)+1, len(params)+2))
+      if slot_lower in ("primary", "secondary", "range"):
+
+          where_clauses.append("(item_stats ILIKE $%d OR item_slot ILIKE $%d OR item_slot ILIKE $%d)" % (len(params)+1, len(params)+2, len(params)+3))
+          params.append(f"%{slot}%")
           params.append(f"%{slot}%")
           params.append(f"%{slot}%")
       else:
