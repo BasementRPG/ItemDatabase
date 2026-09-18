@@ -2869,6 +2869,1041 @@ async def run_update_db(interaction: discord.Interaction):
 
 
 
+# ============================================================
+# ====================== MAP SYSTEM ==========================
+# ============================================================
+
+async def ensure_maps_table():
+    """
+    Create/migrate the maps table.
+
+    Supports multiple maps per zone using map_number.
+    """
+
+    async with db_pool.acquire() as conn:
+
+        # ----------------------------------------------------
+        # Create table if it does not exist
+        # ----------------------------------------------------
+        await conn.execute("""
+            CREATE TABLE IF NOT EXISTS maps (
+                id BIGSERIAL PRIMARY KEY,
+                guild_id BIGINT NOT NULL,
+                zone_name TEXT NOT NULL,
+                map_number INTEGER,
+                map_image TEXT NOT NULL,
+                map_msg_id BIGINT,
+                added_by TEXT,
+                created_at TIMESTAMP DEFAULT NOW(),
+                updated_at TIMESTAMP DEFAULT NOW()
+            )
+        """)
+
+        # ----------------------------------------------------
+        # Add map_number to older maps table
+        # ----------------------------------------------------
+        await conn.execute("""
+            ALTER TABLE maps
+            ADD COLUMN IF NOT EXISTS map_number INTEGER
+        """)
+
+        # ----------------------------------------------------
+        # Give old maps map number 1
+        # ----------------------------------------------------
+        await conn.execute("""
+            UPDATE maps
+            SET map_number = 1
+            WHERE map_number IS NULL
+        """)
+
+        # ----------------------------------------------------
+        # Remove old one-map-per-zone constraint
+        # ----------------------------------------------------
+        await conn.execute("""
+            ALTER TABLE maps
+            DROP CONSTRAINT IF EXISTS maps_guild_id_zone_name_key
+        """)
+
+        # ----------------------------------------------------
+        # Make map numbers unique per guild/zone
+        # ----------------------------------------------------
+        await conn.execute("""
+            CREATE UNIQUE INDEX IF NOT EXISTS
+            maps_guild_zone_number_unique
+            ON maps (guild_id, zone_name, map_number)
+        """)
+
+
+# ============================================================
+# MAP EMBED
+# ============================================================
+
+def create_map_embed(zone_name, map_number, map_image):
+
+    embed = discord.Embed(
+        title=f"🗺️ {zone_name} - Map {map_number}",
+        color=discord.Color.blurple()
+    )
+
+    embed.set_image(url=map_image)
+
+    return embed
+
+
+# ============================================================
+# MAP ZONE SELECT
+# ============================================================
+
+class MapsZoneSelect(discord.ui.Select):
+
+    def __init__(self, parent_view):
+
+        self.parent_view = parent_view
+
+        start = self.parent_view.current_page * 25
+        end = start + 25
+
+        page_zones = self.parent_view.zones[start:end]
+
+        options = []
+
+        for zone in page_zones:
+
+            options.append(
+                discord.SelectOption(
+                    label=zone,
+                    value=zone
+                )
+            )
+
+        super().__init__(
+            placeholder="Select a zone",
+            options=options,
+            min_values=1,
+            max_values=1,
+            row=0
+        )
+
+    async def callback(self, interaction: discord.Interaction):
+
+        selected_zone = self.values[0]
+
+        self.parent_view.selected_zone = selected_zone
+
+        # Immediately show ALL maps for the selected zone
+        await self.parent_view.show_zone_maps(interaction)
+
+
+# ============================================================
+# MAP VIEW
+# ============================================================
+
+class MapsView(discord.ui.View):
+
+    def __init__(self, interaction: discord.Interaction, zones):
+
+        super().__init__(timeout=900)
+
+        self.original_interaction = interaction
+
+        self.zones = zones
+
+        self.current_page = 0
+
+        self.selected_zone = None
+
+        # Add zone selector
+        self.add_item(
+            MapsZoneSelect(self)
+        )
+
+        self.update_buttons()
+
+    # --------------------------------------------------------
+    # Update navigation buttons
+    # --------------------------------------------------------
+
+    def update_buttons(self):
+
+        total_pages = max(
+            1,
+            math.ceil(len(self.zones) / 25)
+        )
+
+        self.previous_button.disabled = (
+            self.current_page <= 0
+        )
+
+        self.next_button.disabled = (
+            self.current_page >= total_pages - 1
+        )
+
+    # --------------------------------------------------------
+    # Refresh zone page
+    # --------------------------------------------------------
+
+    async def refresh_zone_page(self, interaction):
+
+        # Remove old zone selector
+        for child in list(self.children):
+
+            if isinstance(child, MapsZoneSelect):
+                self.remove_item(child)
+
+        # Add new zone selector
+        self.add_item(
+            MapsZoneSelect(self)
+        )
+
+        self.update_buttons()
+
+        await interaction.response.edit_message(
+            content="🗺️ **Select a zone:**",
+            embeds=[],
+            view=self
+        )
+
+    # --------------------------------------------------------
+    # Previous
+    # --------------------------------------------------------
+
+    @discord.ui.button(
+        label="Previous",
+        style=discord.ButtonStyle.secondary,
+        row=1
+    )
+    async def previous_button(
+        self,
+        interaction: discord.Interaction,
+        button: discord.ui.Button
+    ):
+
+        if self.current_page > 0:
+
+            self.current_page -= 1
+
+        await self.refresh_zone_page(interaction)
+
+    # --------------------------------------------------------
+    # Next
+    # --------------------------------------------------------
+
+    @discord.ui.button(
+        label="Next",
+        style=discord.ButtonStyle.secondary,
+        row=1
+    )
+    async def next_button(
+        self,
+        interaction: discord.Interaction,
+        button: discord.ui.Button
+    ):
+
+        max_page = max(
+            0,
+            math.ceil(len(self.zones) / 25) - 1
+        )
+
+        if self.current_page < max_page:
+
+            self.current_page += 1
+
+        await self.refresh_zone_page(interaction)
+
+    # --------------------------------------------------------
+    # Send Privately
+    # --------------------------------------------------------
+
+    @discord.ui.button(
+        label="Send Privately",
+        style=discord.ButtonStyle.primary,
+        row=1
+    )
+    async def send_privately_button(
+        self,
+        interaction: discord.Interaction,
+        button: discord.ui.Button
+    ):
+
+        if not self.selected_zone:
+
+            await interaction.response.send_message(
+                "❌ Please select a zone first.",
+                ephemeral=True
+            )
+
+            return
+
+        await ensure_maps_table()
+
+        async with db_pool.acquire() as conn:
+
+            rows = await conn.fetch("""
+                SELECT
+                    zone_name,
+                    map_number,
+                    map_image
+                FROM maps
+                WHERE (
+                    guild_id = $1
+                    OR guild_id = 1
+                )
+                  AND zone_name = $2
+                ORDER BY map_number ASC
+            """,
+            interaction.guild.id,
+            self.selected_zone)
+
+        if not rows:
+
+            await interaction.response.send_message(
+                f"❌ No maps were found for **{self.selected_zone}**.",
+                ephemeral=True
+            )
+
+            return
+
+        embeds = []
+
+        for row in rows:
+
+            embeds.append(
+                create_map_embed(
+                    row["zone_name"],
+                    row["map_number"],
+                    row["map_image"]
+                )
+            )
+
+        # ----------------------------------------------------
+        # Discord allows a maximum of 10 embeds per message.
+        # Send the maps in batches of 10.
+        # ----------------------------------------------------
+
+        await interaction.response.send_message(
+            content=(
+                f"🗺️ **{self.selected_zone}**\n"
+                f"Showing {len(embeds)} map(s)."
+            ),
+            embeds=embeds[:10],
+            ephemeral=True
+        )
+
+        remaining = embeds[10:]
+
+        while remaining:
+
+            batch = remaining[:10]
+
+            remaining = remaining[10:]
+
+            await interaction.followup.send(
+                embeds=batch,
+                ephemeral=True
+            )
+
+    # --------------------------------------------------------
+    # Show ALL maps for selected zone
+    # --------------------------------------------------------
+
+    async def show_zone_maps(
+        self,
+        interaction: discord.Interaction
+    ):
+
+        if not self.selected_zone:
+            return
+
+        await ensure_maps_table()
+
+        async with db_pool.acquire() as conn:
+
+            rows = await conn.fetch("""
+                SELECT
+                    zone_name,
+                    map_number,
+                    map_image
+                FROM maps
+                WHERE (
+                    guild_id = $1
+                    OR guild_id = 1
+                )
+                  AND zone_name = $2
+                ORDER BY map_number ASC
+            """,
+            interaction.guild.id,
+            self.selected_zone)
+
+        if not rows:
+
+            await interaction.response.send_message(
+                f"❌ No maps were found for **{self.selected_zone}**.",
+                ephemeral=True
+            )
+
+            return
+
+        embeds = []
+
+        for row in rows:
+
+            embeds.append(
+                create_map_embed(
+                    row["zone_name"],
+                    row["map_number"],
+                    row["map_image"]
+                )
+            )
+
+        # ----------------------------------------------------
+        # Discord allows a maximum of 10 embeds per message.
+        # ----------------------------------------------------
+
+        await interaction.response.edit_message(
+            content=(
+                f"🗺️ **{self.selected_zone}**\n"
+                f"Showing {len(embeds)} map(s)."
+            ),
+            embeds=embeds[:10],
+            view=self
+        )
+
+        remaining = embeds[10:]
+
+        while remaining:
+
+            batch = remaining[:10]
+
+            remaining = remaining[10:]
+
+            await interaction.followup.send(
+                embeds=batch
+            )
+
+
+# ============================================================
+# /maps
+# ============================================================
+
+@bot.tree.command(
+    name="maps",
+    description="Browse zone maps."
+)
+async def maps(interaction: discord.Interaction):
+
+    if interaction.guild is None:
+
+        await interaction.response.send_message(
+            "❌ This command can only be used in a server.",
+            ephemeral=True
+        )
+
+        return
+
+    await ensure_maps_table()
+
+    async with db_pool.acquire() as conn:
+
+        rows = await conn.fetch("""
+            SELECT DISTINCT zone_name
+            FROM maps
+            WHERE guild_id = $1
+               OR guild_id = 1
+            ORDER BY zone_name ASC
+        """,
+        interaction.guild.id)
+
+    zones = [
+        row["zone_name"]
+        for row in rows
+    ]
+
+    if not zones:
+
+        await interaction.response.send_message(
+            "❌ No maps have been added yet.",
+            ephemeral=True
+        )
+
+        return
+
+    view = MapsView(
+        interaction=interaction,
+        zones=zones
+    )
+
+    await interaction.response.send_message(
+        "🗺️ **Select a zone:**",
+        view=view
+    )
+
+
+# ============================================================
+# /mapadd
+# ============================================================
+
+@bot.tree.command(
+    name="mapadd",
+    description="Add a map for a zone."
+)
+@app_commands.describe(
+    zone_name="Name of the zone",
+    map_image="Upload the map image"
+)
+async def mapadd(
+    interaction: discord.Interaction,
+    zone_name: str,
+    map_image: discord.Attachment
+):
+
+    if interaction.guild is None:
+
+        await interaction.response.send_message(
+            "❌ This command can only be used in a server.",
+            ephemeral=True
+        )
+
+        return
+
+    # --------------------------------------------------------
+    # Validate image
+    # --------------------------------------------------------
+
+    if not map_image:
+
+        await interaction.response.send_message(
+            "❌ A map image is required.",
+            ephemeral=True
+        )
+
+        return
+
+    if not map_image.content_type:
+
+        await interaction.response.send_message(
+            "❌ The uploaded file must be an image.",
+            ephemeral=True
+        )
+
+        return
+
+    if not map_image.content_type.startswith("image/"):
+
+        await interaction.response.send_message(
+            "❌ The uploaded file must be an image.",
+            ephemeral=True
+        )
+
+        return
+
+    zone_name = zone_name.strip()
+
+    if not zone_name:
+
+        await interaction.response.send_message(
+            "❌ Zone name is required.",
+            ephemeral=True
+        )
+
+        return
+
+    zone_name = format_item_name(zone_name)
+
+    await interaction.response.defer(
+        ephemeral=True,
+        thinking=True
+    )
+
+    await ensure_maps_table()
+
+    guild = interaction.guild
+
+    upload_channel = await ensure_upload_channel1(guild)
+
+    uploaded_message = None
+
+    try:
+
+        # ----------------------------------------------------
+        # Determine next map number
+        # ----------------------------------------------------
+
+        async with db_pool.acquire() as conn:
+
+            next_map_number = await conn.fetchval("""
+                SELECT COALESCE(MAX(map_number), 0) + 1
+                FROM maps
+                WHERE guild_id = $1
+                  AND zone_name = $2
+            """,
+            guild.id,
+            zone_name)
+
+        # ----------------------------------------------------
+        # Upload image to item-database-upload-log
+        # ----------------------------------------------------
+
+        uploaded_message = await upload_channel.send(
+            file=await map_image.to_file(),
+            content=(
+                f"🗺️ Map upload\n"
+                f"Zone: **{zone_name}**\n"
+                f"Map Number: **{next_map_number}**\n"
+                f"Uploaded by: {interaction.user.mention}"
+            )
+        )
+
+        if not uploaded_message.attachments:
+
+            raise RuntimeError(
+                "The uploaded map did not contain an attachment."
+            )
+
+        map_url = uploaded_message.attachments[0].url
+
+        map_msg_id = uploaded_message.id
+
+        # ----------------------------------------------------
+        # Save database record
+        # ----------------------------------------------------
+
+        async with db_pool.acquire() as conn:
+
+            await conn.execute("""
+                INSERT INTO maps (
+                    guild_id,
+                    zone_name,
+                    map_number,
+                    map_image,
+                    map_msg_id,
+                    added_by,
+                    created_at,
+                    updated_at
+                )
+                VALUES (
+                    $1,
+                    $2,
+                    $3,
+                    $4,
+                    $5,
+                    $6,
+                    NOW(),
+                    NOW()
+                )
+            """,
+            guild.id,
+            zone_name,
+            next_map_number,
+            map_url,
+            map_msg_id,
+            str(interaction.user))
+
+        # ----------------------------------------------------
+        # Success
+        # ----------------------------------------------------
+
+        embed = create_map_embed(
+            zone_name,
+            next_map_number,
+            map_url
+        )
+
+        await interaction.edit_original_response(
+            content=(
+                f"✅ **{zone_name} - Map {next_map_number}** "
+                f"was added."
+            ),
+            embed=embed
+        )
+
+    except discord.Forbidden:
+
+        if uploaded_message:
+
+            try:
+                await uploaded_message.delete()
+            except Exception:
+                pass
+
+        await interaction.edit_original_response(
+            content=(
+                "❌ I don't have permission to upload the map "
+                "to the item database upload channel."
+            )
+        )
+
+    except Exception as e:
+
+        print(f"❌ Map add error: {e}")
+
+        import traceback
+        traceback.print_exc()
+
+        if uploaded_message:
+
+            try:
+                await uploaded_message.delete()
+            except Exception as cleanup_error:
+
+                print(
+                    f"⚠️ Failed to clean up map upload: "
+                    f"{cleanup_error}"
+                )
+
+        await interaction.edit_original_response(
+            content=(
+                f"❌ Failed to add the map.\n"
+                f"Error: `{e}`"
+            )
+        )
+
+
+# ============================================================
+# MAP REMOVE CONFIRMATION VIEW
+# ============================================================
+
+class ConfirmMapRemoveView(discord.ui.View):
+
+    def __init__(
+        self,
+        guild_id,
+        zone_name,
+        map_number
+    ):
+
+        super().__init__(timeout=60)
+
+        self.guild_id = guild_id
+        self.zone_name = zone_name
+        self.map_number = map_number
+
+    # --------------------------------------------------------
+    # Confirm
+    # --------------------------------------------------------
+
+    @discord.ui.button(
+        label="Confirm Remove",
+        style=discord.ButtonStyle.danger
+    )
+    async def confirm(
+        self,
+        interaction: discord.Interaction,
+        button: discord.ui.Button
+    ):
+
+        try:
+
+            await ensure_maps_table()
+
+            # ------------------------------------------------
+            # Find map
+            # ------------------------------------------------
+
+            async with db_pool.acquire() as conn:
+
+                row = await conn.fetchrow("""
+                    SELECT
+                        id,
+                        zone_name,
+                        map_number,
+                        map_image,
+                        map_msg_id
+                    FROM maps
+                    WHERE (
+                        guild_id = $1
+                        OR guild_id = 1
+                    )
+                      AND zone_name = $2
+                      AND map_number = $3
+                """,
+                self.guild_id,
+                self.zone_name,
+                self.map_number)
+
+            if not row:
+
+                await interaction.response.edit_message(
+                    content=(
+                        f"❌ **{self.zone_name} - Map "
+                        f"{self.map_number}** was not found."
+                    ),
+                    view=None
+                )
+
+                return
+
+            # ------------------------------------------------
+            # Delete uploaded Discord image
+            # ------------------------------------------------
+
+            upload_channel = await ensure_upload_channel1(
+                interaction.guild
+            )
+
+            image_deleted = False
+
+            if row["map_msg_id"]:
+
+                try:
+
+                    uploaded_message = (
+                        await upload_channel.fetch_message(
+                            row["map_msg_id"]
+                        )
+                    )
+
+                    await uploaded_message.delete()
+
+                    image_deleted = True
+
+                except discord.NotFound:
+
+                    image_deleted = True
+
+                except discord.Forbidden:
+
+                    print(
+                        f"❌ Missing permission to delete "
+                        f"map message {row['map_msg_id']}"
+                    )
+
+                except Exception as e:
+
+                    print(
+                        f"⚠️ Error deleting map message "
+                        f"{row['map_msg_id']}: {e}"
+                    )
+
+            # ------------------------------------------------
+            # Delete database record and renumber maps
+            # ------------------------------------------------
+
+            async with db_pool.acquire() as conn:
+
+                async with conn.transaction():
+
+                    await conn.execute("""
+                        DELETE FROM maps
+                        WHERE id = $1
+                    """,
+                    row["id"])
+
+                    # ----------------------------------------
+                    # Get remaining maps
+                    # ----------------------------------------
+
+                    remaining_maps = await conn.fetch("""
+                        SELECT id
+                        FROM maps
+                        WHERE guild_id = $1
+                          AND zone_name = $2
+                        ORDER BY map_number ASC, id ASC
+                    """,
+                    self.guild_id,
+                    self.zone_name)
+
+                    # ----------------------------------------
+                    # Renumber them 1, 2, 3...
+                    # ----------------------------------------
+
+                    new_number = 1
+
+                    for remaining in remaining_maps:
+
+                        await conn.execute("""
+                            UPDATE maps
+                            SET map_number = $1,
+                                updated_at = NOW()
+                            WHERE id = $2
+                        """,
+                        new_number,
+                        remaining["id"])
+
+                        new_number += 1
+
+            # ------------------------------------------------
+            # Success
+            # ------------------------------------------------
+
+            if image_deleted:
+
+                image_status = (
+                    "The uploaded image was also deleted."
+                )
+
+            else:
+
+                image_status = (
+                    "⚠️ The database entry was removed, "
+                    "but the uploaded image could not be deleted."
+                )
+
+            await interaction.response.edit_message(
+                content=(
+                    f"🗑️ **{self.zone_name} - Map "
+                    f"{self.map_number}** was removed.\n\n"
+                    f"{image_status}\n"
+                    f"Remaining maps were automatically renumbered."
+                ),
+                view=None
+            )
+
+        except Exception as e:
+
+            import traceback
+            traceback.print_exc()
+
+            try:
+
+                await interaction.response.edit_message(
+                    content=(
+                        f"❌ Error removing "
+                        f"**{self.zone_name} - Map "
+                        f"{self.map_number}**.\n\n"
+                        f"Error: `{e}`"
+                    ),
+                    view=None
+                )
+
+            except Exception:
+                pass
+
+    # --------------------------------------------------------
+    # Cancel
+    # --------------------------------------------------------
+
+    @discord.ui.button(
+        label="Cancel",
+        style=discord.ButtonStyle.secondary
+    )
+    async def cancel(
+        self,
+        interaction: discord.Interaction,
+        button: discord.ui.Button
+    ):
+
+        await interaction.response.edit_message(
+            content=(
+                f"❎ Removal of **{self.zone_name} - Map "
+                f"{self.map_number}** cancelled."
+            ),
+            view=None
+        )
+
+
+# ============================================================
+# /mapremove
+# ============================================================
+
+@bot.tree.command(
+    name="mapremove",
+    description="Remove a map from a zone."
+)
+@app_commands.describe(
+    zone_name="Name of the zone",
+    map_number="Map number to remove"
+)
+async def mapremove(
+    interaction: discord.Interaction,
+    zone_name: str,
+    map_number: int
+):
+
+    if interaction.guild is None:
+
+        await interaction.response.send_message(
+            "❌ This command can only be used in a server.",
+            ephemeral=True
+        )
+
+        return
+
+    zone_name = zone_name.strip()
+
+    if not zone_name:
+
+        await interaction.response.send_message(
+            "❌ Zone name is required.",
+            ephemeral=True
+        )
+
+        return
+
+    if map_number < 1:
+
+        await interaction.response.send_message(
+            "❌ Map number must be 1 or greater.",
+            ephemeral=True
+        )
+
+        return
+
+    zone_name = format_item_name(zone_name)
+
+    await ensure_maps_table()
+
+    # --------------------------------------------------------
+    # Verify map exists
+    # --------------------------------------------------------
+
+    async with db_pool.acquire() as conn:
+
+        row = await conn.fetchrow("""
+            SELECT
+                zone_name,
+                map_number
+            FROM maps
+            WHERE (
+                guild_id = $1
+                OR guild_id = 1
+            )
+              AND zone_name = $2
+              AND map_number = $3
+        """,
+        interaction.guild.id,
+        zone_name,
+        map_number)
+
+    if not row:
+
+        await interaction.response.send_message(
+            (
+                f"❌ No map found for "
+                f"**{zone_name} - Map {map_number}**."
+            ),
+            ephemeral=True
+        )
+
+        return
+
+    # --------------------------------------------------------
+    # Confirmation
+    # --------------------------------------------------------
+
+    view = ConfirmMapRemoveView(
+        guild_id=interaction.guild.id,
+        zone_name=zone_name,
+        map_number=map_number
+    )
+
+    await interaction.response.send_message(
+        (
+            f"⚠️ Are you sure you want to remove "
+            f"**{zone_name} - Map {map_number}**?\n\n"
+            f"The uploaded image will also be deleted.\n"
+            f"Any remaining maps will be automatically renumbered."
+        ),
+        view=view,
+        ephemeral=True
+    )
+
+
+# ============================================================
+# ==================== END MAP SYSTEM ========================
+# ============================================================
+
+
+
 
 # ---------------- Bot Setup ----------------
 
