@@ -6730,7 +6730,7 @@ class MapsView(discord.ui.View):
 
     def __init__(self, interaction: discord.Interaction, zones):
 
-        super().__init__(timeout=900)
+        super().__init__(timeout=None)
 
         self.original_interaction = interaction
 
@@ -7601,7 +7601,7 @@ class ZoneMapUpdateView(discord.ui.View):
         zones
     ):
 
-        super().__init__(timeout=900)
+        super().__init__(timeout=None)
 
         self.original_interaction = interaction
 
@@ -8892,7 +8892,7 @@ class ConfirmMapRemoveView(discord.ui.View):
         map_number
     ):
 
-        super().__init__(timeout=60)
+        super().__init__(timeout=None)
 
         # Kept for compatibility with the existing view.
         # Map data itself is always GLOBAL_MAP_GUILD_ID.
@@ -9271,7 +9271,6 @@ async def mapremove(
 # ============================================================
 # ==================== END MAP SYSTEM ========================
 # ============================================================
-
 
 
 # ============================================================
@@ -10126,7 +10125,7 @@ class WikiSpellsClassView(View):
     def __init__(self):
 
         super().__init__(
-            timeout=300
+            timeout=None
         )
 
         self.add_item(
@@ -10354,7 +10353,7 @@ class SpellsSelectionView(View):
     ):
 
         super().__init__(
-            timeout=300
+            timeout=None
         )
 
         self.selected_class = selected_class
@@ -10808,7 +10807,7 @@ class SpellsResultsView(View):
     ):
 
         super().__init__(
-            timeout=300
+            timeout=None
         )
 
         self.class_code = class_code
@@ -11169,7 +11168,7 @@ class SpellsPrivateClassView(View):
     def __init__(self):
 
         super().__init__(
-            timeout=300
+            timeout=None
         )
 
         self.add_item(
@@ -11289,7 +11288,7 @@ class SpellsPrivateLevelView(View):
     ):
 
         super().__init__(
-            timeout=300
+            timeout=None
         )
 
         self.add_item(
